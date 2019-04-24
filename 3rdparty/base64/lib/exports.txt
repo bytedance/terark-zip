@@ -1,0 +1,7 @@
+trk_base64_encode
+trk_base64_stream_encode
+trk_base64_stream_encode_init
+trk_base64_stream_encode_final
+trk_base64_decode
+trk_base64_stream_decode
+trk_base64_stream_decode_init
