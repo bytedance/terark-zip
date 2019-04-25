@@ -4,7 +4,7 @@ RLS_FLAGS ?= -O3 -DNDEBUG -g3
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
 CMAKE_INSTALL_PREFIX ?= /usr
 
-BOOST_INC ?= -I../boost-home
+BOOST_INC ?= -Iboost-include
 
 ifeq "$(origin LD)" "default"
   LD := ${CXX}
