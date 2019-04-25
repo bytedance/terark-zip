@@ -36,7 +36,8 @@ namespace terark {
 	};
 
     template<class Functor, class... ArgList>
-    auto bind(Functor* f, ArgList&&... args) {
+    auto bind(Functor* f, ArgList&&... args)
+    ->decltype(bind(ref(*f), std::forward<ArgList>(args)...)) {
         return bind(ref(*f), std::forward<ArgList>(args)...);
     }
 
