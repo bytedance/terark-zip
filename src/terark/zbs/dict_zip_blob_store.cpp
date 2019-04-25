@@ -1057,7 +1057,7 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
     }
     emitLiteral(rSize);
     DzType_Flush(stdout);
-#if !defined(NDEBUG)
+#if !defined(NDEBUG) && 0
     valvec<byte_t> tmpBuf(rSize, valvec_reserve());
     DoUnzip(dio.begin() + old_dio_pos, dio.current(),
         &tmpBuf, m_strDict.data(), m_strDict.size(), 1);
