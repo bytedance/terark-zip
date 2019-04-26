@@ -433,6 +433,8 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	mkdir -p ${TarBall}/lib
 	mkdir -p ${TarBall}/include/terark/io/win
 	mkdir -p ${TarBall}/include/terark/util
+	mkdir -p ${TarBall}/include/terark/fsa
+	mkdir -p ${TarBall}/include/terark/zbs
 	cp    src/terark/bits_rotate.hpp             ${TarBall}/include/terark
 	cp    src/terark/config.hpp                  ${TarBall}/include/terark
 	cp    src/terark/fstring.hpp                 ${TarBall}/include/terark
@@ -447,6 +449,9 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    src/terark/io/*.hpp                    ${TarBall}/include/terark/io
 	cp    src/terark/io/win/*.hpp                ${TarBall}/include/terark/io/win
 	cp    src/terark/util/*.hpp                  ${TarBall}/include/terark/util
+	cp    src/terark/fsa/*.hpp                  ${TarBall}/include/terark/fsa
+	cp    src/terark/fsa/*.inl                  ${TarBall}/include/terark/fsa
+	cp    src/terark/zbs/*.hpp                  ${TarBall}/include/terark/zbs
 ifeq (${PKG_WITH_DBG},1)
 	cp    ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)
