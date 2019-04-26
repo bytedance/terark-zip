@@ -214,6 +214,12 @@ private:
            (~(0xFFFFFFFFULL << (W * 8)));
   }
 
+  inline size_t val_at_ptr(const uint8_t* ptr) const {
+    return (*reinterpret_cast<const size_t *>(ptr)) &
+            (~(0xFFFFFFFFULL << (W * 8)));
+  }
+
+
 public:
   rank_select_few() {}
   //~rank_select_few();
@@ -275,12 +281,14 @@ public:
     m_mempool.risk_set_data(src);
     m_mempool.risk_set_size(size);
     m_layer = &m_mempool[size - 1];
+    assert(*m_layer < 8);
+    int offset_size = ((*m_layer == 1) ? 1 : (*m_layer - 2) * 8);
     m_offset =
-        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - *m_layer * 8]);
+        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - offset_size]);
     m_num1 =
-        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - (*m_layer + 1) * 8]);
+        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - offset_size - 8]);
     m_num0 =
-        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - (*m_layer + 2) * 8]);
+        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - offset_size - 16]);
   }
   void risk_release_ownership() { m_mempool.risk_release_ownership(); }
 
