@@ -10,12 +10,12 @@ SET(CMAKE_C_COMPILER clang++)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src/terark)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 INCLUDE_DIRECTORIES(/usr/local/include)
 #INCLUDE_DIRECTORIES(/Users/levisonchen/Documents/Git/boost_1_69_0)
 
 # Kuankuan Guo
-INCLUDE_DIRECTORIES(/Users/guokuankuan/Programs/boost_1_70_0)
-LINK_DIRECTORIES(/Users/guokuankuan/Programs/boost_1_70_0/stage/lib)
+#LINK_DIRECTORIES(/Users/guokuankuan/Programs/boost_1_70_0/stage/lib)
 
 # CORE LIB
 FILE(GLOB CORE_SRC src/terark/*.cpp
@@ -27,6 +27,7 @@ FILE(GLOB CORE_SRC src/terark/*.cpp
 #LIST(REMOVE_ITEM CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/terark/io/BzipStream.cpp
 #        ${CMAKE_CURRENT_SOURCE_DIR}/src/terark/io/GzipStream.cpp)
 ADD_LIBRARY(terark-core SHARED ${CORE_SRC})
+#ADD_LIBRARY(terark-core STATIC ${CORE_SRC})
 
 
 # FSA LIB
