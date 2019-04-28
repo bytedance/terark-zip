@@ -450,6 +450,7 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    src/terark/int_vector.hpp              ${TarBall}/include/terark
 	cp    src/terark/lcast.hpp                   ${TarBall}/include/terark
 	cp    src/terark/*hash*.hpp                  ${TarBall}/include/terark
+	cp    src/terark/heap_ext.hpp                ${TarBall}/include/terark
 	cp    src/terark/mempool*.hpp                ${TarBall}/include/terark
 	cp    src/terark/node_layout.hpp             ${TarBall}/include/terark
 	cp    src/terark/num_to_str.hpp              ${TarBall}/include/terark
