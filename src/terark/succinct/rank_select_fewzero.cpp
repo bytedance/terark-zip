@@ -696,7 +696,7 @@ rank_select_few_builder<P, W>::rank_select_few_builder(size_t num0, size_t num1,
   } while(n > 4095);
   if (!P)
     m_last = rev ? num0 + num1 - 1 : 0;
-  assert(*m_layer <= 8);
+  assert(layer <= 8);
   m_mempool.resize(sz + 1 + (2 + layer) * 8);
   m_num0 = reinterpret_cast<uint64_t *>(&m_mempool[sz]);
   *m_num0 = num0;
