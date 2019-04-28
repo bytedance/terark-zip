@@ -1379,7 +1379,7 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
 #ifdef POSIX_MADV_DONTNEED
             posix_madvise((void*)low, size, POSIX_MADV_DONTNEED);
 #elif defined(_MSC_VER) // defined(_WIN32) || defined(_WIN64)
-            VirtualFree((void*)low, size, MEM_DECOMMIT);
+            //VirtualFree((void*)low, size, MEM_DECOMMIT);
 #endif
         }
     };
@@ -2434,6 +2434,7 @@ const {
             case 2: success = m_huffman_decoder->decode_x2(fstring(zpos, zlen), &tls.buf, &tls.ctx); break;
             case 4: success = m_huffman_decoder->decode_x4(fstring(zpos, zlen), &tls.buf, &tls.ctx); break;
             case 8: success = m_huffman_decoder->decode_x8(fstring(zpos, zlen), &tls.buf, &tls.ctx); break;
+            default: success = false; break;
             }
             if (!success) {
                 THROW_STD(logic_error, "Huffman decode error");
