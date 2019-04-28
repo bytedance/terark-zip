@@ -1022,6 +1022,10 @@ size_t SortedStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t
 #if !defined(NDEBUG)
     const byte_t kh = s[UintVecMin0::fast_get(odata, obits, omask, lo) + pos];
     assert(kh == ch);
+    for (size_t i = lo; i < hi; ++i) {
+        fstring s = (*this)[i];
+        assert(pos < s.size());
+    }
 #endif
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;

@@ -31,12 +31,16 @@ EntropyBits EntropyBytesToBits(fstring bytes) {
 }
 
 freq_hist::freq_hist(size_t min_len, size_t max_len) {
+    min_ = min_len;
+    max_ = max_len;
+    clear();
+}
+
+void freq_hist::clear() {
     memset(&hist_, 0, sizeof hist_);
     memset(h1, 0, sizeof h1);
     memset(h2, 0, sizeof h2);
     memset(h3, 0, sizeof h3);
-    min_ = min_len;
-    max_ = max_len;
 }
 
 void freq_hist::normalise_hist(uint64_t* h, uint64_t& size, size_t normalise) {
@@ -144,9 +148,13 @@ void freq_hist::normalise(size_t norm) {
 }
 
 freq_hist_o1::freq_hist_o1(size_t min_len, size_t max_len) {
-    memset(&hist_, 0, sizeof hist_);
     min_ = min_len;
     max_ = max_len;
+    clear();
+}
+
+void freq_hist_o1::clear() {
+  memset(&hist_, 0, sizeof hist_);
 }
 
 const freq_hist_o1::histogram_t& freq_hist_o1::histogram() const {
@@ -252,9 +260,13 @@ void freq_hist_o1::normalise(size_t norm) {
 }
 
 freq_hist_o2::freq_hist_o2(size_t min_len, size_t max_len) {
-    memset(&hist_, 0, sizeof hist_);
     min_ = min_len;
     max_ = max_len;
+    clear();
+}
+
+void freq_hist_o2::clear() {
+    memset(&hist_, 0, sizeof hist_);
 }
 
 const freq_hist_o2::histogram_t& freq_hist_o2::histogram() const {

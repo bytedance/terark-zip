@@ -157,7 +157,7 @@ public:
     void save_mmap(fstring fpath) const override;
     void save_mmap(function<void(const void*, size_t)> write) const override;
 
-    Dictionary get_dict() const;
+    Dictionary get_dict() const override;
     const UintVecMin0& get_index() const { return m_offsets; }
 
     void get_meta_blocks(valvec<fstring>* blocks) const override;

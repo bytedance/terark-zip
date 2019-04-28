@@ -141,8 +141,6 @@ void SortedUintVec::build_from(const UintVec& src, size_t blockUnits) {
         SortedUintVec::createBuilder(false, blockUnits));
 	for(size_t i = 0; i < src.size(); ++i) {
 		size_t v = src[i];
-		if (i == 0x980+128)
-			i = i; // for break point
 		builder->push_back(v);
 	}
 	builder->finish(this);
@@ -151,8 +149,6 @@ void SortedUintVec::build_from(const UintVec& src, size_t blockUnits) {
 		size_t s0 = src[i];
 		size_t s1 = src[i+1];
 		size_t zz[2];
-		if (i == 0x980)
-			i = i; // for break point
 		get2(i, zz);
 		assert(zz[0] == s0);
 		assert(zz[1] == s1);

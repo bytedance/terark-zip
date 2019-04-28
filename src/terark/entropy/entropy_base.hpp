@@ -154,6 +154,7 @@ private:
 
 public:
     freq_hist(size_t min_len = 0, size_t max_len = size_t(-1));
+    void clear();
 
     static void normalise_hist(uint64_t* h, uint64_t& size, size_t normalise);
 
@@ -179,6 +180,7 @@ private:
 
 public:
     freq_hist_o1(size_t min_len = 0, size_t max_len = size_t(-1));
+    void clear();
 
     const histogram_t& histogram() const;
     static size_t estimate_size(const histogram_t& hist);
@@ -202,6 +204,7 @@ private:
 
 public:
     freq_hist_o2(size_t min_len = 0, size_t max_len = size_t(-1));
+    void clear();
 
     const histogram_t& histogram() const;
     static size_t estimate_size(const histogram_t& hist);
