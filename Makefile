@@ -437,6 +437,7 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	mkdir -p ${TarBall}/include/terark/zbs
 	cp    src/terark/bits_rotate.hpp             ${TarBall}/include/terark
 	cp    src/terark/config.hpp                  ${TarBall}/include/terark
+	cp    src/terark/cxx_features.hpp            ${TarBall}/include/terark
 	cp    src/terark/fstring.hpp                 ${TarBall}/include/terark
 	cp    src/terark/lcast.hpp                   ${TarBall}/include/terark
 	cp    src/terark/*hash*.hpp                  ${TarBall}/include/terark
