@@ -514,7 +514,7 @@ size_t rank_select_few<P, W>::select1(size_t id, size_t &hint) {
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_len(size_t pos) const {
   if (P) {
-    return lower_bound(pos) - pos;
+    return val_a_logi(lower_bound(pos)+1) - pos;
   } else {
     size_t a;
     if (is1(pos, a))
@@ -535,7 +535,7 @@ size_t rank_select_few<P, W>::zero_seq_len(size_t pos) const {
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_len(size_t pos, size_t &hint) const {
   if (P) {
-    return lower_bound(pos, hint) - pos;
+    return val_a_logi(lower_bound(pos, hint)+1) - pos;
   } else {
     if (is1(pos, hint))
       return 0;
@@ -614,7 +614,7 @@ size_t rank_select_few<P, W>::one_seq_len(size_t pos) const {
     }
     return cnt;
   } else {
-    return lower_bound(pos) - pos;
+    return val_a_logi(lower_bound(pos)+1) - pos;
   }
 }
 
@@ -634,7 +634,7 @@ size_t rank_select_few<P, W>::one_seq_len(size_t pos, size_t &hint) const {
     }
     return cnt;
   } else {
-    return lower_bound(pos, hint) - pos;
+    return val_a_logi(lower_bound(pos, hint)+1) - pos;
   }
 }
 
