@@ -209,16 +209,15 @@ private:
   size_t select_complement(size_t id) const;
   size_t select_complement(size_t id, size_t &hint) const;
 
-  inline size_t val_a_logi(size_t pos) const {
-    return (*reinterpret_cast<const size_t *>(m_mempool.data() + pos * W)) &
-           (~(0xFFFFFFFFULL << (W * 8)));
-  }
+    inline size_t val_a_logi(size_t pos) const {
+        return (*reinterpret_cast<const size_t *>(m_mempool.data() + pos * W)) &
+               (W == 8 ? 0xFFFFFFFFULL : (1ULL << ((W * 8) & 63)) - 1);
+    }
 
-  inline size_t val_at_ptr(const uint8_t* ptr) const {
-    return (*reinterpret_cast<const size_t *>(ptr)) &
-            (~(0xFFFFFFFFULL << (W * 8)));
-  }
-
+    inline size_t val_at_ptr(const uint8_t* ptr) const {
+        return (*reinterpret_cast<const size_t *>(ptr)) &
+               (W == 8 ? 0xFFFFFFFFULL : (1ULL << ((W * 8) & 63)) - 1);
+    }
 
 public:
   rank_select_few() {}
@@ -261,8 +260,8 @@ public:
   size_t one_seq_revlen(size_t pos) const;
   size_t one_seq_revlen(size_t pos, size_t &hint) const;
 
-  size_t max_rank0() const { return rank0(*m_num0 - 1); }
-  size_t max_rank1() const { return rank0(*m_num0 - 1); }
+  size_t max_rank0() const { return *m_num0; }
+  size_t max_rank1() const { return *m_num1; }
   size_t size() const { return m_mempool.size(); }
   const byte_t *data() const { return m_mempool.data(); }
   size_t mem_size() const { return m_mempool.full_mem_size(); }
@@ -273,10 +272,8 @@ public:
     std::swap(m_offset, r.m_offset);
     std::swap(m_layer, r.m_layer);
     m_mempool.swap(r.m_mempool);
-    m_num0 = m_num1 = m_offset = nullptr;
-    m_layer = nullptr;
-    m_mempool.clear();
   }
+
   void risk_mmap_from(unsigned char *src, size_t size) {
     m_mempool.risk_set_data(src);
     m_mempool.risk_set_size(size);
