@@ -438,6 +438,7 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	mkdir -p ${TarBall}/include/terark/fsa
 	mkdir -p ${TarBall}/include/terark/fsa/ppi
 	mkdir -p ${TarBall}/include/terark/zbs
+	mkdir -p ${TarBall}/include/zstd/common
 	cp    src/terark/bits_rotate.hpp             ${TarBall}/include/terark
 	cp    src/terark/bitfield_array.hpp          ${TarBall}/include/terark
 	cp    src/terark/bitfield_array_access.hpp   ${TarBall}/include/terark
@@ -466,6 +467,8 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    src/terark/zbs/*.hpp                   ${TarBall}/include/terark/zbs
 	cp    src/terark/thread/*.hpp                ${TarBall}/include/terark/thread
 	cp    src/terark/succinct/*.hpp              ${TarBall}/include/terark/succinct
+	cp    3rdparty/zstd/zstd/*.h                 ${TarBall}/include/zstd
+	cp    3rdparty/zstd/zstd/common/*.h          ${TarBall}/include/zstd/common
 ifeq (${PKG_WITH_DBG},1)
 	cp    ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)
