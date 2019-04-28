@@ -431,28 +431,41 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
+	mkdir -p ${TarBall}/include/terark/thread
+	mkdir -p ${TarBall}/include/terark/succinct
 	mkdir -p ${TarBall}/include/terark/io/win
 	mkdir -p ${TarBall}/include/terark/util
 	mkdir -p ${TarBall}/include/terark/fsa
+	mkdir -p ${TarBall}/include/terark/fsa/ppi
 	mkdir -p ${TarBall}/include/terark/zbs
 	cp    src/terark/bits_rotate.hpp             ${TarBall}/include/terark
+	cp    src/terark/bitfield_array.hpp          ${TarBall}/include/terark
+	cp    src/terark/bitfield_array_access.hpp   ${TarBall}/include/terark
+	cp    src/terark/bitmanip.hpp                ${TarBall}/include/terark
+	cp    src/terark/bitmap.hpp                  ${TarBall}/include/terark
 	cp    src/terark/config.hpp                  ${TarBall}/include/terark
 	cp    src/terark/cxx_features.hpp            ${TarBall}/include/terark
 	cp    src/terark/fstring.hpp                 ${TarBall}/include/terark
+	cp    src/terark/int_vector.hpp              ${TarBall}/include/terark
 	cp    src/terark/lcast.hpp                   ${TarBall}/include/terark
 	cp    src/terark/*hash*.hpp                  ${TarBall}/include/terark
+	cp    src/terark/mempool*.hpp                ${TarBall}/include/terark
 	cp    src/terark/node_layout.hpp             ${TarBall}/include/terark
 	cp    src/terark/num_to_str.hpp              ${TarBall}/include/terark
 	cp    src/terark/parallel_lib.hpp            ${TarBall}/include/terark
 	cp    src/terark/pass_by_value.hpp           ${TarBall}/include/terark
+	cp    src/terark/rank_select.hpp             ${TarBall}/include/terark
 	cp    src/terark/stdtypes.hpp                ${TarBall}/include/terark
 	cp    src/terark/valvec.hpp                  ${TarBall}/include/terark
 	cp    src/terark/io/*.hpp                    ${TarBall}/include/terark/io
 	cp    src/terark/io/win/*.hpp                ${TarBall}/include/terark/io/win
 	cp    src/terark/util/*.hpp                  ${TarBall}/include/terark/util
-	cp    src/terark/fsa/*.hpp                  ${TarBall}/include/terark/fsa
-	cp    src/terark/fsa/*.inl                  ${TarBall}/include/terark/fsa
-	cp    src/terark/zbs/*.hpp                  ${TarBall}/include/terark/zbs
+	cp    src/terark/fsa/*.hpp                   ${TarBall}/include/terark/fsa
+	cp    src/terark/fsa/*.inl                   ${TarBall}/include/terark/fsa
+	cp    src/terark/fsa/ppi/*.hpp               ${TarBall}/include/terark/fsa/ppi
+	cp    src/terark/zbs/*.hpp                   ${TarBall}/include/terark/zbs
+	cp    src/terark/thread/*.hpp                ${TarBall}/include/terark/thread
+	cp    src/terark/succinct/*.hpp              ${TarBall}/include/terark/succinct
 ifeq (${PKG_WITH_DBG},1)
 	cp    ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)

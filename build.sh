@@ -1,9 +1,15 @@
 #!/usr/bin/env bash
 
+if [ `uname` == Darwin ]; then
+	cpuNum=`sysctl -n machdep.cpu.thread_count`
+else
+	cpuNum=`nproc`
+fi
+
 # make the project
 git submodule update --init
 
-make pkg -j 4
+make pkg -j $cpuNum
 
 
 # move all binaries to output/ dir for next CICD steps
