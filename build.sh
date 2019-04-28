@@ -21,4 +21,5 @@ PLATFORM_DIR=$SYSTEM-$COMPILER-bmi2-$WITH_BMI2
 
 echo $PLATFORM_DIR
 
+rm -rf output
 mv 'pkg/terark-fsa_all-'$PLATFORM_DIR output
