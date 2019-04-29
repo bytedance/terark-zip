@@ -17,21 +17,9 @@
 #include <set>
 #include <vector>
 
-#include <boost/version.hpp>
-
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-# include <boost/detail/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
+#include <boost/predef/other/endian.h>
 #include <boost/cstdint.hpp>
 #include <terark/util/function.hpp> // for reference_wrapper
-
-#if !defined(BOOST_BIG_ENDIAN) && !defined(BOOST_LITTLE_ENDIAN)
-	#error must define byte endian
-#endif
-
 #include <terark/pass_by_value.hpp>
 #include "byte_swap.hpp"
 #include "DataIO_Basic.hpp"
@@ -41,8 +29,8 @@
 #include "IOException.hpp"
 #include <terark/valvec.hpp>
 
-#if !defined(BOOST_BIG_ENDIAN) && !defined(BOOST_LITTLE_ENDIAN)
-	#error must define byte endian
+#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
+# error must define byte endian
 #endif
 
 namespace terark {
@@ -226,14 +214,14 @@ void DataIO_save_elem(DataIO& dio, const T& x, Bswap)
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
   #define DATA_IO_GEN_BIG_ENDIAN_INT_OUTPUT    DATA_IO_GEN_BSWAP_INT_OUTPUT
   #define DATA_IO_GEN_LITTLE_ENDIAN_INT_OUTPUT DATA_IO_GEN_DUMP_OUTPUT
-#elif defined(BOOST_BIG_ENDIAN)
+#elif defined(BOOST_ENDIAN_BIG_BYTE)
   #define DATA_IO_GEN_BIG_ENDIAN_INT_OUTPUT    DATA_IO_GEN_DUMP_OUTPUT
   #define DATA_IO_GEN_LITTLE_ENDIAN_INT_OUTPUT DATA_IO_GEN_BSWAP_INT_OUTPUT
 #else
-  #error "must define BOOST_LITTLE_ENDIAN or BOOST_BIG_ENDIAN"
+  #error "must define BOOST_ENDIAN_LITTLE_BYTE or BOOST_ENDIAN_BIG_BYTE"
 #endif
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -468,14 +456,14 @@ void DataIO_saveObject(Output& output, const std::pair<FirstT, SecondT>& x)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #endif // TERARK_DATA_IO_DISABLE_OPTIMIZE_DUMPABLE
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
 	#define NativeDataOutput LittleEndianDataOutput
 	#define NativeNoVarIntOutput LittleEndianNoVarIntOutput
-#elif defined(BOOST_BIG_ENDIAN)
+#elif defined(BOOST_ENDIAN_BIG_BYTE)
 	#define NativeDataOutput BigEndianDataOutput
 	#define NativeNoVarIntOutput BigEndianNoVarIntOutput
 #else
-	#error "must define BOOST_LITTLE_ENDIAN or BOOST_BIG_ENDIAN"
+	#error "must define BOOST_ENDIAN_LITTLE_BYTE or BOOST_ENDIAN_BIG_BYTE"
 #endif
 
 } // namespace terark

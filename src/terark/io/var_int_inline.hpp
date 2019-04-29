@@ -10,7 +10,10 @@
 #  define TERARK_FORCE_INLINE inline
 #endif
 
-#if !defined(BOOST_BIG_ENDIAN) && !defined(BOOST_LITTLE_ENDIAN)
+#include "byte_swap.hpp"
+#include <boost/predef/other/endian.h>
+
+#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
 #error must define byte endian
 #endif
 
@@ -137,8 +140,8 @@ uint32_t gg_load_var_uint30(const unsigned char* buf, const unsigned char** endp
 	// no branching needed
 	// read more bytes, then unmask them
 	uint32_t x = *(uint32_t*)buf;
-  #if defined(BOOST_BIG_ENDIAN)
-	x = byte_swap(x);
+  #if defined(BOOST_ENDIAN_BIG_BYTE)
+	x = terark::byte_swap(x);
   #endif
 	int n = x & 3;
 	*endp = n + 1 + buf;
@@ -168,8 +171,8 @@ uint64_t gg_load_var_uint61(const unsigned char* buf, const unsigned char** endp
 	// no branching needed
 	// read more bytes, then unmask them
 	uint64_t x = *(uint64_t*)buf;
-  #if defined(BOOST_BIG_ENDIAN)
-	x = byte_swap(x);
+  #if defined(BOOST_ENDIAN_BIG_BYTE)
+	x = terark::byte_swap(x);
   #endif
 	int n = x & 7;
 	*endp = n + 1 + buf;
@@ -236,8 +239,8 @@ unsigned char* gg_save_var_uint30(unsigned char* p, uint32_t x)
 		assert(n <= 31);
 		n /= 8;
 	#if defined(DATA_IO_ALLOW_OVERWRITE_EXTRA)
-		#if defined(BOOST_BIG_ENDIAN)
-			*(uint32_t*)p = byte_swap(x) | byte_swap(n);
+		#if defined(BOOST_ENDIAN_BIG_BYTE)
+			*(uint32_t*)p = terark::byte_swap(x) | terark::byte_swap(n);
 		#else
 			*(uint32_t*)p = x | n;
 		#endif
@@ -301,8 +304,8 @@ unsigned char* gg_save_var_uint61(unsigned char* p, uint64_t x)
 		assert(n <= 63);
 		n /= 8;
 	#if defined(DATA_IO_ALLOW_OVERWRITE_EXTRA)
-		#if defined(BOOST_BIG_ENDIAN)
-			*(uint64_t*)p = byte_swap(x) | byte_swap(n);
+		#if defined(BOOST_ENDIAN_BIG_BYTE)
+			*(uint64_t*)p = terark::byte_swap(x) | terark::byte_swap(n);
 		#else
 			*(uint64_t*)p = x | n;
 		#endif

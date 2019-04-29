@@ -17,13 +17,7 @@
 #ifndef BOOST_SHARED_PTR_HPP_INCLUDED
 #  include <boost/shared_ptr.hpp>
 #endif
-
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-# include <boost/detail/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
+#include <boost/predef/other/endian.h>
 #include <boost/cstdint.hpp>
 #include <boost/mpl/bool.hpp>
 #include <terark/cxx_features.hpp>
@@ -34,14 +28,14 @@ namespace terark {
 
 //////////////////////////////////////////////////////////////////////////
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
 	#define DATA_IO_BSWAP_FOR_BIG(T)    typename DataIO_need_bswap<T>::type
 	#define DATA_IO_BSWAP_FOR_LITTLE(T) ByteSwap_false
 	#define BYTE_SWAP_IF_LITTLE_ENDIAN(x) x = terark::byte_swap(x)
 	#define BYTE_SWAP_IF_BIG_ENDIAN(x)
   #define VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(x) terark::byte_swap(x)
   #define VALUE_OF_BYTE_SWAP_IF_BIG_ENDIAN(x) x
-#elif defined(BOOST_BIG_ENDIAN)
+#elif defined(BOOST_ENDIAN_BIG_BYTE)
 	#define DATA_IO_BSWAP_FOR_BIG(T)    ByteSwap_false
 	#define DATA_IO_BSWAP_FOR_LITTLE(T) typename DataIO_need_bswap<T>::type
 	#define BYTE_SWAP_IF_LITTLE_ENDIAN(x)
@@ -49,7 +43,7 @@ namespace terark {
   #define VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(x) x
   #define VALUE_OF_BYTE_SWAP_IF_BIG_ENDIAN(x) terark::byte_swap(x)
 #else
-	#error "must define BOOST_LITTLE_ENDIAN or BOOST_BIG_ENDIAN"
+	#error "must define BOOST_ENDIAN_LITTLE_BYTE or BOOST_ENDIAN_BIG_BYTE"
 #endif
 
 // When DataIO_is_dump<DataIO, Type> is true, it means:

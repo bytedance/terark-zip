@@ -18,7 +18,7 @@ public:
 	MyType& load(wchar_t* s, size_t n)
 	{
 		this->ensureRead(s, sizeof(wchar_t)*n);
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
 		byte_swap(s, n);
 #endif
 		return *this;
@@ -27,7 +27,7 @@ public:
 	MyType& operator>>(wchar_t& x)
 	{
 		this->ensureRead(&x, sizeof(x));
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
 		x = byte_swap(x);
 #endif
 		return *this;

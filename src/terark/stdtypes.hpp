@@ -13,15 +13,8 @@
 #include <assert.h>
 #include "config.hpp"
 
-#include <boost/version.hpp>
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
-
+#include <boost/predef/other/endian.h>
 #include <boost/current_function.hpp>
-
 #include <limits.h>
 
 #if defined(_MSC_VER)
