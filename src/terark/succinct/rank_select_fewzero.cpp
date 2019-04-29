@@ -527,12 +527,16 @@ size_t rank_select_few<P, W>::select1(size_t id, size_t &hint) const {
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_len(size_t pos) const {
+  size_t a = lower_bound(pos);
   if (P) {
-    return val_a_logi(lower_bound(pos)) - pos;
+    if(a == *m_num1) return *m_num0 + *m_num1 - pos;
+    return val_a_logi(a) - pos;
   } else {
-    size_t a = 0; if (is1(pos, a)) return 0;
-    size_t cnt = 1, prev, now = val_a_logi(a);
-    while (++a < m_offset[0]) {
+    if (val_a_logi(a) != pos) return 0;
+    size_t cnt, prev, now;
+    cnt = 1;
+    now = val_a_logi(a);
+    while (++a < *m_num1 + *m_num0) {
       prev = now;
       now = val_a_logi(a);
       if (prev + 1 == now)
@@ -544,24 +548,33 @@ size_t rank_select_few<P, W>::zero_seq_len(size_t pos) const {
   }
 }
 
+    template <size_t P, size_t W>
+    size_t rank_select_few<P, W>::one_seq_len(size_t pos) const {
+      size_t a = lower_bound(pos);
+      if (P) {
+        if (val_a_logi(a) != pos) return 0;
+        size_t cnt, prev, now;
+        cnt = 1;
+        now = val_a_logi(a);
+        while (++a < *m_num1 + *m_num0) {
+          prev = now;
+          now = val_a_logi(a);
+          if (prev + 1 == now)
+            cnt++;
+          else
+            break;
+        }
+        return cnt;
+      } else {
+        if(a == *m_num0) return *m_num0 + *m_num1 - pos;
+        return val_a_logi(a) - pos;
+      }
+    }
+
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_len(size_t pos, size_t &hint) const {
-  if (P) {
-    return val_a_logi(lower_bound(pos, hint)) - pos;
-  } else {
-    if (is1(pos, hint))
-      return 0;
-    size_t cnt = 1, prev, now = val_a_logi(hint);
-    while (++hint < m_offset[0]) {
-      prev = now;
-      now = val_a_logi(hint);
-      if (prev + 1 == now)
-        cnt++;
-      else
-        break;
-    }
-    return cnt;
-  }
+  //dummy
+  return zero_seq_len(pos);
 }
 
 template <size_t P, size_t W>
@@ -569,13 +582,16 @@ size_t rank_select_few<P, W>::zero_seq_revlen(size_t pos) const {
   if (!pos)
     return 0;
   if (P) {
-    return pos - val_a_logi(lower_bound(pos) - 1);
+    size_t a = lower_bound(pos);
+    if(a) return pos - 1 - val_a_logi(a-1);
+    else return pos;
   } else {
-    size_t a = 0;
-    if (is1(pos - 1, a))
-      return 0;
-    size_t cnt = 1, last, now = val_a_logi(a);
-    while (0 <= --a) {
+    size_t a = lower_bound(pos-1);
+    if (val_a_logi(a) != pos-1) return 0;
+    size_t cnt, last, now;
+    cnt = 1;
+    now = val_a_logi(a);
+    while (--a != 0xFFFFFFFFFFFFFFFF) {
       last = now;
       now = val_a_logi(a);
       if (last == now + 1)
@@ -589,65 +605,14 @@ size_t rank_select_few<P, W>::zero_seq_revlen(size_t pos) const {
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_revlen(size_t pos, size_t &hint) const {
-  if (!pos)
-    return 0;
-  if (P) {
-    return pos - val_a_logi(lower_bound(pos, hint) - 1);
-  } else {
-    if (is1(pos - 1, hint))
-      return 0;
-    size_t cnt = 1, last, now = val_a_logi(hint);
-    while (0 <= --hint) {
-      last = now;
-      now = val_a_logi(hint);
-      if (last == now + 1)
-        cnt++;
-      else
-        break;
-    }
-    return cnt;
-  }
+  return  zero_seq_revlen(pos);
 }
 
-template <size_t P, size_t W>
-size_t rank_select_few<P, W>::one_seq_len(size_t pos) const {
-  size_t a = lower_bound(pos);
-  if (P) {
-    if (is0(pos)) return 0;
-    size_t cnt = 1, prev, now = val_a_logi(a);
-    while (++a < *m_num1 + *m_num0) {
-      prev = now;
-      now = val_a_logi(a);
-      if (prev + 1 == now)
-        cnt++;
-      else
-        break;
-    }
-    return cnt;
-  } else {
-    if(a == *m_num0) return *m_num0 + *m_num1 - pos;
-    return val_a_logi(a) - pos;
-  }
-}
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::one_seq_len(size_t pos, size_t &hint) const {
-  if (P) {
-    if (is0(pos, hint))
-      return 0;
-    size_t cnt = 1, prev, now = val_a_logi(hint);
-    while (++hint > m_offset[0]) {
-      prev = now;
-      now = val_a_logi(hint);
-      if (prev + 1 == now)
-        cnt++;
-      else
-        break;
-    }
-    return cnt;
-  } else {
-    return val_a_logi(lower_bound(pos, hint)) - pos;
-  }
+  //dummy
+  return one_seq_len(pos);
 }
 
 template <size_t P, size_t W>
@@ -655,11 +620,12 @@ size_t rank_select_few<P, W>::one_seq_revlen(size_t pos) const {
   if (!pos)
     return 0;
   if (P) {
-    size_t a = 0xFFFFFFFF;
-    if (is0(pos - 1, a))
-      return 0;
-    size_t cnt = 1, last, now = val_a_logi(a);
-    while (0 <= --a) {
+    size_t a = lower_bound(pos-1);
+    if (val_a_logi(a) != pos-1) return 0;
+    size_t cnt, last, now;
+    cnt = 1;
+    now = val_a_logi(a);
+    while (--a != 0xFFFFFFFFFFFFFFFF) {
       last = now;
       now = val_a_logi(a);
       if (last == now + 1)
@@ -669,30 +635,15 @@ size_t rank_select_few<P, W>::one_seq_revlen(size_t pos) const {
     }
     return cnt;
   } else {
-    return pos - val_a_logi(lower_bound(pos) - 1);
+    size_t a = lower_bound(pos);
+    if(a) return pos - 1 - val_a_logi(a-1);
+    else return pos;
   }
 }
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::one_seq_revlen(size_t pos, size_t &hint) const {
-  if (!pos)
-    return 0;
-  if (P) {
-    if (is0(pos - 1, hint))
-      return 0;
-    size_t cnt = 1, last, now = val_a_logi(hint);
-    while (0 <= --hint) {
-      last = now;
-      now = val_a_logi(hint);
-      if (last == now + 1)
-        cnt++;
-      else
-        break;
-    }
-    return cnt;
-  } else {
-    return pos - val_a_logi(lower_bound(pos, hint) - 1);
-  }
+  return one_seq_revlen(pos);
 }
 
 template <size_t P, size_t W>
