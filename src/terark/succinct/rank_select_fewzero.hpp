@@ -250,8 +250,8 @@ public:
   size_t one_seq_revlen(size_t pos) const;
   size_t one_seq_revlen(size_t pos, size_t &hint) const;
 
-  size_t max_rank0() const { return *m_num0; }
-  size_t max_rank1() const { return *m_num1; }
+  size_t max_rank0() const { return m_num0; }
+  size_t max_rank1() const { return m_num1; }
   size_t size() const { return m_mempool.size(); }
   const byte_t *data() const { return m_mempool.data(); }
   size_t mem_size() const { return m_mempool.full_mem_size(); }
@@ -267,21 +267,19 @@ public:
   void risk_mmap_from(unsigned char *src, size_t size) {
     m_mempool.risk_set_data(src);
     m_mempool.risk_set_size(size);
-    m_layer = &m_mempool[size - 1];
-    assert(*m_layer < 8);
-    int offset_size = ((*m_layer == 1) ? 1 : (*m_layer - 2) * 8);
-    m_offset =
-        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - offset_size]);
-    m_num1 =
-        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - offset_size - 8]);
-    m_num0 =
-        reinterpret_cast<uint64_t *>(&m_mempool[size - 1 - offset_size - 16]);
+    uint64_t *ptr = reinterpret_cast<uint64_t*>(m_mempool.data() + size - 8);
+    m_layer = *ptr;
+    assert(m_layer < 8);
+    ptr -= m_layer;
+    m_offset = ptr--;
+    m_num1 = *ptr--;
+    m_num0 = *ptr;
   }
   void risk_release_ownership() { m_mempool.risk_release_ownership(); }
 
 private:
-  uint64_t *m_num0, *m_num1, *m_offset;
-  uint8_t *m_layer;
+  uint64_t m_num0, m_num1, m_layer;
+  uint64_t *m_offset;
   valvec<uint8_t> m_mempool;
 };
 
@@ -298,8 +296,8 @@ private:
   bool m_rev;
   uint64_t m_last;
   uint8_t *m_it;
-  uint64_t *m_num0, *m_num1, *m_offset;
-  uint8_t *m_layer;
+  uint64_t m_num0, m_num1, m_layer;
+  uint64_t *m_offset;
   valvec<uint8_t> m_mempool;
 };
 
