@@ -227,20 +227,10 @@ public:
   bool is0(size_t pos) const { return !operator[](pos); }
   bool is1(size_t pos) const { return operator[](pos); }
   bool is0(size_t pos, size_t &hint) const {
-    lower_bound(pos, hint);
-    if (P) {
-      return hint != pos;
-    } else {
-      return hint == pos;
-    }
+    return is0(pos);
   }
   bool is1(size_t pos, size_t &hint) const {
-    lower_bound(pos, hint);
-    if (P) {
-      return hint == pos;
-    } else {
-      return hint != pos;
-    }
+    return is1(pos);
   }
 
   size_t rank0(size_t pos) const;
