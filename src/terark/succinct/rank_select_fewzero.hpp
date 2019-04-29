@@ -220,7 +220,7 @@ private:
     }
 
 public:
-  rank_select_few() {}
+  rank_select_few() : m_num0(), m_num1(), m_layer(), m_offset() {}
   //~rank_select_few();
 
   bool operator[](size_t pos) const;
@@ -265,8 +265,7 @@ public:
   }
 
   void risk_mmap_from(unsigned char *src, size_t size) {
-    m_mempool.risk_set_data(src);
-    m_mempool.risk_set_size(size);
+    m_mempool.risk_set_data(src, size);
     uint64_t *ptr = reinterpret_cast<uint64_t*>(m_mempool.data() + size - 8);
     m_layer = *ptr;
     assert(m_layer < 8);
