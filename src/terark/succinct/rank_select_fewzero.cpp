@@ -449,7 +449,7 @@ size_t rank_select_few<P, W>::rank0(size_t pos) const {
 }
 
 template <size_t P, size_t W>
-size_t rank_select_few<P, W>::rank0(size_t pos, size_t &hint) {
+size_t rank_select_few<P, W>::rank0(size_t pos, size_t &hint) const {
   if (P) {
     return pos - rank1(pos, hint);
   } else {
@@ -467,7 +467,7 @@ size_t rank_select_few<P, W>::rank1(size_t pos) const {
 }
 
 template <size_t P, size_t W>
-size_t rank_select_few<P, W>::rank1(size_t pos, size_t &hint) {
+size_t rank_select_few<P, W>::rank1(size_t pos, size_t &hint) const {
   if (P) {
     return lower_bound(pos, hint);
   } else {
@@ -485,7 +485,7 @@ size_t rank_select_few<P, W>::select0(size_t id) const {
 }
 
 template <size_t P, size_t W>
-size_t rank_select_few<P, W>::select0(size_t id, size_t &hint) {
+size_t rank_select_few<P, W>::select0(size_t id, size_t &hint) const {
   if (P) {
     return select_complement(id, hint);
   } else {
@@ -503,7 +503,7 @@ size_t rank_select_few<P, W>::select1(size_t id) const {
 }
 
 template <size_t P, size_t W>
-size_t rank_select_few<P, W>::select1(size_t id, size_t &hint) {
+size_t rank_select_few<P, W>::select1(size_t id, size_t &hint) const {
   if (P) {
     return val_a_logi(id);
   } else {

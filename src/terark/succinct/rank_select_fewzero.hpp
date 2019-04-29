@@ -244,13 +244,13 @@ public:
   }
 
   size_t rank0(size_t pos) const;
-  size_t rank0(size_t pos, size_t &hint);
+  size_t rank0(size_t pos, size_t &hint) const;
   size_t rank1(size_t pos) const;
-  size_t rank1(size_t pos, size_t &hint);
+  size_t rank1(size_t pos, size_t &hint) const;
   size_t select0(size_t id) const;
-  size_t select0(size_t id, size_t &hint);
+  size_t select0(size_t id, size_t &hint) const;
   size_t select1(size_t id) const;
-  size_t select1(size_t id, size_t &hint);
+  size_t select1(size_t id, size_t &hint) const;
   size_t zero_seq_len(size_t pos) const;
   size_t zero_seq_len(size_t pos, size_t &hint) const;
   size_t zero_seq_revlen(size_t pos) const;
@@ -315,5 +315,59 @@ private:
 
 template <size_t W> using rank_select_fewzero = rank_select_few<0, W>;
 template <size_t W> using rank_select_fewone = rank_select_few<1, W>;
+
+template<class T>
+class rank_select_hint_wrapper {
+  const T& rs_;
+public:
+  rank_select_hint_wrapper(const T& rs, size_t* hint) : rs_(rs) {}
+
+  bool operator[](size_t pos) const { return rs_.is1(pos); }
+  bool is0(size_t pos) const { return rs_.is0(pos); }
+  bool is1(size_t pos) const { return rs_.is1(pos); }
+  size_t rank0(size_t pos) const { return rs_.rank0(pos); }
+  size_t rank1(size_t pos) const { return rs_.rank1(pos); }
+  size_t select0(size_t pos) const { return rs_.select0(pos); }
+  size_t select1(size_t pos) const { return rs_.select1(pos); }
+  size_t zero_seq_len(size_t pos) const { return rs_.zero_seq_len(pos); }
+  size_t zero_seq_revlen(size_t pos) const { return rs_.zero_seq_revlen(pos); }
+  size_t one_seq_len(size_t pos) const { return rs_.one_seq_len(pos); }
+  size_t one_seq_revlen(size_t pos) const { return rs_.one_seq_revlen(pos); }
+
+  size_t max_rank0() const { return rs_.max_rank0(); }
+  size_t max_rank1() const { return rs_.max_rank1(); }
+  size_t size() const { return rs_.size(); }
+};
+
+template<size_t P, size_t W>
+class rank_select_hint_wrapper<rank_select_few<P, W>> {
+  const rank_select_few<P, W>& rs_;
+  size_t* h_;
+public:
+  rank_select_hint_wrapper(const rank_select_few<P, W>& rs, size_t* hint) : rs_(rs), h_(hint) {
+    assert(hint != nullptr);
+  }
+
+  bool operator[](size_t pos) const { return rs_.is1(pos, *h_); }
+  bool is0(size_t pos) const { return rs_.is0(pos, *h_); }
+  bool is1(size_t pos) const { return rs_.is1(pos, *h_); }
+  size_t rank0(size_t pos) const { return rs_.rank0(pos, *h_); }
+  size_t rank1(size_t pos) const { return rs_.rank1(pos, *h_); }
+  size_t select0(size_t pos) const { return rs_.select0(pos, *h_); }
+  size_t select1(size_t pos) const { return rs_.select1(pos, *h_); }
+  size_t zero_seq_len(size_t pos) const { return rs_.zero_seq_len(pos, *h_); }
+  size_t zero_seq_revlen(size_t pos) const { return rs_.zero_seq_revlen(pos, *h_); }
+  size_t one_seq_len(size_t pos) const { return rs_.one_seq_len(pos, *h_); }
+  size_t one_seq_revlen(size_t pos) const { return rs_.one_seq_revlen(pos, *h_); }
+
+  size_t max_rank0() const { return rs_.max_rank0(); }
+  size_t max_rank1() const { return rs_.max_rank1(); }
+  size_t size() const { return rs_.size(); }
+};
+
+template<class T>
+rank_select_hint_wrapper<T> make_rank_select_hint_wrapper(const T& rs, size_t* hint) {
+  return rank_select_hint_wrapper<T>(rs, hint);
+}
 
 } // namespace terark
