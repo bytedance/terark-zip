@@ -351,7 +351,7 @@ size_t rank_select_few<P, W>::lower_bound(size_t val) const {
   const uint8_t *p = base + ((*m_layer == 1) ? 0 : m_offset[*m_layer - 2]);
   for (auto i = *m_layer - 2; i >= 0; --i) {
       for (const uint8_t *e = base + m_offset[i + 1]; p < e; p += W) {
-          if (val_at_ptr(p) >= val)
+          if (val_at_ptr(p) > val)
               break;
       }
       if(p > base + m_offset[i]) p -= W;
@@ -366,21 +366,23 @@ size_t rank_select_few<P, W>::lower_bound(size_t val) const {
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::lower_bound(size_t val, size_t &hint) const {
-  if (hint < (P ? *m_num1 : *m_num0))
+   /*
+   if (hint < (P ? *m_num1 : *m_num0))
     if (val_a_logi(hint) == val)
       return hint;
+      */
   hint = lower_bound(val);
   return hint;
 }
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::select_complement(size_t id) const {
-  assert(id <= (P ? *m_num0 : *m_num1));
+  assert(id < (P ? *m_num0 : *m_num1));
   const uint8_t *base = m_mempool.data();
   if(id < val_at_ptr(base)){
       return id;
   }
-  if(id + (P ? *m_num1 : *m_num0) >= val_at_ptr(base + m_offset[0] - W)){
+  if(id + (P ? *m_num1 : *m_num0) > val_at_ptr(base + m_offset[0] - W)){
       return id + (P ? *m_num1 : *m_num0);
   }
   const uint8_t *p = base + ((*m_layer == 1) ? 0 : m_offset[*m_layer - 2]);
@@ -408,6 +410,7 @@ size_t rank_select_few<P, W>::select_complement(size_t id) const {
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::select_complement(size_t id, size_t &hint) const {
+      /*
   size_t n = P ? *m_num1 : *m_num0;
   if (hint == 0) {
     if (id < val_a_logi(0))
@@ -428,21 +431,28 @@ size_t rank_select_few<P, W>::select_complement(size_t id, size_t &hint) const {
     if ((now <= id + hint) && (id + hint < nxt))
       return id + hint;
   }
+       */
   return select_complement(id);
 }
+
 template <size_t P, size_t W>
 bool rank_select_few<P, W>::operator[](size_t pos) const {
+  //size_t l = lower_bound(pos);
   if (P) {
-    return lower_bound(pos) == pos;
+    //if(l == *m_num1) return false;
+    return val_a_logi(lower_bound(pos)) == pos;
   } else {
-    return lower_bound(pos) != pos;
+    //if(l == *m_num0) return true;
+    return val_a_logi(lower_bound(pos)) != pos;
   }
 }
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::rank0(size_t pos) const {
   if (P) {
-    return pos - rank1(pos);
+    /*size_t l = lower_bound(pos);
+    return pos - (l < *m_num0 ? l : *m_num0);*/
+    return pos - lower_bound(pos);
   } else {
     return lower_bound(pos);
   }
@@ -462,7 +472,11 @@ size_t rank_select_few<P, W>::rank1(size_t pos) const {
   if (P) {
     return lower_bound(pos);
   } else {
-    return pos - rank0(pos);
+    return pos - lower_bound(pos);
+    /*
+    size_t l = lower_bound(pos);
+    return pos - (l < *m_num1 ? l : *m_num1);
+     */
   }
 }
 
@@ -514,11 +528,9 @@ size_t rank_select_few<P, W>::select1(size_t id, size_t &hint) const {
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_len(size_t pos) const {
   if (P) {
-    return val_a_logi(lower_bound(pos)+1) - pos;
+    return val_a_logi(lower_bound(pos)) - pos;
   } else {
-    size_t a;
-    if (is1(pos, a))
-      return 0;
+    size_t a = 0; if (is1(pos, a)) return 0;
     size_t cnt = 1, prev, now = val_a_logi(a);
     while (++a < m_offset[0]) {
       prev = now;
@@ -535,7 +547,7 @@ size_t rank_select_few<P, W>::zero_seq_len(size_t pos) const {
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::zero_seq_len(size_t pos, size_t &hint) const {
   if (P) {
-    return val_a_logi(lower_bound(pos, hint)+1) - pos;
+    return val_a_logi(lower_bound(pos, hint)) - pos;
   } else {
     if (is1(pos, hint))
       return 0;
@@ -559,7 +571,7 @@ size_t rank_select_few<P, W>::zero_seq_revlen(size_t pos) const {
   if (P) {
     return pos - val_a_logi(lower_bound(pos) - 1);
   } else {
-    size_t a;
+    size_t a = 0;
     if (is1(pos - 1, a))
       return 0;
     size_t cnt = 1, last, now = val_a_logi(a);
@@ -599,12 +611,11 @@ size_t rank_select_few<P, W>::zero_seq_revlen(size_t pos, size_t &hint) const {
 
 template <size_t P, size_t W>
 size_t rank_select_few<P, W>::one_seq_len(size_t pos) const {
+  size_t a = lower_bound(pos);
   if (P) {
-    size_t a = 0xFFFFFFFF;
-    if (is0(pos, a))
-      return 0;
+    if (is0(pos)) return 0;
     size_t cnt = 1, prev, now = val_a_logi(a);
-    while (++a > m_offset[0]) {
+    while (++a < *m_num1 + *m_num0) {
       prev = now;
       now = val_a_logi(a);
       if (prev + 1 == now)
@@ -614,7 +625,8 @@ size_t rank_select_few<P, W>::one_seq_len(size_t pos) const {
     }
     return cnt;
   } else {
-    return val_a_logi(lower_bound(pos)+1) - pos;
+    if(a == *m_num0) return *m_num0 + *m_num1 - pos;
+    return val_a_logi(a) - pos;
   }
 }
 
@@ -634,7 +646,7 @@ size_t rank_select_few<P, W>::one_seq_len(size_t pos, size_t &hint) const {
     }
     return cnt;
   } else {
-    return val_a_logi(lower_bound(pos, hint)+1) - pos;
+    return val_a_logi(lower_bound(pos, hint)) - pos;
   }
 }
 
@@ -740,12 +752,12 @@ void rank_select_few_builder<P, W>::finish(rank_select_few<P, W> *r) {
   if (!P) {
     if (m_rev) {
       while (m_it >= m_mempool.data()) {
-        *(reinterpret_cast<uint64_t *>(m_it)) |= --m_last;
+        *(reinterpret_cast<uint64_t *>(m_it)) |= m_last--;
         m_it -= W;
       }
     } else {
       while (m_it < m_mempool.data() + m_offset[0]) {
-        *(reinterpret_cast<uint64_t *>(m_it)) |= ++m_last;
+        *(reinterpret_cast<uint64_t *>(m_it)) |= m_last++;
         m_it += W;
       }
     }
