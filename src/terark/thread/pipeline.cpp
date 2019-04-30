@@ -609,7 +609,7 @@ std::string PipelineProcessor::queueInfo()
 		p = p->m_next;
 	}
 	oss.resize(oss.size()-2);
-	return oss;
+	return std::move(oss);
 }
 
 int PipelineProcessor::step_ordinal(const PipelineStage* step) const

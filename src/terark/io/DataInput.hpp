@@ -16,22 +16,10 @@
 #include <map>
 #include <set>
 #include <vector>
-
-#include <boost/version.hpp>
-
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-# include <boost/detail/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
+#include <boost/predef/other/endian.h>
 #include <boost/cstdint.hpp>
 #include <boost/type_traits.hpp>
 #include <terark/util/function.hpp> // for reference_wrapper
-
-#if !defined(BOOST_BIG_ENDIAN) && !defined(BOOST_LITTLE_ENDIAN)
-	#error must define byte endian
-#endif
 
 #include <terark/pass_by_value.hpp>
 #include "byte_swap.hpp"
@@ -42,7 +30,7 @@
 #include "var_int.hpp"
 #include <terark/valvec.hpp>
 
-#if !defined(BOOST_BIG_ENDIAN) && !defined(BOOST_LITTLE_ENDIAN)
+#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
 # error must define byte endian
 #endif
 
@@ -229,14 +217,14 @@ void DataIO_load_elem(DataIO& dio, T& x, Bswap)
 	}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
   #define DATA_IO_GEN_BIG_ENDIAN_INT_INPUT    DATA_IO_GEN_BSWAP_INT_INPUT
   #define DATA_IO_GEN_LITTLE_ENDIAN_INT_INPUT DATA_IO_GEN_DUMP_INPUT
-#elif defined(BOOST_BIG_ENDIAN)
+#elif defined(BOOST_ENDIAN_BIG_BYTE)
   #define DATA_IO_GEN_BIG_ENDIAN_INT_INPUT    DATA_IO_GEN_DUMP_INPUT
   #define DATA_IO_GEN_LITTLE_ENDIAN_INT_INPUT DATA_IO_GEN_BSWAP_INT_INPUT
 #else
-  #error "must define BOOST_LITTLE_ENDIAN or BOOST_BIG_ENDIAN"
+  #error "must define BOOST_ENDIAN_LITTLE_BYTE or BOOST_ENDIAN_BIG_BYTE"
 #endif
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -487,14 +475,14 @@ unsigned int DataIO_load_check_version(Input& in, unsigned int curr_version, con
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #endif // TERARK_DATA_IO_DISABLE_OPTIMIZE_DUMPABLE
 
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
 	#define NativeDataInput     LittleEndianDataInput
 	#define NativeNoVarIntInput LittleEndianNoVarIntInput
-#elif defined(BOOST_BIG_ENDIAN)
+#elif defined(BOOST_ENDIAN_BIG_BYTE)
 	#define NativeDataInput     BigEndianDataInput
 	#define NativeNoVarIntInput BigEndianNoVarIntInput
 #else
-	#error "must define BOOST_LITTLE_ENDIAN or BOOST_BIG_ENDIAN"
+	#error "must define BOOST_ENDIAN_LITTLE_BYTE or BOOST_ENDIAN_BIG_BYTE"
 #endif
 
 }

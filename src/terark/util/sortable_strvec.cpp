@@ -224,7 +224,7 @@ template<class Uint, size_t Len>
 inline Uint binaryToIntHigh(const unsigned char* bin) {
 	Uint val = 0;
 	memcpy(&val, bin, sizeof(Uint) < Len ? sizeof(Uint) : Len);
-#if defined(BOOST_LITTLE_ENDIAN)
+#if defined(BOOST_ENDIAN_LITTLE_BYTE)
 	return val << (sizeof(Uint) - Len) * 8;
 #else
 	return val;

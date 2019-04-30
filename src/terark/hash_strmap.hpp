@@ -5,19 +5,14 @@
 
 #include <terark/config.hpp>
 #include "hash_common.hpp"
-#include  <boost/version.hpp>
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-# include <boost/detail/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
-#if !defined(BOOST_BIG_ENDIAN) && !defined(BOOST_LITTLE_ENDIAN)
-    #error must define byte endian
-#endif
+#include <boost/predef/other/endian.h>
 #include <terark/util/byte_swap_impl.hpp>
 #include <terark/parallel_lib.hpp>
 #include <terark/fstring.hpp>
+
+#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
+# error must define byte endian
+#endif
 
 // http://software.intel.com/en-us/articles/memcpy-performance
 //  This link mentioned memcpy may be optimized by hardware, Whether aligned or unaligned:
@@ -1928,7 +1923,7 @@ private:
 				index[i].prefix = 0;
 				memcpy(&index[i].prefix, ps + mybeg, mylen);
 			}
-#if defined(BOOST_LITTLE_ENDIAN)
+#if defined(BOOST_ENDIAN_LITTLE_BYTE)
 			index[i].prefix = terark::byte_swap(index[i].prefix);
 #endif
 			index[i].idx = LinkTp(i);
@@ -1973,7 +1968,7 @@ private:
 				pnp[i].prefix = 0;
 				memcpy(&pnp[i].prefix, ps + mybeg, mylen);
 			}
-#if defined(BOOST_LITTLE_ENDIAN)
+#if defined(BOOST_ENDIAN_LITTLE_BYTE)
 			pnp[i].prefix = terark::byte_swap(pnp[i].prefix);
 #endif
 			pnp[i].length = LinkTp(mylen);

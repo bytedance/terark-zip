@@ -8,7 +8,7 @@
 #include "succinct/rank_select_mixed_il_256.hpp"
 #include "succinct/rank_select_mixed_xl_256.hpp"
 #include "succinct/rank_select_mixed_se_512.hpp"
-#include "succinct/rank_select_fewzero.hpp"
+#include "succinct/rank_select_few.hpp"
 
 #endif // __terark_rank_select_hpp__
 
