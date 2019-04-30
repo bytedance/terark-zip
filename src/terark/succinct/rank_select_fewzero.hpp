@@ -42,14 +42,11 @@ public:
   //~rank_select_few();
 
   bool operator[](size_t pos) const;
+  bool at_with_hint(size_t pos, size_t &hint) const;
   bool is0(size_t pos) const { return !operator[](pos); }
   bool is1(size_t pos) const { return operator[](pos); }
-  bool is0(size_t pos, size_t &hint) const {
-    return is0(pos);
-  }
-  bool is1(size_t pos, size_t &hint) const {
-    return is1(pos);
-  }
+  bool is0(size_t pos, size_t &hint) const { return !at_with_hint(pos, hint); }
+  bool is1(size_t pos, size_t &hint) const { return at_with_hint(pos, hint); }
 
   size_t rank0(size_t pos) const;
   size_t rank0(size_t pos, size_t &hint) const;
@@ -70,7 +67,7 @@ public:
 
   size_t max_rank0() const { return m_num0; }
   size_t max_rank1() const { return m_num1; }
-  size_t size() const { return m_mempool.size(); }
+  size_t size() const { return m_num0 + m_num1; }
   const byte_t *data() const { return m_mempool.data(); }
   size_t mem_size() const { return m_mempool.full_mem_size(); }
 

@@ -24,14 +24,20 @@ namespace terark {
 
   template <size_t P, size_t W>
   size_t rank_select_few<P, W>::lower_bound(size_t val, size_t &hint) const {
-    if (hint < (P ? m_num1 : m_num0)) {
-      if ((hint == 0) && (val_a_logi(hint) >= val))
+    size_t n = P ? m_num1 : m_num0;
+    if (hint < n) {
+      if ((hint == 0) &&
+          (val_a_logi(hint) >= val))
+        return 0;
+      if ((hint != 0) &&
+          (val_a_logi(hint - 1) < val) && (val_a_logi(hint) >= val))
         return hint;
-      if ((hint != 0) && (val_a_logi(hint - 1) < val) && (val_a_logi(hint) >= val))
-        return hint;
-      if ((hint + 1 < (P ? m_num1 : m_num0)) &&
+      if ((hint + 1 < n) &&
           (val_a_logi(hint) < val) && (val_a_logi(hint + 1) >= val))
         return ++hint;
+      if ((hint + 1 == n) &&
+          (val_a_logi(hint + 1) < val))
+        return n;
     }
     hint = lower_bound(val);
     return hint;
@@ -72,28 +78,23 @@ namespace terark {
 
   template <size_t P, size_t W>
   size_t rank_select_few<P, W>::select_complement(size_t id, size_t &hint) const {
-    /*
-size_t n = P ? m_num1 : m_num0;
-if (hint == 0) {
-  if (id < val_a_logi(0))
-    return id;
-  else if (id < val_a_logi(1))
-    return id - 1;
-} else if (hint == n - 1) {
-  if (id + n > val_a_logi(n - 1))
-    return id + n - 1;
-  else if (id + n - 1 > val_a_logi(n - 2))
-    return id + n - 2;
-} else if (hint < n) {
-  size_t pre = val_a_logi(hint - 1);
-  size_t now = val_a_logi(hint);
-  if ((pre <= id + hint) && (id + hint < now))
-    return id + hint - 1;
-  size_t nxt = val_a_logi(hint + 1);
-  if ((now <= id + hint) && (id + hint < nxt))
-    return id + hint;
-     */
-    return select_complement(id);
+    size_t n = P ? m_num1 : m_num0;
+    if (hint < n) {
+      if ((hint == 0) &&
+          (val_a_logi(hint) < val))
+        return id;
+      if ((hint != 0) &&
+          (val_a_logi(hint - 1) >= val) && (val_a_logi(hint) < val))
+        return id + hint;
+      if ((hint + 1 < n) &&
+          (val_a_logi(hint) >= val) && (val_a_logi(hint + 1) < val))
+        return id + ++hint;
+      if ((hint + 1 == n) &&
+          (val_a_logi(hint + 1) >= val))
+        return id + n;
+    }
+    hint = select_complement(id);
+    return hint;
   }
 
   template <size_t P, size_t W>
@@ -102,6 +103,15 @@ if (hint == 0) {
       return val_a_logi(lower_bound(pos)) == pos;
     } else {
       return val_a_logi(lower_bound(pos)) != pos;
+    }
+  }
+
+  template <size_t P, size_t W>
+  bool rank_select_few<P, W>::at_with_hint(size_t pos, size_t &hint) const {
+    if (P) {
+      return val_a_logi(lower_bound(pos, hint)) == pos;
+    } else {
+      return val_a_logi(lower_bound(pos, hint)) != pos;
     }
   }
 
