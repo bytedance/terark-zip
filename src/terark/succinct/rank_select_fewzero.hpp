@@ -27,15 +27,15 @@ private:
   size_t select_complement(size_t id) const;
   size_t select_complement(size_t id, size_t &hint) const;
 
-    inline size_t val_a_logi(size_t pos) const {
-        return (*reinterpret_cast<const size_t *>(m_mempool.data() + pos * W)) &
-               (W == 8 ? 0xFFFFFFFFULL : (1ULL << ((W * 8) & 63)) - 1);
-    }
+  inline size_t val_a_logi(size_t pos) const {
+    return (*reinterpret_cast<const size_t *>(m_mempool.data() + pos * W)) &
+           (W == 8 ? 0xFFFFFFFFFFFFFFFFULL : (1ULL << ((W * 8) & 63)) - 1);
+  }
 
-    inline size_t val_at_ptr(const uint8_t* ptr) const {
-        return (*reinterpret_cast<const size_t *>(ptr)) &
-               (W == 8 ? 0xFFFFFFFFULL : (1ULL << ((W * 8) & 63)) - 1);
-    }
+  inline size_t val_at_ptr(const uint8_t* ptr) const {
+    return (*reinterpret_cast<const size_t *>(ptr)) &
+           (W == 8 ? 0xFFFFFFFFFFFFFFFFULL : (1ULL << ((W * 8) & 63)) - 1);
+  }
 
 public:
   rank_select_few() : m_num0(), m_num1(), m_layer(), m_offset() {}

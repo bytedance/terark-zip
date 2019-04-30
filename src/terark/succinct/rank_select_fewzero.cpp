@@ -26,21 +26,23 @@ namespace terark {
   size_t rank_select_few<P, W>::lower_bound(size_t val, size_t &hint) const {
     size_t n = P ? m_num1 : m_num0;
     if (hint < n) {
-      if ((hint == 0) &&
-          (val_a_logi(hint) >= val))
-        return 0;
-      if ((hint != 0) &&
+      if ((hint > 0) &&
           (val_a_logi(hint - 1) < val) && (val_a_logi(hint) >= val))
         return hint;
       if ((hint + 1 < n) &&
           (val_a_logi(hint) < val) && (val_a_logi(hint + 1) >= val))
         return ++hint;
+      if ((hint > 1) &&
+          (val_a_logi(hint - 2) < val) && (val_a_logi(hint - 1) >= val))
+        return --hint;
+      if ((hint == 0) &&
+          (val_a_logi(0) >= val))
+        return 0;
       if ((hint + 1 == n) &&
-          (val_a_logi(hint + 1) < val))
+          (val_a_logi(hint) < val))
         return n;
     }
-    hint = lower_bound(val);
-    return hint;
+    return hint = lower_bound(val);
   }
 
   template <size_t P, size_t W>
@@ -80,18 +82,22 @@ namespace terark {
   size_t rank_select_few<P, W>::select_complement(size_t id, size_t &hint) const {
     size_t n = P ? m_num1 : m_num0;
     if (hint < n) {
-      if ((hint == 0) &&
-          (val_a_logi(hint) < val))
-        return id;
-      if ((hint != 0) &&
-          (val_a_logi(hint - 1) >= val) && (val_a_logi(hint) < val))
+      size_t val = id + hint;
+      if ((hint > 0) &&
+          (val_a_logi(hint - 1) <= val - 1) && (val_a_logi(hint) > val))
         return id + hint;
       if ((hint + 1 < n) &&
-          (val_a_logi(hint) >= val) && (val_a_logi(hint + 1) < val))
+          (val_a_logi(hint) <= val) && (val_a_logi(hint + 1) > val + 1))
         return id + ++hint;
+      if ((hint > 1) &&
+          (val_a_logi(hint - 2) <= val - 2) && (val_a_logi(hint - 1) > val - 1))
+        return id + --hint;
       if ((hint + 1 == n) &&
-          (val_a_logi(hint + 1) >= val))
+          (val_a_logi(hint) <= val))
         return id + n;
+      if ((hint == 0) &&
+          (val_a_logi(0) > val))
+        return id;
     }
     hint = select_complement(id);
     return hint;
@@ -411,7 +417,7 @@ namespace terark {
 
   template <size_t P, size_t W>
   void rank_select_few_builder<P, W>::insert(size_t pos) {
-    assert((W == 8) || (pos <= ~(0xFFFFFFFFULL << (W * 8))));
+    assert((W == 8) || (pos <= ~(0xFFFFFFFFFFFFFFFFULL << (W * 8))));
     if (P) {
       *(reinterpret_cast<uint64_t *>(m_it)) |= pos;
       m_it = m_rev ? m_it - W : m_it + W;
