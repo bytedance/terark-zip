@@ -1,5 +1,5 @@
 
-#include "rank_select_fewzero.hpp"
+#include "rank_select_few.hpp"
 
 namespace terark {
 
@@ -457,7 +457,7 @@ namespace terark {
     }
     uint8_t *base = m_mempool.data();
     uint8_t *src = base;
-    for (int i = 0; i < m_layer - 1; ++i) {
+    for (size_t i = 0; i < m_layer - 1; ++i) {
       for (uint8_t *dst = base + m_offset[i]; dst < base + m_offset[i + 1];) {
         memcpy(dst, src, W);
         src += W * 256;

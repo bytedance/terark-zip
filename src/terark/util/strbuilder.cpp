@@ -10,6 +10,11 @@
 #include <stdexcept>
 #include <terark/util/throw.hpp>
 
+#if __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wformat-nonliteral"
+#endif
+
 namespace terark {
 #if defined(__GLIBC__) || defined(__CYGWIN__) || \
 	defined(__DARWIN_C_LEVEL) && defined(__DARWIN_C_FULL) && __DARWIN_C_LEVEL >= __DARWIN_C_FULL
@@ -146,3 +151,6 @@ namespace terark {
 
 } // namespace terark
 
+#if __clang__
+# pragma clang diagnostic pop
+#endif
