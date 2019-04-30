@@ -2322,6 +2322,12 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 						childBegRow++;
 					} while (childBegRow < childEndRow && strVec.nth_size(childBegRow) == childBegCol);
 				}
+#if !defined(NDEBUG)
+                for (size_t i = childBegRow; i < childEndRow; ++i) {
+                    fstring s = strVec[i];
+                    assert(s.size() > childBegCol);
+                }
+#endif
 				q2->push_back({childBegRow, childEndRow, childBegCol});
 				m_louds.push_back(true);
 				childBegRow = childEndRow;

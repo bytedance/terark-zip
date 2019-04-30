@@ -262,12 +262,10 @@ struct basic_fstring {
 	}
 
 	bool startsWith(basic_fstring x) const {
-		assert(x.n > 0);
 		if (x.n > n) return false;
 		return memcmp(p, x.p, sizeof(Char)*x.n) == 0;
 	}
 	bool endsWith(basic_fstring x) const {
-		assert(x.n > 0);
 		if (x.n > n) return false;
 		return memcmp(p+n - x.n, x.p, sizeof(Char)*x.n) == 0;
 	}

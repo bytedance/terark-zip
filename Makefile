@@ -431,6 +431,7 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
+	mkdir -p ${TarBall}/include/terark/entropy
 	mkdir -p ${TarBall}/include/terark/thread
 	mkdir -p ${TarBall}/include/terark/succinct
 	mkdir -p ${TarBall}/include/terark/io/win
@@ -447,9 +448,11 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    src/terark/config.hpp                  ${TarBall}/include/terark
 	cp    src/terark/cxx_features.hpp            ${TarBall}/include/terark
 	cp    src/terark/fstring.hpp                 ${TarBall}/include/terark
+	cp    src/terark/histogram.hpp               ${TarBall}/include/terark
 	cp    src/terark/int_vector.hpp              ${TarBall}/include/terark
 	cp    src/terark/lcast.hpp                   ${TarBall}/include/terark
 	cp    src/terark/*hash*.hpp                  ${TarBall}/include/terark
+	cp    src/terark/heap_ext.hpp                ${TarBall}/include/terark
 	cp    src/terark/mempool*.hpp                ${TarBall}/include/terark
 	cp    src/terark/node_layout.hpp             ${TarBall}/include/terark
 	cp    src/terark/num_to_str.hpp              ${TarBall}/include/terark
@@ -458,6 +461,7 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    src/terark/rank_select.hpp             ${TarBall}/include/terark
 	cp    src/terark/stdtypes.hpp                ${TarBall}/include/terark
 	cp    src/terark/valvec.hpp                  ${TarBall}/include/terark
+	cp    src/terark/entropy/*.hpp               ${TarBall}/include/terark/entropy
 	cp    src/terark/io/*.hpp                    ${TarBall}/include/terark/io
 	cp    src/terark/io/win/*.hpp                ${TarBall}/include/terark/io/win
 	cp    src/terark/util/*.hpp                  ${TarBall}/include/terark/util
