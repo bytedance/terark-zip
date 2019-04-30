@@ -982,10 +982,6 @@ void SortedUintVec::Builder::Impl::append_block(uint64_t nextBlockFirstValue) {
 }
 
 void SortedUintVec::Builder::Impl::append_block_impl() {
-#if !defined(NDEBUG)
-	if (m_size == 0x4e80)
-		m_size = m_size; // for set break point
-#endif
 	const size_t blockUnits = getBlockUnits();
 	auto vals = m_block.data();
 	auto ds = m_diffvec.p;

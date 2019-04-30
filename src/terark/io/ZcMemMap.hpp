@@ -60,17 +60,17 @@ public:
 	void clone(const ZcMemMap& source);
 	void close();
 
-	bool eof() const;
+	bool eof() const override;
 
 	const void* zcRead(size_t length, size_t* readed) override;
 	void* zcWrite(size_t length, size_t* writable) override;
 
-	void zcFlush(size_t nWritten);
+	void zcFlush(size_t nWritten) override;
 
-	void seek(stream_offset_t offset, int origin);
-	void seek(stream_position_t pos);
-	stream_position_t tell() const;
-	stream_position_t size() const;
+	void seek(stream_offset_t offset, int origin) override;
+	void seek(stream_position_t pos) override;
+	stream_position_t tell() const override;
+	stream_position_t size() const override;
 
 	void remap(stream_position_t aligned_fpos, size_t unaligned_size);
 	bool try_remap(stream_position_t aligned_fpos, size_t unaligned_size);

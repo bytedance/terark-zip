@@ -125,7 +125,7 @@ mmap_load(const char* fname, size_t* fsize, bool writable, bool populate) {
 		if (err) {
 			close(fd);
 			THROW_STD(logic_error, "ftruncate(fname=%s, len=%zd) = %s"
-				, fname, st.st_size, strerror(errno));
+				, fname, size_t(st.st_size), strerror(errno));
 		}
 	}
 	*fsize = st.st_size;
@@ -229,7 +229,7 @@ void* mmap_write(const char* fname, size_t* fsize, intptr_t* pfd) {
 		if (err) {
 			close(fd);
 			THROW_STD(logic_error, "ftruncate(fname=%s, len=%zd) = %s"
-				, fname, st.st_size, strerror(errno));
+				, fname, size_t(st.st_size), strerror(errno));
 		}
 	}
 	*fsize = st.st_size;

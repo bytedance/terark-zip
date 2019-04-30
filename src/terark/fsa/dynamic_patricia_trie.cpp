@@ -1,3 +1,7 @@
+#if __clang__
+# pragma clang diagnostic ignored "-Warray-bounds"
+#endif
+
 #include "dynamic_patricia_trie.inl"
 #include "tmplinst.hpp"
 #include <terark/util/small_memcpy.hpp>
@@ -26,9 +30,6 @@
 
 #include <thread>
 #include <iomanip>
-
-//#undef assert
-//#define assert(expr) if (!(expr)) { DebugBreak(); } else {}
 
 namespace terark {
 
@@ -4277,7 +4278,6 @@ Patricia::MemStat Patricia::mem_get_stat() const {
     mem_get_stat(&ms);
     return ms;
 }
-
 
 } // namespace terark
 
