@@ -9,6 +9,8 @@ fi
 # make the project
 git submodule update --init
 
+rm -rf pkg
+
 make pkg -j $cpuNum
 
 
@@ -22,14 +24,13 @@ PLATFORM_DIR=$SYSTEM-$COMPILER-bmi2-$WITH_BMI2
 echo $PLATFORM_DIR
 
 rm -rf output
-rm -rf pkg
 
 mkdir output
 
 if [ `uname` == Darwin ]; then
-	cp -lrP pkg/terark-fsa_all-$PLATFORM_DIR/* output
-else
 	cp -r pkg/terark-fsa_all-$PLATFORM_DIR/* output
+else
+	cp -lrP pkg/terark-fsa_all-$PLATFORM_DIR/* output
 fi
 
 #mv 'pkg/terark-fsa_all-'$PLATFORM_DIR output
