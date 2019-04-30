@@ -470,7 +470,7 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    3rdparty/zstd/zstd/*.h                 ${TarBall}/include/zstd
 	cp    3rdparty/zstd/zstd/common/*.h          ${TarBall}/include/zstd/common
 ifeq (${PKG_WITH_DBG},1)
-	cp    ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
 	cp -a ${BUILD_ROOT}/lib/libterark-zbs-{${COMPILER}-,}d.a ${TarBall}/lib_static
@@ -478,7 +478,7 @@ ifeq (${PKG_WITH_DBG},1)
 	cp -a ${BUILD_ROOT}/lib/libterark-core-{${COMPILER}-,}d.a ${TarBall}/lib_static
   endif
 endif
-	cp    ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
 	echo $(shell date "+%Y-%m-%d %H:%M:%S") > ${TarBall}/package.buildtime.txt
 	echo $(shell git log | head -n1) >> ${TarBall}/package.buildtime.txt
 ifeq (${PKG_WITH_STATIC},1)
