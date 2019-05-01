@@ -14,7 +14,7 @@
 # include <boost/limits.hpp>
 # include <boost/detail/limits.hpp>
 #else
-# include <boost/detail/endian.hpp>
+# include <boost/predef/other/endian.h>
 #endif
 
 #ifdef _MSC_VER

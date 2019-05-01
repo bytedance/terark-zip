@@ -1,5 +1,8 @@
 #pragma once
-
+#if __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Warray-bounds"
+#endif
 #if defined(TERARK_WITH_TBB)
   // to prevent incompatible object layout:
   #include <boost/preprocessor/cat.hpp>
@@ -660,4 +663,6 @@ MainPatricia::ReaderTokenTLS_Object::tls_owner() const {
 
 } // namespace terark
 
-
+#if __clang__
+# pragma clang diagnostic pop
+#endif

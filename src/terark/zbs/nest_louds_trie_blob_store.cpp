@@ -1,6 +1,12 @@
 #include "nest_louds_trie_blob_store.hpp"
 #include "zip_reorder_map.hpp"
 
+
+#if __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wdynamic-class-memaccess"
+#endif
+
 namespace terark {
 
 ///////////////////////////////////////////////////////////////////////////
@@ -275,3 +281,6 @@ NestLoudsTrieBlobStore_build(fstring clazz, int nestLevel, SortableStrVec& strVe
 
 } // namespace terark
 
+#if __clang__
+# pragma clang diagnostic pop
+#endif

@@ -19,7 +19,7 @@ public:
 
 	MyType& save(const wchar_t* s, size_t n)
 	{
-#ifdef BOOST_LITTLE_ENDIAN
+#ifdef BOOST_ENDIAN_LITTLE_BYTE
 		this->ensureWrite(s, sizeof(wchar_t)*n);
 #else
 		std::vector<wchar_t> tempv(s, s + n);
@@ -32,7 +32,7 @@ public:
 #ifndef BOOST_NO_INTRINSIC_WCHAR_T
 	MyType& operator<<(wchar_t x)
 	{
-#ifdef BOOST_BIG_ENDIAN
+#ifdef BOOST_ENDIAN_BIG_BYTE
 		x = byte_swap(x);
 #endif
 		this->ensureWrite(&x, sizeof(x));

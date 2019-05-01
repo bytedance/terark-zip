@@ -12,14 +12,7 @@
 	//#pragma intrinsic(_BitScanReverse64)
 #endif
 
-#include <boost/version.hpp>
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-# include <boost/detail/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
-
+#include <boost/predef/other/endian.h>
 #include "var_int.hpp"
 
 namespace terark {

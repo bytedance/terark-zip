@@ -14,15 +14,7 @@
 #endif
 
 #include <stdlib.h>
-
-#include <boost/version.hpp>
-#if BOOST_VERSION < 103301
-# include <boost/limits.hpp>
-# include <boost/detail/limits.hpp>
-#else
-# include <boost/detail/endian.hpp>
-#endif
-
+#include <boost/predef/other/endian.h>
 #include <algorithm>
 #include "var_int.hpp"
 
