@@ -66,7 +66,7 @@ bin/base64: bin/base64.o lib/libbase64.o
 
 lib/libbase64.o: $(OBJS)
 	$(LD) -r -o $@ $^
-	$(OBJCOPY) --keep-global-symbols=lib/exports.txt $@
+	#$(OBJCOPY) --keep-global-symbols=lib/exports.txt $@
 
 lib/config.h:
 	@echo "#define HAVE_AVX2                  $(HAVE_AVX2)"                   > $@
