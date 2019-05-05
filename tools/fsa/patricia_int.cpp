@@ -45,7 +45,7 @@ If Input-TXT-File is omitted, use stdin
 }
 
 int main(int argc, char* argv[]) {
-    size_t benchmarkLoop = 0;
+    //size_t benchmarkLoop = 0;
     size_t maxMem = 0;
     size_t write_thread_num = std::thread::hardware_concurrency();
     size_t read_thread_num = 0;
@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
         case -1:
             goto GetoptDone;
         case 'b':
-            benchmarkLoop = strtoul(optarg, NULL, 10);
+            //benchmarkLoop = strtoul(optarg, NULL, 10);
             break;
         case 'i':
             concWriteInterleave = true;
@@ -132,7 +132,7 @@ GetoptDone:
         mark_readonly = true;
     }
     terark::profiling pf;
-    maximize(write_thread_num, 1);
+    maximize(write_thread_num, 1u);
     MainPatricia trie(sizeof(size_t), maxMem, conLevel);
     MainPatricia trie2(sizeof(size_t), maxMem, Patricia::MultiWriteMultiRead);
     MainPatricia* pt = single_thread_write ? &trie : &trie2;
