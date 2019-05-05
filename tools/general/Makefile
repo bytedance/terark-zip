@@ -1,0 +1,2 @@
+
+include ../fsa/Makefile.common

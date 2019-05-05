@@ -239,6 +239,7 @@ static const uint64_t g_dzbsnark_seed = 0x4b52414e53425a44ull;
 
 class DictZipBlobStoreBuilder : public DictZipBlobStore::ZipBuilder {
 public:
+	typedef DictZipBlobStore::Options    Options;
 	typedef DictZipBlobStore::FileHeader FileHeader;
 	//valvec<size_t> m_offsets; // modified by writer thread (MyWriteStage)
     febitvec m_entropyBitmap;
@@ -256,6 +257,11 @@ public:
     Huffman::encoder_o1* m_huffman_encoder;
 	valvec<byte_t> m_entropyTableData;
 	valvec<byte_t> m_strDict;
+	struct PosLen {
+		uint32_t pos;
+		uint32_t len;
+	};
+	valvec<PosLen> m_posLen;
     uint64_t m_dictXXHash;
 	std::unique_ptr<SuffixDictCacheDFA> m_dict;
     SeekableStreamWrapper<FileMemIO*> m_memStream;
@@ -334,16 +340,7 @@ public:
         return AbstractBlobStore::Dictionary(m_strDict, m_dictXXHash);
     }
 
-    void prepareDict() override {
-        if (!m_dict) {
-            m_dict.reset(new SuffixDictCacheDFA());
-            //m_dict.reset(new HashSuffixDictCacheDFA()); // :( much slower
-            m_dict->build_sa(m_strDict);
-            size_t minFreq = m_strDict.size() < (1ul << 30) ? 15 : 31;
-            //size_t minFreq = 32*1024; // for benchmark pure suffix array match
-            m_dict->bfs_build_cache(minFreq, 64);
-        }
-    }
+    void prepareDict() override;
 
     void entropyStore(std::unique_ptr<terark::DictZipBlobStore> &store, terark::ullong &t2, terark::ullong &t3);
     void EmbedDict(std::unique_ptr<terark::DictZipBlobStore> &store);
@@ -355,6 +352,9 @@ public:
 
     void freeDict() override { m_dict.reset(); }
 
+	void dictSortLeft();  void dictSortLeft(valvec<byte_t>& tmp);
+	void dictSortRight(); void dictSortRight(valvec<byte_t>& tmp);
+	void dictSortBoth();
 	virtual void prepareZip() {}
 	virtual void finishZip() = 0;
 
@@ -387,6 +387,116 @@ public:
 	class MultiThread;
 };
 
+struct PosLenCmpLeft {
+	bool operator()(const DictZipBlobStoreBuilder::PosLen& x,
+				    const DictZipBlobStoreBuilder::PosLen& y)
+    const {
+		auto sx = base + x.pos;
+		auto sy = base + y.pos;
+		size_t sn = std::min(x.len, y.len);
+		int r = memcmp(sx, sy, sn);
+		if (r)
+			return r < 0;
+		else
+			return x.len > y.len; // longer is less
+	}
+	const byte_t* base;
+};
+struct PosLenCmpRight {
+	bool operator()(const DictZipBlobStoreBuilder::PosLen& x,
+				    const DictZipBlobStoreBuilder::PosLen& y)
+    const {
+		auto sx = base + x.pos + x.len;
+		auto sy = base + y.pos + y.len;
+		size_t sn = std::min(x.len, y.len);
+		while (sn) {
+			if (*--sx != *--sy) {
+				return *sx < *sy;
+			}
+			--sn;
+		}
+		return x.len > y.len; // longer is less
+	}
+	const byte_t* base;
+};
+void DictZipBlobStoreBuilder::dictSortLeft() {
+	valvec<byte_t> tmp;
+	dictSortLeft(tmp);
+	m_strDict.swap(tmp);
+	m_posLen.clear();
+}
+void DictZipBlobStoreBuilder::dictSortLeft(valvec<byte_t>& tmp) {
+	assert(m_posLen.size() > 0);
+	std::sort(m_posLen.begin(), m_posLen.end(), PosLenCmpLeft{m_strDict.data()});
+	tmp.reserve(m_strDict.size());
+	auto pl = m_posLen.data();
+	auto base = m_strDict.data();
+	tmp.append(base + pl[0].pos, pl[0].len);
+	for (size_t  i = 1; i < m_posLen.size(); ++i) {
+		auto sprev = base + pl[i-1].pos; auto lprev = pl[i-1].len;
+		auto scurr = base + pl[i-0].pos; auto lcurr = pl[i-0].len;
+		if (lprev >= lcurr && memcmp(sprev, scurr, lcurr) == 0) {}
+		else {
+			tmp.append(scurr, lcurr);
+		}
+	}
+	m_strDict.swap(tmp);
+	m_posLen.clear();
+}
+
+void DictZipBlobStoreBuilder::dictSortRight() {
+	valvec<byte_t> tmp;
+	dictSortRight(tmp);
+	m_strDict.swap(tmp);
+	m_posLen.clear();
+}
+void DictZipBlobStoreBuilder::dictSortRight(valvec<byte_t>& tmp) {
+	assert(m_posLen.size() > 0);
+	std::sort(m_posLen.begin(), m_posLen.end(), PosLenCmpRight{m_strDict.data()});
+	tmp.reserve(m_strDict.size());
+	auto pl = m_posLen.data();
+	auto base = m_strDict.data();
+	tmp.append(base + pl[0].pos, pl[0].len);
+	for (size_t  i = 1; i < m_posLen.size(); ++i) {
+		auto sprev = base + pl[i-1].pos; auto lprev = pl[i-1].len;
+		auto scurr = base + pl[i-0].pos; auto lcurr = pl[i-0].len;
+		if (lprev >= lcurr && memcmp(sprev+lprev-lcurr, scurr, lcurr) == 0) {}
+		else {
+			tmp.append(scurr, lcurr);
+		}
+	}
+}
+
+void DictZipBlobStoreBuilder::dictSortBoth() {
+	assert(m_posLen.size() > 0);
+	valvec<byte_t> tmp;
+	dictSortLeft(tmp);
+	dictSortRight();
+	if (tmp.size() < m_strDict.size()) {
+		tmp.swap(m_strDict);
+	}
+}
+
+void DictZipBlobStoreBuilder::prepareDict() {
+	if (!m_dict) {
+		switch (m_opt.sampleSort) {
+		default:
+			THROW_STD(runtime_error, "invalid sampleSort = %d", m_opt.sampleSort);
+			break;
+		case Options::kSortNone : break;
+		case Options::kSortLeft : dictSortLeft (); break;
+		case Options::kSortRight: dictSortRight(); break;
+		case Options::kSortBoth : dictSortBoth (); break;
+		}
+		m_dict.reset(new SuffixDictCacheDFA());
+		//m_dict.reset(new HashSuffixDictCacheDFA()); // :( much slower
+		m_dict->build_sa(m_strDict);
+		size_t minFreq = m_strDict.size() < (1ul << 30) ? 15 : 31;
+		//size_t minFreq = 32*1024; // for benchmark pure suffix array match
+		m_dict->bfs_build_cache(minFreq, 64);
+	}
+}
+
 void DictZipBlobStoreBuilder::addSample(const byte* rData, size_t rSize) {
 	m_sampleNumber++;
 	m_requestSampleBytes += rSize;
@@ -400,6 +510,9 @@ void DictZipBlobStoreBuilder::addSample(const byte* rData, size_t rSize) {
 			m_warnWindowSize *= 1.618;
 		}
 		return;
+	}
+	if (Options::kSortNone != m_opt.sampleSort) {
+		m_posLen.push_back({uint32_t(m_strDict.size()), uint32_t(rSize)});
 	}
 	m_strDict.append(rData, rSize);
 }
@@ -418,6 +531,7 @@ void DictZipBlobStoreBuilder::useSample(valvec<byte>& sample) {
 void DictZipBlobStoreBuilder::finishSample() {
 	ullong t1 = g_pf.now();
 	m_strDict.shrink_to_fit();
+	m_posLen.shrink_to_fit();
 	m_zipStat.sampleTime = g_pf.sf(m_sampleStartTime, t1);
     m_dictXXHash = AbstractBlobStore::Dictionary(m_strDict).xxhash;
 }
@@ -1075,6 +1189,7 @@ DictZipBlobStore::Options::Options() {
 	checksumLevel = 1;
 	maxMatchProbe = getEnvLong("DictZipBlobStore_MAX_PROBE", 0);
 	entropyAlgo = kNoEntropy;
+	sampleSort = kSortNone;
 	useSuffixArrayLocalMatch = false;
 	useNewRefEncoding = true;
 	compressGlobalDict = false;
