@@ -428,6 +428,8 @@ pkg : ${TarBall}
 tgz : ${TarBall}.tgz
 
 ${TarBall}: ${core} ${fsa} ${zbs}
+	make -C tools/fsa
+	make -C tools/zbs
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
@@ -491,6 +493,8 @@ ifeq (${PKG_WITH_STATIC},1)
 	cp -a ${BUILD_ROOT}/lib/libterark-fsa-{${COMPILER}-,}r.a ${TarBall}/lib_static
 	cp -a ${BUILD_ROOT}/lib/libterark-core-{${COMPILER}-,}r.a ${TarBall}/lib_static
 endif
+	cp -L tools/fsa/rls/*.exe ${TarBall}/bin/
+	cp -L tools/zbs/rls/*.exe ${TarBall}/bin/
 
 ${TarBall}.tgz: ${TarBall}
 	cd pkg; tar czf ${TarBallBaseName}.tgz ${TarBallBaseName}
