@@ -38,7 +38,7 @@ endif
 override LIBS += -lpthread
 
 tmpfile := $(shell mktemp compiler-XXXXXX)
-COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe && rm -f ${tmpfile}*)
+COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
 UNAME_MachineSystem := $(shell uname -m -s | sed 's:[ /]:-:g')
 UNAME_System := $(shell uname | sed 's/^\([0-9a-zA-Z]*\).*/\1/')
 COMPILER_LAZY = ${COMPILER}
@@ -88,14 +88,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   #  override LDFLAGS += -rdynamic
   #endif
   override CXXFLAGS += -time
-  ifeq "$(shell echo ${COMPILER} | awk -F- '{if ($$2 >= 4.8) print 1;}')" "1"
-    CXX_STD := -std=gnu++1y
-  endif
 endif
 
-ifeq "${CXX_STD}" ""
-  CXX_STD := -std=gnu++11
-endif
+CXX_STD := -std=gnu++1y
 
 override CXXFLAGS += ${CXX_STD}
 
@@ -156,22 +151,15 @@ link : ${BINS_D} ${BINS_R} ${DLL_BINS_D} ${DLL_BINS_R}
 	done; cd ..
 
 ifeq (${STATIC},1)
-ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
+  ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
 ${BINS_D} : ${LIB_DIR}/libterark-core-${COMPILER}-d.a
 ${BINS_R} : ${LIB_DIR}/libterark-core-${COMPILER}-r.a
-endif
-  ifeq (Darwin, ${UNAME_System})
-${BINS_D} : LIBS := ${LIB_DIR}/libterark-fsa_all-${COMPILER}-d.a ${LIBS}
-${BINS_R} : LIBS := ${LIB_DIR}/libterark-fsa_all-${COMPILER}-r.a ${LIBS}
-  else
-${BINS_D} : LIBS := -Wl,--whole-archive ${LIB_DIR}/libterark-fsa_all-${COMPILER}-d.a -Wl,--no-whole-archive -ldivsufsort-d ${LIBS}
-${BINS_R} : LIBS := -Wl,--whole-archive ${LIB_DIR}/libterark-fsa_all-${COMPILER}-r.a -Wl,--no-whole-archive -ldivsufsort-r ${LIBS}
   endif
 else
-ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
+  ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
 ${BINS_D} : ${LIB_DIR}/libterark-core-${COMPILER}-d${DLL_SUFFIX}
 ${BINS_R} : ${LIB_DIR}/libterark-core-${COMPILER}-r${DLL_SUFFIX}
-endif
+  endif
 ${BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
 ${BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-r,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-r ${LIBS}
 endif
