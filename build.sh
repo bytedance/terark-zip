@@ -11,7 +11,7 @@ git submodule update --init
 
 rm -rf pkg
 
-make pkg -j $cpuNum
+PKG_WITH_DBG=1 make pkg -j $cpuNum
 
 
 # move all binaries to output/ dir for next CICD steps
