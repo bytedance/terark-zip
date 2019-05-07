@@ -423,7 +423,7 @@ class TCMemPoolTlsHolder :
 template<int AlignSize>
 class ThreadCacheMemPool : public valvec<byte_t>, boost::noncopyable {
     friend class TCMemPoolOneThread<AlignSize>;
-    static const size_t ArenaSize = 256 * 1024;
+    static const size_t ArenaSize = 2 * 1024 * 1024;
 
     typedef typename TCMemPoolOneThread<AlignSize>::link_t link_t;
 

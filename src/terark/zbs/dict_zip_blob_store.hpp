@@ -22,10 +22,17 @@ public:
 			kHuffmanO1,
 			kFSE,
 		};
+		enum SampleSortPolicy {
+			kSortNone,
+			kSortLeft,
+			kSortRight,
+			kSortBoth,
+		};
 		int checksumLevel; // default 1
 		int maxMatchProbe; // default 5 for local hash
 						   //        30 for local suffix array
 		EntropyAlgo entropyAlgo; // default kNoEntropy
+		SampleSortPolicy sampleSort;
 		bool useSuffixArrayLocalMatch;
 		bool useNewRefEncoding; // now unused
 		bool compressGlobalDict;
