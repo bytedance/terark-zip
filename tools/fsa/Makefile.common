@@ -30,8 +30,6 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 
 #override CXXFLAGS += -Wfatal-errors
 
-override CXXFLAGS += -DNO_THREADS # Workaround re2
-
 ifeq ($(shell uname), Linux)
   override LIBS += -lrt
 endif
@@ -112,6 +110,12 @@ else
   CYG_DLL_FILE = $@
 endif
 #override CXXFLAGS += ${FPIC}
+
+ifeq (Darwin,${UNAME_System})
+  DLL_PATH_VAR = DYLD_LIBRARY_PATH
+else
+  DLL_PATH_VAR =   LD_LIBRARY_PATH
+endif
 
 BUILD_NAME := ${UNAME_MachineSystem}-${COMPILER}-bmi2-${WITH_BMI2}
 BUILD_ROOT := build/${BUILD_NAME}
