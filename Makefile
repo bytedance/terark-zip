@@ -87,7 +87,7 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:2})" "ic"
   override CXXFLAGS += -xHost -fasm-blocks
   CPU = -xHost
 else
-  CPU = -march=native
+  CPU = -march=haswell
   COMMON_C_FLAGS  += -Wno-deprecated-declarations
   ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
     COMMON_C_FLAGS  += -fstrict-aliasing
