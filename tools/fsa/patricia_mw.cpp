@@ -323,8 +323,7 @@ GetoptDone:
             auto insert_vx = [&](fstring key, size_t i) {
                 struct PosLen { uint32_t pos, len; };
                 PosLen pl{UINT32_MAX, uint32_t(valueRatio*key.size())};
-                terark::maximize(pl.len, 1u);
-                pl.pos = ptrie->mem_alloc(pl.len);
+                pl.pos = ptrie->mem_alloc(std::max(pl.len, 1u));
                 if (uint32_t(MainPatricia::mem_alloc_fail) == pl.pos) {
                     fprintf(stderr
                         , "thread-%02d value alloc %d run out of maxMem = %zd, i = %zd, fragments = %zd\n"
