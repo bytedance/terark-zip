@@ -625,6 +625,49 @@ void test_run_impl(const MatchingDFA& dfa, const hash_strmap<>& strVec) {
         }
 	}
 	printf("test lower_bound as upper_bound + decr passed\n\n");
+
+    printf("test seek_max_prefix\n");
+    // TODO: Add more case
+    for(size_t j = 0; j < strVec.end_i(); ++j) {
+        size_t k = shuf[j];
+        fstring rk = strVec.key(k);
+        if (rk.size() == 0)
+            continue;
+        size_t r1 = rand() % rk.size();
+        size_t r2 = rand() % rk.size();
+        std::string randKey = rk.substr(0, r1) + rk.substr(r2, rk.size() - r2);
+        size_t cplen = rk.commonPrefixLen(randKey);
+        size_t partial_len  = iter->seek_max_prefix(randKey);
+    //    printf("randKey = len=%zd: %s\n", randKey.size(), randKey.c_str());
+    //    printf("cplen = %zd, partial_len = %zd, iter->word() = len=%zd: \"%s\"\n"
+    //            , cplen, partial_len, iter->word().size(), iter->word().c_str());
+        assert(partial_len <= randKey.size());
+        assert(partial_len >= iter->word().size());
+        assert(partial_len >= cplen);
+        assert(memcmp(randKey.data(), iter->word().data(), iter->word().size()) == 0);
+        k = strVec.lower_bound(randKey);
+        assert(k == strVec.end_i() || iter->word() <= strVec.key(k));
+        if (k < strVec.end_i() && strVec.key(k).startsWith(iter->word())) {
+            assert(strVec.key(k).startsWith(iter->word()));
+        }
+        else if (k > 0) {
+            assert(strVec.key(k-1).startsWith(iter->word()));
+        }
+        if (iter->incr()) {
+            if (!(randKey < iter->word())) {
+            //    printf("fail: randKey  = %s\n", randKey.c_str());
+            //    printf("fail: iterWord = %s\n", iter->word().c_str());
+            }
+            //assert(randKey < iter->word());
+        }
+        iter->decr();
+        if (iter->decr()) {
+            //assert(randKey > iter->word());
+        }
+        iter->incr();
+        iter->incr();
+    }
+    printf("test seek_max_prefix passed\n\n");
 	TERARK_UNUSED_VAR(hasData);
     Unused(hasData);
 }

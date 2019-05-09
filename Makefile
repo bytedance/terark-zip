@@ -499,6 +499,11 @@ endif
 ${TarBall}.tgz: ${TarBall}
 	cd pkg; tar czf ${TarBallBaseName}.tgz ${TarBallBaseName}
 
+.PONY: test
+test: ${zbs_d} ${fsa_d} ${core_d}
+	+$(MAKE) -C tests/tries       test
+	+$(MAKE) -C tests/succinct    test
+
 ifneq ($(MAKECMDGOALS),cleanall)
 ifneq ($(MAKECMDGOALS),clean)
 -include ${alldep}

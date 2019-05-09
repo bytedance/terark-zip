@@ -4121,64 +4121,48 @@ switch_done:
 size_t Patricia::Iterator::seek_max_prefix(fstring key) {
     static_cast<MyImpl*>(this)->reset1();
     auto a = reinterpret_cast<const PatriciaNode*>(m_trie->m_mempool.data());
+    size_t last_stack_top = 0;
+    size_t last_match_len = 0;
     size_t curr = initial_state;
     size_t pos = 0;
-    Entry  e;
     for (;; ++pos) {
         const auto p = a + curr;
         const size_t zlen = p->meta.n_zpath_len;
         const size_t cnt_type = p->meta.n_cnt_type;
         const size_t skip = MainPatricia::s_skip_slots[cnt_type];
         const size_t n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
-        e.state = curr;
-        e.zpath_len = zlen;
-        e.nth_child = 0;
-        e.n_children = n_children;
+        Entry* e = m_iter.grow_no_init(1);
+        e->state = curr;
+        e->zpath_len = zlen;
+        e->nth_child = 0;
+        e->n_children = n_children;
         if (zlen) {
             size_t zkn = std::min(key.size() - pos, zlen);
             const byte_t* zptr = p[skip + n_children].bytes;
-            m_word.append(zptr, zlen);
             const byte_t* pkey = key.udata() + pos;
-            // fprintf(stderr, "m_word.appends(%.*s)\n", e.zlen, zs.data());
             for (size_t j = 0; j < zkn; ++j) {
-                byte_t c = pkey[j];
-                if (c != zptr[j]) { // OK, current word has max matching prefix
-                    goto ZS_MatchDone;
+                if (pkey[j] != zptr[j]) { // OK, current word has max matching prefix
+                    pos += j;
+                    goto RestoreLastMatch;
                 }
             }
             pos += zkn;
             if (zkn < zlen) { // OK, current word has max matching prefix
-                goto ZS_MatchDone;
+                goto RestoreLastMatch;
             }
         }
-        else {
-            assert(pos <= key.size());
-            if (key.size() == pos) { // done
-            ZS_MatchDone:
-                mark_word_end_zero_at(curr);
-                if (p->meta.b_is_final) {
-                    m_iter.push_back(e);
-                    return pos;
-                }
-                if (0 == n_children) {
-                    m_iter.push_back(e);
-                    assert(calc_word_len() == m_word.size());
-                    assert(p->meta.b_is_final);
-                    return pos;
-                }
-                break;
-            }
+        assert(pos <= key.size());
+        if (p->meta.b_is_final) {
+            last_stack_top = m_iter.size();
+            last_match_len = pos;
         }
-        if (0 == n_children) {
-            m_iter.push_back(e);
-            assert(calc_word_len() == m_word.size());
-            assert(p->meta.b_is_final);
-            mark_word_end_zero_at(curr);
-            return pos;
+        if (key.size() == pos) { // done
+            goto RestoreLastMatch;
         }
+        assert(n_children > 0);
 #define match_nth_char(skip, nth) \
         curr = p[skip+nth].child; \
-        e.nth_child = nth+1;     \
+        e->nth_child = nth;       \
         break
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const auto ch = (byte_t)key[pos];
@@ -4192,14 +4176,14 @@ size_t Patricia::Iterator::seek_max_prefix(fstring key) {
             abort();
         case 2: if (ch == p->meta.c_label[1]) { match_nth_char(1, 1); } no_break_fallthrough;
         case 1: if (ch == p->meta.c_label[0]) { match_nth_char(1, 0); }
-                goto MatchDone;
+                goto RestoreLastMatch;
         case 6: if (ch == p->meta.c_label[5]) { match_nth_char(2, 5); } no_break_fallthrough;
         case 5: if (ch == p->meta.c_label[4]) { match_nth_char(2, 4); } no_break_fallthrough;
         case 4: if (ch == p->meta.c_label[3]) { match_nth_char(2, 3); } no_break_fallthrough;
         case 3: if (ch == p->meta.c_label[2]) { match_nth_char(2, 2); }
                 if (ch == p->meta.c_label[1]) { match_nth_char(2, 1); }
                 if (ch == p->meta.c_label[0]) { match_nth_char(2, 0); }
-                goto MatchDone;
+                goto RestoreLastMatch;
         case 7: // cnt in [ 7, 16 ]
             assert(n_children == p->big.n_children);
             assert(n_children >=  7);
@@ -4213,43 +4197,37 @@ size_t Patricia::Iterator::seek_max_prefix(fstring key) {
                         match_nth_char(5, lo);
                     }
                 }
-                goto MatchDone;
+                goto RestoreLastMatch;
             }
         case 8: // cnt >= 17
             assert(n_children == p->big.n_children);
             assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
-            {
-                assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
+            if (terark_bit_test(&a[curr+1+1].child, ch)) {
                 size_t lo = fast_search_byte_rs_idx(a[curr + 1].bytes, byte_t(ch));
-                if (terark_bit_test(&a[curr+1+1].child, ch)) {
-                    match_nth_char(5, lo);
-                } else {
-                    goto MatchDone;
-                }
+                match_nth_char(10, lo);
             }
-            assert(false);
-            break;
+            goto RestoreLastMatch;
         case 15:
             assert(256 == p->big.n_children);
             if (nil_state != p[2 + ch].child) {
                 match_nth_char(2, ch);
-            } else {
-                goto MatchDone;
             }
+            goto RestoreLastMatch;
         }
-        m_iter.push_back(e);
-        m_word.push_back(ch);
     }
-MatchDone:
-    assert(e.n_children > 0);
-    e.nth_child = 1;
-    m_iter.push_back(e);
-    assert(calc_word_len() == m_word.size());
-    curr = m_trie->first_child(a+curr, m_word.grow_no_init(1));
-    if (terark_likely(nil_state != curr)) {
-        static_cast<MyImpl*>(this)->append_lex_min_suffix(curr, a);
+RestoreLastMatch:
+    if (last_stack_top) {
+        m_iter[last_stack_top - 1].nth_child = 0;
+        m_curr = m_iter[last_stack_top - 1].state;
     }
-    return pos;
+    else {
+        m_curr = size_t(-1);
+    }
+    m_word.ensure_capacity(last_match_len + 1);
+    m_word.assign(key.udata(), last_match_len);
+    m_word.end()[0] = '\0';
+    m_iter.risk_set_size(last_stack_top);
+    return pos; // max partial match len
 }
 
 /// load & save
