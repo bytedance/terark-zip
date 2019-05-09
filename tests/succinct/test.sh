@@ -12,4 +12,5 @@ cp $BASE/terark/src/terark/succinct/rank_select_fewzero.cpp .
 make clean
 make -j4
 
-./rs_fewzero_ut
+./dbg/rs_fewzero_ut.exe
+./dbg/rank_select_benchmark.exe
