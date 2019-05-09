@@ -8,4 +8,4 @@ else
 	cpuNum=`nproc`
 fi
 
-make test -o -j$cpuNum
+make -j$cpuNum test

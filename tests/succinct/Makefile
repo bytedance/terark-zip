@@ -6,8 +6,10 @@ SRCS += $(wildcard *.cpp)
 
 include ../../tools/fsa/Makefile.common
 
+UNIT_TESTS := $(addsuffix .test,${BINS_D})
+
 .PHONY : test
-test : ${BINS_D}
-	env ${DLL_PATH_VAR}=${LIB_DIR} ${DBG_DIR}/rank_select_test.exe 10000
-	env ${DLL_PATH_VAR}=${LIB_DIR} ${DBG_DIR}/sorted_uint_vec_test.exe 10000
-	env ${DLL_PATH_VAR}=${LIB_DIR} ${DBG_DIR}/rank_select_benchmark.exe
+test : ${UNIT_TESTS}
+
+${UNIT_TESTS} : %.test : %
+	env ${DLL_PATH_VAR}=${LIB_DIR} $<

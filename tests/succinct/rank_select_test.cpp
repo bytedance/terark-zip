@@ -414,9 +414,12 @@ void test_mixed(size_t max_bits) {
 }
 
 int main(int argc, char* argv[]) {
+    size_t max_bits = 10000;
     if (argc < 2) {
-        fprintf(stderr, "usage: %s num_max_bits\n", argv[0]);
-        return 1;
+        fprintf(stderr, "usage: %s num_max_bits(default=10000)\n", argv[0]);
+    }
+    else {
+        max_bits = strtoul(argv[1], NULL, 10);
     }
     assert(UintSelect1(uint64_t(1) <<  0, 0) ==  0);
     assert(UintSelect1(uint64_t(1) <<  1, 0) ==  1);
@@ -427,7 +430,6 @@ int main(int argc, char* argv[]) {
     assert(UintSelect1(uint64_t(1) << 32, 0) == 32);
     assert(UintSelect1(uint64_t(1) << 33, 0) == 33);
     assert(UintSelect1(uint64_t(1) << 63, 0) == 63);
-    size_t max_bits = strtoul(argv[1], NULL, 10);
     mt.seed(max_bits);
 
     test<rank_select_simple   >(max_bits);
