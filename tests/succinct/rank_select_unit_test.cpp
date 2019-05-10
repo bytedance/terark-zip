@@ -38,14 +38,14 @@ struct test_rank_select {
   size_t sum = 0;
 
   test_rank_select(std::string name, size_t count, size_t size) {
-    ro = std::chrono::seconds(0);
-    so = std::chrono::seconds(0);
-    rr = std::chrono::seconds(0);
-    sr = std::chrono::seconds(0);
-    osqr = std::chrono::seconds(0);
-    osqrr = std::chrono::seconds(0);
-    zsqr = std::chrono::seconds(0);
-    zsqrr = std::chrono::seconds(0);
+//    ro = std::chrono::seconds(0);
+//    so = std::chrono::seconds(0);
+//    rr = std::chrono::seconds(0);
+//    sr = std::chrono::seconds(0);
+//    osqr = std::chrono::seconds(0);
+//    osqrr = std::chrono::seconds(0);
+//    zsqr = std::chrono::seconds(0);
+//    zsqrr = std::chrono::seconds(0);
     std::mt19937_64 mt(0);
     size_t final_count = 0;
     double total_size = 0;
@@ -55,44 +55,45 @@ struct test_rank_select {
       final_count += sub_count;
     }
     total_size /= 8;
-    fprintf(stderr,
-            "%16s\t"
-            "%8.3f\t"   //rank_ordered
-            "%8.3f\t"   //select_ordered
-            "%8.3f\t"   //rank_random
-            "%8.3f\t"   //select_random
-            "%8.3f\t"   //one_seq_len
-            "%8.3f\t"   //zero_seq_len
-            "%12zd\t"   //bit_count
-            "%12zd\t"   //bit_size
-            "%12.1f\t"  //total_size
-            "%8.3f\t"   //expand_rate
-            "%016zX\n"  //check_sum
-            , name.c_str(),
-            ro.count() / final_count,
-            so.count() / final_count,
-            rr.count() / final_count,
-            sr.count() / final_count,
-            osqr.count() / final_count,
-            zsqr.count() / final_count,
-            size,
-            (size + 7) / 8,
-            total_size,
-            total_size / ((size + 7) / 8),
-            sum
-    );
+//    fprintf(stderr,
+//            "%16s\t"
+//            "%8.3f\t"   //rank_ordered
+//            "%8.3f\t"   //select_ordered
+//            "%8.3f\t"   //rank_random
+//            "%8.3f\t"   //select_random
+//            "%8.3f\t"   //one_seq_len
+//            "%8.3f\t"   //zero_seq_len
+//            "%12zd\t"   //bit_count
+//            "%12zd\t"   //bit_size
+//            "%12.1f\t"  //total_size
+//            "%8.3f\t"   //expand_rate
+//            "%016zX\n"  //check_sum
+//            , name.c_str(),
+//            ro.count() / final_count,
+//            so.count() / final_count,
+//            rr.count() / final_count,
+//            sr.count() / final_count,
+//            osqr.count() / final_count,
+//            zsqr.count() / final_count,
+//            size,
+//            (size + 7) / 8,
+//            total_size,
+//            total_size / ((size + 7) / 8),
+//            sum
+//    );
   }
 
   size_t retSum(){
     return sum;
   }
 
-  static auto do_test(std::function<size_t()> f) {
-    auto begin = std::chrono::high_resolution_clock::now();
+  //static auto
+  void do_test(std::function<size_t()> f) {
+    //auto begin = std::chrono::high_resolution_clock::now();
     size_t sum = f();
     TERARK_UNUSED_VAR(sum);
-    auto end = std::chrono::high_resolution_clock::now();
-    return std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(end - begin);
+    //auto end = std::chrono::high_resolution_clock::now();
+    //return std::chrono::duration_cast<std::chrono::duration<double, std::nano>>(end - begin);
   }
 
   size_t test(size_t count, size_t size, std::mt19937_64& mt, size_t &sum, std::false_type) {
@@ -104,7 +105,8 @@ struct test_rank_select {
     if (max_rank == 0)
       throw 0;
 
-    ro += do_test([&, count, size] {
+    //ro +=
+    do_test([&, count, size] {
       size_t s = 0;
       for(size_t c = 0; c < count; ) {
         size_t limit = std::min(count - c, size);
@@ -119,7 +121,9 @@ struct test_rank_select {
       }
       return sum += s;
     });
-    so += do_test([&, count, max_rank] {
+
+    //so +=
+    do_test([&, count, max_rank] {
       size_t s = 0;
       for(size_t c = 0; c < count; ) {
         size_t limit = std::min(count - c, max_rank);
@@ -136,7 +140,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, size - 1), std::ref(mt)));
-    rr += do_test([&, count] {
+    //rr +=
+    do_test([&, count] {
       size_t s = 0;
       size_t i = 0;
       if (UNROLL) {
@@ -149,7 +154,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, max_rank - 1), std::ref(mt)));
-    sr += do_test([&, count] {
+    //sr +=
+    do_test([&, count] {
       size_t s = 0;
       size_t i = 0;
       if (UNROLL) {
@@ -162,7 +168,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, max_rank - 1), std::ref(mt)));
-    osqr += do_test([&, count] {
+    //osqr +=
+    do_test([&, count] {
       size_t s = 0;
       size_t i = 0;
       if (UNROLL) {
@@ -175,7 +182,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, max_rank - 1), std::ref(mt)));
-    osqrr += do_test([&, count] {
+    //osqrr +=
+    do_test([&, count] {
       size_t s = 0;
       size_t i = 0;
       if (UNROLL) {
@@ -188,7 +196,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, max_rank - 1), std::ref(mt)));
-    zsqr += do_test([&, count] {
+    //zsqr +=
+    do_test([&, count] {
       size_t s = 0;
       size_t i = 0;
       if (UNROLL) {
@@ -200,7 +209,8 @@ struct test_rank_select {
       return sum += s;
     });
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, max_rank - 1), std::ref(mt)));
-    zsqrr += do_test([&, count] {
+    //zsqrr +=
+    do_test([&, count] {
       size_t s = 0;
       size_t i = 0;
       if (UNROLL) {
@@ -223,7 +233,8 @@ struct test_rank_select {
     if (max_rank == 0)
       throw 0;
 
-    ro += do_test([&, count, size] {
+    //ro +=
+    do_test([&, count, size] {
       auto bldata = t.bldata();
       auto rank = t.get_rank_cache();
       size_t s = 0;
@@ -243,7 +254,8 @@ struct test_rank_select {
       }
       return sum += s;
     });
-    so += do_test([&, count, max_rank] {
+    //so +=
+    do_test([&, count, max_rank] {
       auto bldata = t.bldata();
       auto sel = t.get_sel_cache();
       auto rank = t.get_rank_cache();
@@ -266,7 +278,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, size - 1), std::ref(mt)));
-    rr += do_test([&, count] {
+    //rr +=
+    do_test([&, count] {
       auto bldata = t.bldata();
       auto rank = t.get_rank_cache();
       size_t s = 0;
@@ -284,7 +297,8 @@ struct test_rank_select {
     });
 
     std::generate(r.begin(), r.end(), std::bind(std::uniform_int_distribution<size_t>(0, max_rank - 1), std::ref(mt)));
-    sr += do_test([&, count] {
+    //sr +=
+    do_test([&, count] {
       auto bldata = t.bldata();
       auto sel = t.get_sel_cache();
       auto rank = t.get_rank_cache();
@@ -301,19 +315,16 @@ struct test_rank_select {
         s += T::fast_select(bldata, sel, rank, r[i]);
       return sum += s;
     });
-
-
-
     return t.total_size();
   }
-  std::chrono::duration<double, std::nano> ro;
-  std::chrono::duration<double, std::nano> so;
-  std::chrono::duration<double, std::nano> rr;
-  std::chrono::duration<double, std::nano> sr;
-  std::chrono::duration<double, std::nano> osqr;
-  std::chrono::duration<double, std::nano> osqrr;
-  std::chrono::duration<double, std::nano> zsqr;
-  std::chrono::duration<double, std::nano> zsqrr;
+//  std::chrono::duration<double, std::nano> ro;
+//  std::chrono::duration<double, std::nano> so;
+//  std::chrono::duration<double, std::nano> rr;
+//  std::chrono::duration<double, std::nano> sr;
+//  std::chrono::duration<double, std::nano> osqr;
+//  std::chrono::duration<double, std::nano> osqrr;
+//  std::chrono::duration<double, std::nano> zsqr;
+//  std::chrono::duration<double, std::nano> zsqrr;
 };
 
 template<class T>
@@ -434,20 +445,20 @@ struct terark_few {
 };
 
 int main(int argc, char* argv[]) {
-  fprintf(stderr,
-          "name\t"
-          "rank_ordered\t"
-          "select_ordered\t"
-          "rank_random\t"
-          "select_random\t"
-          "one_seq_len\t"
-          "zero_seq_len\t"
-          "bit_count\t"
-          "bit_bytes\t"
-          "total_bytes\t"
-          "expand_ratio\t"
-          "check_sum\n");
-  fprintf(stderr, "\n");
+//  fprintf(stderr,
+//          "name\t"
+//          "rank_ordered\t"
+//          "select_ordered\t"
+//          "rank_random\t"
+//          "select_random\t"
+//          "one_seq_len\t"
+//          "zero_seq_len\t"
+//          "bit_count\t"
+//          "bit_bytes\t"
+//          "total_bytes\t"
+//          "expand_ratio\t"
+//          "check_sum\n");
+//  fprintf(stderr, "\n");
 
   size_t count = 100000, maxMB = 512;
   if (argc > 1)
@@ -470,13 +481,13 @@ int main(int argc, char* argv[]) {
   if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 4).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
 
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 128).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 128).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 128).retSum()) return -1;
@@ -491,13 +502,13 @@ int main(int argc, char* argv[]) {
   if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 128).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 128).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 128).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
-
-  fprintf(stderr, "\n");
+/*
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * 4).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
@@ -512,14 +523,14 @@ int main(int argc, char* argv[]) {
   if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 1024 * 4).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
 
 if (maxMB > 4) {
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * maxMB).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
@@ -534,14 +545,14 @@ if (maxMB > 4) {
   if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
   if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum();
   if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
   if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
-  fprintf(stderr, "\n");
+  //fprintf(stderr, "\n");
 }
-
-  fprintf(stderr, "All passed!\n");
+*/
+  fprintf(stderr, "rank select unit tests all passed!\n");
   return 0;
 }
