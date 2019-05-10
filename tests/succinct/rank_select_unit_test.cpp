@@ -460,53 +460,55 @@ int main(int argc, char* argv[]) {
 //          "check_sum\n");
 //  fprintf(stderr, "\n");
 
-  size_t count = 100000, maxMB = 512;
+  size_t count = 100000;
   if (argc > 1)
     count = (size_t)strtoull(argv[1], NULL, 10);
-  if (argc > 2)
-    maxMB = (size_t)strtoull(argv[2], NULL, 10);
+
+//  size_t maxMB = 512;
+//  if (argc > 2)
+//    maxMB = (size_t)strtoull(argv[2], NULL, 10);
 
   size_t check;
   check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 4).retSum();
-  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 4).retSum()) return -1;
-  //fprintf(stderr, "\n");
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : se_512_64"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : se_256_32"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : il_256_32"); return -1;}
+  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few0_4"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few0_5"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few0_6"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few0_7"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few0_8"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few1_4"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few1_5"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few1_6"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few1_7"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : few1_8"   ); return -1;}
+  //fprintf(stderr, "\n");)
   check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 4).retSum();
-  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : se_512_64_fast"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : se_256_32_fast"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 4).retSum()){ fprintf(stderr, "Test Failed : il_256_32_fast"); return -1;}
 
   //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 128).retSum();
-  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : se_512_64"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : se_256_32"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : il_256_32"); return -1;}
+  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few0_4"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few0_5"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few0_6"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few0_7"   ); return -1;}
+  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few0_8"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few1_4"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few1_5"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few1_6"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few1_7"   ); return -1;}
+  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : few1_8"   ); return -1;}
   //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 128).retSum();
-  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
-  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : se_512_64_fast"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : se_256_32_fast"); return -1;}
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 128).retSum()){ fprintf(stderr, "Test Failed : il_256_32_fast"); return -1;}
 /*
   //fprintf(stderr, "\n");
   check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * 4).retSum();
@@ -553,6 +555,6 @@ if (maxMB > 4) {
   //fprintf(stderr, "\n");
 }
 */
-  fprintf(stderr, "rank select unit tests all passed!\n");
+  fprintf(stderr, "Rank select unit tests all passed!\n");
   return 0;
 }
