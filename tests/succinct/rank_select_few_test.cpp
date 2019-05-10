@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <terark/bitmap.hpp>
 #include <terark/rank_select.hpp>
+#include <chrono>
 
 #if defined(_MSC_VER)
 #   pragma warning(disable:4819)
@@ -34,6 +35,8 @@ using namespace terark;
 
 template<class T, bool FAST, bool UNROLL = false>
 struct test_rank_select {
+  size_t sum = 0;
+
   test_rank_select(std::string name, size_t count, size_t size) {
     ro = std::chrono::seconds(0);
     so = std::chrono::seconds(0);
@@ -44,7 +47,6 @@ struct test_rank_select {
     zsqr = std::chrono::seconds(0);
     zsqrr = std::chrono::seconds(0);
     std::mt19937_64 mt(0);
-    size_t sum = 0;
     size_t final_count = 0;
     double total_size = 0;
     for (size_t i = 0; i < 8; ++i) {
@@ -80,6 +82,11 @@ struct test_rank_select {
             sum
     );
   }
+
+  size_t retSum(){
+    return sum;
+  }
+
   static auto do_test(std::function<size_t()> f) {
     auto begin = std::chrono::high_resolution_clock::now();
     size_t sum = f();
@@ -306,7 +313,6 @@ struct test_rank_select {
   std::chrono::duration<double, std::nano> osqr;
   std::chrono::duration<double, std::nano> osqrr;
   std::chrono::duration<double, std::nano> zsqr;
-
   std::chrono::duration<double, std::nano> zsqrr;
 };
 
@@ -443,106 +449,99 @@ int main(int argc, char* argv[]) {
           "check_sum\n");
   fprintf(stderr, "\n");
 
-  //test_rank_select<  sdsl_entity                       , false>("sdsl_v_mcl"    , 15, 71);
-  //test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , 15, 71);
-  //test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", 15, 71);
-  //test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , 15, 71);
-  //test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", 15, 71);
-  //test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , 15, 71);
-  //test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", 15, 71);
-  //test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , 15, 71);
-  //test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", 15, 71);
-  //return 0;
   size_t count = 100000, maxMB = 512;
   if (argc > 1)
     count = (size_t)strtoull(argv[1], NULL, 10);
   if (argc > 2)
     maxMB = (size_t)strtoull(argv[2], NULL, 10);
 
-  //test_rank_select<  sdsl_entity                       , false>("sdsl_v_mcl"    , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 4);
-  //test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 4);
-  test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 4);
-  //test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 4);
-  test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 4);
-  //test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 4);
-  test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 4);
-  //test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 4);
-  test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 4);
+  size_t check;
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 4).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 4).retSum()) return -1;
   fprintf(stderr, "\n");
-  //test_rank_select<  sdsl_entity                       , false>("sdsl_v_mcl"    , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 128);
-  //test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 128);
-  test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 128);
-  //test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 128);
-  test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 128);
-  //test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 128);
-  test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 128);
-  //test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 128);
-  test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 128);
-/*
-    fprintf(stderr, "\n");
-    //test_rank_select<  sdsl_entity                       , false>("sdsl_v_mcl"    , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * 4);
-    //test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 1024 * 4);
-    //test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 1024 * 4);
-    //test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 1024 * 4);
-    //test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 1024 * 4);
-    test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 1024 * 4);
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 4).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 4).retSum()) return -1;
+
+  fprintf(stderr, "\n");
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 128).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 128).retSum()) return -1;
+  fprintf(stderr, "\n");
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 128).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 128).retSum()) return -1;
+
+  fprintf(stderr, "\n");
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * 4).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  fprintf(stderr, "\n");
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 1024 * 4).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 1024 * 4).retSum()) return -1;
+
 if (maxMB > 4) {
-    fprintf(stderr, "\n");
-    //test_rank_select<  sdsl_entity                       , false>("sdsl_v_mcl"    , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * maxMB);
-    //test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 1024 * maxMB);
-    //test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 1024 * maxMB);
-    //test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 1024 * maxMB);
-    //test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 1024 * maxMB);
-    test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 1024 * maxMB);
-    fprintf(stderr, "\n");
+  fprintf(stderr, "\n");
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, false>("se_512_32"     , count, 8ULL * 1024 * 1024 * maxMB).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, false>("se_512_64"     , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, false>("se_256_32"     , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, false>("il_256_32"     , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 4>                    , false>("few0_4"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 5>                    , false>("few0_5"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 6>                    , false>("few0_6"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 7>                    , false>("few0_7"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<0, 8>                    , false>("few0_8"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 4>                    , false>("few1_4"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 5>                    , false>("few1_5"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 6>                    , false>("few1_6"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 7>                    , false>("few1_7"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_few<1, 8>                    , false>("few1_8"        , count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  fprintf(stderr, "\n");
+  check = test_rank_select<terark_entity<rank_select_se_512_32>, true >("se_512_32_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum();
+  if(check != test_rank_select<terark_entity<rank_select_se_512_64>, true >("se_512_64_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_se_256_32>, true >("se_256_32_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  if(check != test_rank_select<terark_entity<rank_select_il_256_32>, true >("il_256_32_fast", count, 8ULL * 1024 * 1024 * maxMB).retSum()) return -1;
+  fprintf(stderr, "\n");
 }
-*/
-  //system("pause");
+
+  fprintf(stderr, "All passed!");
   return 0;
 }
