@@ -1051,7 +1051,7 @@ bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, Ent
             _mm_store_si128((__m128i*)bits, _mm_or_si128(_mm_and_si128(slb, u32_mask), read));
 
             output->risk_set_size(output->size() + N);
-            reader.update_size(s[N - 1]);
+            reader.skip(s[N - 1]);
             output->ensure_capacity(output->size() + N);
         }
         size_t bit_count;
@@ -1247,7 +1247,7 @@ bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, Ent
             _mm256_store_si256((__m256i*)bits, _mm256_or_si256(_mm256_and_si256(slb, u32_mask), read));
 
             output->risk_set_size(output->size() + N);
-            reader.update_size(s[N - 1]);
+            reader.skip(s[N - 1]);
             output->ensure_capacity(output->size() + N);
         }
         size_t bit_count;
@@ -1556,7 +1556,7 @@ bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, Ent
             if (w7 == 7) bits[w7] = ((bits[w7] << b[w7]) & uint16_t((1u << BLOCK_BITS) - 1)) | read_bits[w7];
 
             output->risk_set_size(output->size() + N);
-            reader.update_size(s[N - 1]);
+            reader.skip(s[N - 1]);
             output->ensure_capacity(output->size() + N);
         }
         size_t bit_count;

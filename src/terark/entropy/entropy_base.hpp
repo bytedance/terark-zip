@@ -43,7 +43,7 @@ public:
     ENTROPY_FORCE_INLINE void read(size_t bit_count, uint64_t* pbits, size_t* pshift) {
         static constexpr uint64_t mask[] = {
 #define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> n)),
-            BOOST_PP_REPEAT(64, MAKE_MASK, ~)
+            BOOST_PP_REPEAT(65, MAKE_MASK, ~)
 #undef MAKE_MASK
         };
         assert(bit_count <= size_);
@@ -55,7 +55,7 @@ public:
             *pbits |= ((cache_ << remain_) & mask[bit_count]) >> *pshift;
         }
         else {
-            uint64_t bits = cache_ >> (bit_count - remain_);
+            uint64_t bits = remain_ > 0 ? (cache_ >> (bit_count - remain_)) : 0;
             cache_ = (uint64_t&)*data_;
             remain_ += 64 - bit_count;
             data_ += 8;
@@ -63,15 +63,15 @@ public:
         }
         *pshift += bit_count;
     }
-    ENTROPY_FORCE_INLINE void update_size(size_t read_size) {
+    ENTROPY_FORCE_INLINE void skip(size_t bit_count) {
         // |                                         | <- data
         // |-----------------------------------------|
         // |                            |<- remain ->|
-        // |                            |<-              read_size              ->|<-  used  ->|
+        // |                            |<-              bit_count              ->|<-  used  ->|
         // |                                         | <-             uint64 ptr            -> |
-        assert(read_size <= size_);
-        size_ -= read_size;
-        uint64_t bit_end = (uint64_t)data_ * 8 - remain_ + read_size;
+        assert(bit_count <= size_);
+        size_ -= bit_count;
+        uint64_t bit_end = (uint64_t)data_ * 8 - remain_ + bit_count;
         uint64_t bit_align = (uint64_t)data_ % 8 * 8;
         remain_ = (~(bit_end - bit_align) + 1) % 64;
         data_ = (byte_t*)((bit_end + remain_) / 8);
@@ -108,10 +108,11 @@ public:
     ENTROPY_FORCE_INLINE void write(uint64_t bits, size_t bit_count) {
         static constexpr uint64_t mask[] = {
 #define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> n)),
-            BOOST_PP_REPEAT(64, MAKE_MASK, ~)
+            BOOST_PP_REPEAT(65, MAKE_MASK, ~)
 #undef MAKE_MASK
         };
         assert(bit_count > 0);
+        assert(bit_count <= 64);
         bits &= mask[bit_count];
         cache_ |= bits >> written_;
         written_ += bit_count;
