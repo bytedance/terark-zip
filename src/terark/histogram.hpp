@@ -12,7 +12,7 @@ class TERARK_DLL_EXPORT Histogram {
     terark::valvec<index_t> m_small_cnt;
     terark::valvec<std::pair<index_t, index_t> > m_large_cnt_compact;
     terark::gold_hash_map<index_t, index_t> m_large_cnt;
-    const size_t m_max_small_value;
+    size_t m_max_small_value;
 
 public:
     size_t m_distinct_key_cnt;

@@ -14,7 +14,7 @@ fstring EntropyBitsToBytes(EntropyBits* bits, EntropyContext* context) {
     byte_t* ptr = bits->data;
     if (bits->skip == 0) {
         ++size;
-        EntropyBitsWriter<valvec<byte_t>>::prepare(&ptr, 1, &context->buffer);
+        EntropyBitsReverseWriter<valvec<byte_t>>::prepare(&ptr, 1, &context->buffer);
         *ptr = 0x80;
     }
     else {
