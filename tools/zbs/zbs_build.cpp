@@ -727,10 +727,9 @@ GetoptDone:
             }
             builder.push_back(ids.back());
             builder.finish();
-            ZReorderMap::Reader reorder(reorder_map);
+            ZReorderMap reorder(reorder_map);
             FileStream fp(reorder_name, "wb");
-            auto glb = reorder.get_global();
-            store->reorder_zip_data(glb, [&](const void*d, size_t l) {
+            store->reorder_zip_data(reorder, [&](const void*d, size_t l) {
                 fp.ensureWrite(d, l);
             }, nlt_fname + std::string(".reorder-tmp"));
             fp.close();

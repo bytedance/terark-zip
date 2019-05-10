@@ -428,8 +428,8 @@ pkg : ${TarBall}
 tgz : ${TarBall}.tgz
 
 ${TarBall}: ${core} ${fsa} ${zbs}
-	make -C tools/fsa
-	make -C tools/zbs
+	+make -C tools/fsa
+	+make -C tools/zbs
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
@@ -498,6 +498,11 @@ endif
 
 ${TarBall}.tgz: ${TarBall}
 	cd pkg; tar czf ${TarBallBaseName}.tgz ${TarBallBaseName}
+
+.PONY: test
+test: ${zbs_d} ${fsa_d} ${core_d}
+	+$(MAKE) -C tests/tries       test
+	+$(MAKE) -C tests/succinct    test
 
 ifneq ($(MAKECMDGOALS),cleanall)
 ifneq ($(MAKECMDGOALS),clean)

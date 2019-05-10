@@ -52,7 +52,7 @@ static inline void HuffmanEncPutSymbol(HuffmanState* r, HuffmanEncSymbol sym) {
 
 // Initial , encode bits equal or less than BLOCK_BITS * N
 template<class Buffer>
-static inline bool HuffmanEncHeader(HuffmanState* r, size_t* pbit_count, HuffmanEncSymbol sym, size_t max_bit_count, EntropyBitsWriter<Buffer>* writer) {
+static inline bool HuffmanEncHeader(HuffmanState* r, size_t* pbit_count, HuffmanEncSymbol sym, size_t max_bit_count, EntropyBitsReverseWriter<Buffer>* writer) {
     if (sym.bit_count + *pbit_count > max_bit_count) {
         return false;
     }
@@ -67,7 +67,7 @@ static inline bool HuffmanEncHeader(HuffmanState* r, size_t* pbit_count, Huffman
 
 // Renormalise state , keep state.bit_count equal BLOCK_BITS
 template<class Buffer>
-static inline void HuffmanEncRenorm(HuffmanState* r, EntropyBitsWriter<Buffer>* writer) {
+static inline void HuffmanEncRenorm(HuffmanState* r, EntropyBitsReverseWriter<Buffer>* writer) {
     assert(r->bit_count > BLOCK_BITS);
 
     size_t bit_count = r->bit_count - BLOCK_BITS;
@@ -77,7 +77,7 @@ static inline void HuffmanEncRenorm(HuffmanState* r, EntropyBitsWriter<Buffer>* 
 
 // Flush state
 template<class Buffer>
-static inline void HuffmanEncFlush(HuffmanState* r, EntropyBitsWriter<Buffer>* writer) {
+static inline void HuffmanEncFlush(HuffmanState* r, EntropyBitsReverseWriter<Buffer>* writer) {
     if (r->bit_count > 0) {
         writer->write(r->bits, r->bit_count);
     }
@@ -444,7 +444,7 @@ fstring encoder::encode(fstring record, EntropyContext* context) const {
 EntropyBits encoder::bitwise_encode(fstring record, EntropyContext* context) const {
     context->buffer.ensure_capacity(record.size() * 5 / 4 + 8);
     const byte_t* data = record.udata();
-    EntropyBitsWriter<valvec<byte_t>> writer(&context->buffer);
+    EntropyBitsReverseWriter<valvec<byte_t>> writer(&context->buffer);
     HuffmanState huf = { (uint64_t)0, (size_t)0 };
     for (intptr_t i = (intptr_t)record.size() - 1; i >= 0; --i) {
         HuffmanEncPutSymbol(&huf, syms_[data[i]]);
@@ -632,7 +632,7 @@ fstring encoder_o1::encode_x8(fstring record, EntropyContext* context) const {
 EntropyBits encoder_o1::bitwise_encode_x1(fstring record, EntropyContext* context) const {
     context->buffer.ensure_capacity(record.size() * 5 / 4 + 8);
     const byte_t* data = record.udata();
-    EntropyBitsWriter<valvec<byte_t>> writer(&context->buffer);
+    EntropyBitsReverseWriter<valvec<byte_t>> writer(&context->buffer);
     HuffmanState huf = { (uint64_t)0, (size_t)0 };
     for (intptr_t i = (intptr_t)record.size() - 1; i >= 0; --i) {
         HuffmanEncPutSymbol(&huf, syms_[i == 0 ? 256 : data[i - 1]][data[i]]);
@@ -674,7 +674,7 @@ EntropyBits encoder_o1::bitwise_encode_xN(fstring record, EntropyContext* contex
     size_t record_size = record.size();
     HuffmanState huf_init = { (uint64_t)0, (size_t)0 };
 
-    EntropyBitsWriter<valvec<byte_t>> writer(&context->buffer);
+    EntropyBitsReverseWriter<valvec<byte_t>> writer(&context->buffer);
     intptr_t i[N], e[N];
 
     if (w0 == 0) i[w0] = (intptr_t)record_size / N + (0 < record_size % N) - 1;
@@ -1051,7 +1051,7 @@ bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, Ent
             _mm_store_si128((__m128i*)bits, _mm_or_si128(_mm_and_si128(slb, u32_mask), read));
 
             output->risk_set_size(output->size() + N);
-            reader.update_size(s[N - 1]);
+            reader.skip(s[N - 1]);
             output->ensure_capacity(output->size() + N);
         }
         size_t bit_count;
@@ -1066,7 +1066,7 @@ bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, Ent
             assert(false);
         } while (false);
 
-        EntropyBitsWriter<LocalBuffer> writer(&buffer);
+        EntropyBitsReverseWriter<LocalBuffer> writer(&buffer);
 
         if (remain != 0) writer.write(uint64_t(bits[0]) << (64 - BLOCK_BITS), BLOCK_BITS);
         if (remain != 1) writer.write(uint64_t(bits[1]) << (64 - BLOCK_BITS), BLOCK_BITS);
@@ -1247,7 +1247,7 @@ bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, Ent
             _mm256_store_si256((__m256i*)bits, _mm256_or_si256(_mm256_and_si256(slb, u32_mask), read));
 
             output->risk_set_size(output->size() + N);
-            reader.update_size(s[N - 1]);
+            reader.skip(s[N - 1]);
             output->ensure_capacity(output->size() + N);
         }
         size_t bit_count;
@@ -1266,7 +1266,7 @@ bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, Ent
             assert(false);
         } while (false);
 
-        EntropyBitsWriter<LocalBuffer> writer(&buffer);
+        EntropyBitsReverseWriter<LocalBuffer> writer(&buffer);
 
         if (remain != 0) writer.write(uint64_t(bits[0]) << (64 - BLOCK_BITS), BLOCK_BITS);
         if (remain != 1) writer.write(uint64_t(bits[1]) << (64 - BLOCK_BITS), BLOCK_BITS);
@@ -1556,7 +1556,7 @@ bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, Ent
             if (w7 == 7) bits[w7] = ((bits[w7] << b[w7]) & uint16_t((1u << BLOCK_BITS) - 1)) | read_bits[w7];
 
             output->risk_set_size(output->size() + N);
-            reader.update_size(s[N - 1]);
+            reader.skip(s[N - 1]);
             output->ensure_capacity(output->size() + N);
         }
         size_t bit_count;
@@ -1574,7 +1574,7 @@ bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, Ent
             assert(false);
         } while (false);
 
-        EntropyBitsWriter<LocalBuffer> writer(&buffer);
+        EntropyBitsReverseWriter<LocalBuffer> writer(&buffer);
 
         if (w0 == 0 && remain != 0) writer.write(uint64_t(bits[w0]) << (64 - BLOCK_BITS), BLOCK_BITS);
         if (w1 == 1 && remain != 1) writer.write(uint64_t(bits[w1]) << (64 - BLOCK_BITS), BLOCK_BITS);

@@ -296,8 +296,7 @@ GetoptDone:
         }
         for (auto& t : thrVec) t.join();
     };
-	auto pt_write = [&](int tnum) {
-        MainPatricia* ptrie = tnum > 1 ? &trie2 : &trie;
+	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
 		auto fins = [&](int tid) {
 			//fprintf(stderr, "thread-%03d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
             auto& ptoken = ptrie->tls_writer_token();
@@ -452,13 +451,13 @@ GetoptDone:
 			ptrie->set_readonly();
 		}
 	};
-	t0 = pf.now(); if (single_thread_write) { pt_write(1); };
+	t0 = pf.now(); if (single_thread_write) { pt_write(1, &trie); };
 	t1 = pf.now();
 	t2 = pf.now(); if (read_thread_num > 0) { exec_read(patricia_find); }
 	t3 = pf.now(); if (read_thread_num > 0) { exec_read(patricia_lb);   }
 	t4 = pf.now();
 	t5 = pf.now();
-    t6 = pf.now(); pt_write(write_thread_num);
+    t6 = pf.now(); pt_write(write_thread_num, &trie2);
     t7 = pf.now();
     fprintf(stderr, "numkeys = %zd, sumkeylen = %zd, avglen = %f\n"
         , numkeys, sumkeylen, double(sumkeylen) / numkeys

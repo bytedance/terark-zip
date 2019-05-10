@@ -52,21 +52,21 @@ size_t BlobStore::lower_bound(size_t lo, size_t hi, fstring target,
                               CacheOffsets* co) const {
     assert(lo <= hi);
     assert(hi <= m_numRecords);
-    struct {
+    struct Ptr {
         fstring operator[](ptrdiff_t i) {
             co_->recData.erase_all();
             (this_->*call_)(i, co_);
             last_ = i;
             return co_->recData;
         }
-        const BlobStore * this_;
+        const BlobStore* this_;
         get_record_append_CacheOffsets_func_t call_;
         CacheOffsets* co_;
         size_t last_;
-    } it{ this, m_get_record_append_CacheOffsets, co, hi };
-    size_t recId = lower_bound_n(it, lo, hi, target);
-    if (recId != it.last_) {
-        it[recId];
+    } ptr = {this, m_get_record_append_CacheOffsets, co, hi};
+    size_t recId = lower_bound_n<Ptr&>(ptr, lo, hi, target);
+    if (recId != hi && recId != ptr.last_) {
+        ptr[recId];
     }
     return recId;
 }

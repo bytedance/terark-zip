@@ -1007,7 +1007,7 @@ initIterEntry(size_t parent, Entry* e, byte_t* buf, size_t cap) const {
     if (m_is_link[parent]) {
         size_t zlen = getZpathFixed(parent, buf, cap);
         assert(zlen + 1 <= cap);
-        assert(zlen <= 255);
+        assert(zlen <= 254);
         e->zpath_len = zlen;
         return zlen;
     }
@@ -1546,8 +1546,114 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 template<class Dawg>
 size_t
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-Iterator<Dawg>::seek_max_prefix(fstring) {
-    THROW_STD(logic_error, "Not implemented");
+Iterator<Dawg>::seek_max_prefix(fstring key) {
+    byte_t* wp = m_word.data();
+    Entry * ip = m_base;
+    const NestLoudsTrieTpl* trie = m_trie;
+    const Dawg* d = static_cast<const Dawg*>(m_dfa);
+    const byte_t* wlimit = (byte_t*)m_base;
+    size_t curr = initial_state;
+    size_t pos = 0;
+    m_word.risk_set_size(0);
+    m_curr = size_t(-1);
+    m_top = ip;
+    for (;;) {
+        assert(curr < trie->total_states());
+        d->prefetch_term_bit(trie, curr);
+        size_t zlen = trie->initIterEntry(curr, ip, wp, wlimit - wp);
+        if (zlen) {
+            auto kkn = key.size() - pos;
+            auto zkn = std::min(zlen, kkn);
+            auto pkey = key.udata() + pos;
+            for (size_t zidx = 0; zidx < zkn; ++zidx) {
+                if (terark_unlikely(pkey[zidx] != wp[zidx])) {
+                    pos += zidx;
+                    goto RestoreLastMatch;
+                }
+            }
+            wp += zkn;
+            pos += zkn;
+            if (terark_unlikely(zkn < zlen))
+                goto RestoreLastMatch;
+        }
+        assert(pos <= key.size());
+        assert(size_t(wp - m_word.data()) == pos);
+        if (d->is_term2(trie, curr)) {
+            m_word.risk_set_size(pos);
+            m_top = ip+1;
+            m_curr = curr;
+        }
+        if (key.size() == pos) {
+            goto RestoreLastMatch;
+        }
+        const size_t n_children = ip->n_children;
+        const size_t child0 = ip->child0;
+        const byte_t ch = (byte_t)key.p[pos];
+        if (FastLabel) {
+            const byte_t* label = trie->m_label_data + child0;
+            if (n_children < 36) {
+                if (true/*n_children < 16*/) {
+                    if (n_children && ch <= label[n_children-1]) {
+                        size_t lo = size_t(-1);
+                        do lo++; while (label[lo] < ch);
+                        curr = child0 + lo;
+                        ip->nth_child = lo;
+                        if (label[lo] == ch)
+                            goto ThisLoopDone;
+                    }
+                    goto RestoreLastMatch;
+                }
+                else {
+                    size_t lo = lower_bound_0(label, n_children, ch);
+                    if (lo < n_children) {
+                        curr = child0 + lo;
+                        ip->nth_child = lo;
+                        if (label[lo] == ch)
+                            goto ThisLoopDone;
+                    }
+                    goto RestoreLastMatch;
+                }
+            }
+            else {
+                size_t lo = fast_search_byte_rs_idx(label, ch);
+                if (lo < n_children) {
+                    curr = child0 + lo;
+                    ip->nth_child = lo;
+                    if (terark_bit_test((const size_t*)(label + 4), ch))
+                        goto ThisLoopDone;
+                }
+                goto RestoreLastMatch;
+            }
+        }
+        else {
+            size_t lo = child0;
+            size_t hi = child0 + n_children;
+            while (lo < hi) {
+                size_t mid_id = (lo + hi) / 2;
+                byte_t mid_ch = trie->label_first_byte(mid_id);
+                if (mid_ch < ch)
+                    lo = mid_id + 1;
+                else if (ch < mid_ch)
+                    hi = mid_id;
+                else {
+                    curr = mid_id;
+                    ip->nth_child = mid_id - child0;
+                    goto ThisLoopDone;
+                }
+            }
+            goto RestoreLastMatch;
+        }
+    ThisLoopDone:
+        *wp++ = ch;
+        ip++;
+        pos++;
+    }
+RestoreLastMatch:
+    if (m_top > m_base) {
+        m_top[-1].nth_child = 0;
+        m_word.end()[0] = '\0';
+    }
+    return pos;
 }
 
 } // namespace terark
