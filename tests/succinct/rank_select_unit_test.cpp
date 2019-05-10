@@ -542,6 +542,6 @@ if (maxMB > 4) {
   fprintf(stderr, "\n");
 }
 
-  fprintf(stderr, "All passed!");
+  fprintf(stderr, "All passed!\n");
   return 0;
 }
