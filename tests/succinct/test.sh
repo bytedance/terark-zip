@@ -13,4 +13,4 @@ make clean
 make -j4
 
 ./dbg/rs_fewzero_ut.exe
-./dbg/rank_select_benchmark.exe
+./dbg/rank_select_unit_test.exe
