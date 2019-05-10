@@ -24,75 +24,30 @@ struct EntropyContext {
     valvec<byte_t> buffer;
 };
 
-template<class Buffer>
-class EntropyBitsWriter {
-public:
-    ENTROPY_FORCE_INLINE EntropyBitsWriter(Buffer* b) {
-        buffer_ = b;
-        reset();
-    }
-    static void prepare(byte_t** pptr, size_t size, Buffer* buffer) {
-        *pptr -= size;
-        if (*pptr < buffer->data()) {
-            size_t pos = *pptr + size - buffer->data();
-            size_t len = buffer->capacity() - pos;
-            buffer->ensure_capacity(buffer->capacity() + size);
-            memmove(*pptr = buffer->data() + buffer->capacity() - len, buffer->data() + pos, len);
-            *pptr -= size;
-        }
-    }
-    ENTROPY_FORCE_INLINE void write(uint64_t bits, size_t bit_count) {
-        assert(bit_count > 0);
-        bits &= ~(uint64_t(-1) >> bit_count);
-        cache_ |= bits >> written_;
-        written_ += bit_count;
-        if (terark_unlikely(written_ >= 64)) {
-            prepare(&ptr_, 8, buffer_);
-            (uint64_t&)*ptr_ = cache_;
-            written_ -= 64;
-            cache_ = bits << (bit_count - written_);
-        }
-    }
-    ENTROPY_FORCE_INLINE EntropyBits finish() {
-        size_t c = (written_ + 7) / 8;
-        prepare(&ptr_, c, buffer_);
-        memcpy(ptr_, (byte_t*)&cache_ + (8 - c), c);
-        size_t skip_ = c * 8 - written_;
-        return { ptr_, skip_, (buffer_->data() + buffer_->capacity() - ptr_) * 8 - skip_ };
-    }
-    ENTROPY_FORCE_INLINE void reset() {
-        written_ = 0;
-        cache_ = 0;
-        ptr_ = buffer_->data() + buffer_->capacity();
-    }
-
-private:
-    Buffer* buffer_;
-    uint64_t cache_;
-    size_t written_;
-    byte_t* ptr_;
-};
-
 class EntropyBitsReader {
 public:
     ENTROPY_FORCE_INLINE EntropyBitsReader(EntropyBits bits) {
         data_ = bits.data + bits.skip / 8;
         size_ = bits.size;
         size_t s = bits.skip % 8;
-        size_t c = ((s + size_ + 7) / 8 - 1) % 8 + 1;
         cache_ = 0;
-        memcpy((byte_t*)&cache_ + (8 - c), data_, c);
-        data_ += c;
-        remain_ = c * 8 - s;
+        if (size_ > 0) {
+            size_t c = ((s + size_ + 7) / 8 + 7) % 8 + 1;
+            memcpy((byte_t*)&cache_ + (8 - c), data_, c);
+            data_ += c;
+            remain_ = c * 8 - s;
+        } else {
+            remain_ = 0;
+        }
     }
     ENTROPY_FORCE_INLINE void read(size_t bit_count, uint64_t* pbits, size_t* pshift) {
         static constexpr uint64_t mask[] = {
-#define MAKE_MASK(z, n, u) ~(uint64_t(-1) >> n),
+#define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> n)),
             BOOST_PP_REPEAT(64, MAKE_MASK, ~)
 #undef MAKE_MASK
         };
         assert(bit_count <= size_);
-        assert(bit_count < 64);
+        assert(bit_count + *pshift <= 64);
         assert(bit_count > 0);
         size_ -= bit_count;
         if (terark_likely(bit_count <= remain_)) {
@@ -131,6 +86,107 @@ public:
     size_t size_;
     uint64_t cache_;
     size_t remain_;
+};
+
+template<class Buffer>
+class EntropyBitsReverseWriter {
+public:
+    ENTROPY_FORCE_INLINE EntropyBitsReverseWriter(Buffer* b) {
+        buffer_ = b;
+        reset();
+    }
+    static void prepare(byte_t** pptr, size_t size, Buffer* buffer) {
+        *pptr -= size;
+        if (*pptr < buffer->data()) {
+            size_t pos = *pptr + size - buffer->data();
+            size_t len = buffer->capacity() - pos;
+            buffer->ensure_capacity(buffer->capacity() + size);
+            memmove(*pptr = buffer->data() + buffer->capacity() - len, buffer->data() + pos, len);
+            *pptr -= size;
+        }
+    }
+    ENTROPY_FORCE_INLINE void write(uint64_t bits, size_t bit_count) {
+        static constexpr uint64_t mask[] = {
+#define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> n)),
+            BOOST_PP_REPEAT(64, MAKE_MASK, ~)
+#undef MAKE_MASK
+        };
+        assert(bit_count > 0);
+        bits &= mask[bit_count];
+        cache_ |= bits >> written_;
+        written_ += bit_count;
+        if (terark_unlikely(written_ >= 64)) {
+            prepare(&ptr_, 8, buffer_);
+            (uint64_t&)*ptr_ = cache_;
+            written_ -= 64;
+            cache_ = bits << (bit_count - written_);
+        }
+    }
+    ENTROPY_FORCE_INLINE EntropyBits finish() {
+        size_t c = (written_ + 7) / 8;
+        prepare(&ptr_, c, buffer_);
+        memcpy(ptr_, (byte_t*)&cache_ + (8 - c), c);
+        size_t skip_ = c * 8 - written_;
+        return { ptr_, skip_, (buffer_->data() + buffer_->capacity() - ptr_) * 8 - skip_ };
+    }
+    ENTROPY_FORCE_INLINE void reset() {
+        written_ = 0;
+        cache_ = 0;
+        ptr_ = buffer_->data() + buffer_->capacity();
+    }
+
+private:
+    Buffer* buffer_;
+    uint64_t cache_;
+    size_t written_;
+    byte_t* ptr_;
+};
+
+template<class Output>
+class EntropyBitsWriter {
+public:
+    ENTROPY_FORCE_INLINE EntropyBitsWriter(Output& o) : output_(o) {
+        reset();
+    }
+    ENTROPY_FORCE_INLINE void write(EntropyBits bits) {
+        EntropyBitsReader reader(bits);
+        while (reader.size() >= remain_) {
+            size_t bit_shift = 0;
+            reader.read(remain_, &cache_, &bit_shift);
+            output_(&cache_, 8);
+            cache_ = 0;
+            remain_ = 64;
+            output_byte_ += 8;
+        }
+        if (reader.size() > 0) {
+            size_t bit_shift = remain_ = remain_ - reader.size();
+            reader.read(reader.size(), &cache_, &bit_shift);
+        }
+        if (remain_ == 0) {
+            output_(&cache_, 8);
+            cache_ = 0;
+            remain_ = 64;
+            output_byte_ += 8;
+        }
+    }
+    ENTROPY_FORCE_INLINE EntropyBits finish() {
+        size_t w = 64 - remain_;
+        size_t c = (w + 7) / 8;
+        output_((byte_t*)&cache_, c);
+        output_byte_ += c;
+        return { nullptr, 0, output_byte_ * 8 + w - c * 8 };
+    }
+    ENTROPY_FORCE_INLINE void reset() {
+        remain_ = 64;
+        cache_ = 0;
+        output_byte_ = 0;
+    }
+
+private:
+    Output& output_;
+    uint64_t cache_;
+    size_t remain_;
+    size_t output_byte_;
 };
 
 fstring EntropyBitsToBytes(EntropyBits* bits, EntropyContext* context);
