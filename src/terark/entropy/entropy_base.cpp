@@ -221,44 +221,48 @@ void freq_hist_o1::add_record(fstring record) {
         return;
     }
     hist_.o0_size += record.size();
-    byte_t c0, c1, c2, c3;
-    byte_t last_0, last_1, last_2, last_3;
+    byte_t c0, c1, c2, c3, c4, c5, c6, c7;
+    byte_t l0, l1, l2, l3, l4, l5, l6, l7;
 
     if (record.size() < 1) {
         return;
     }
     const byte_t *in0 = record.udata();
-    ++hist_.o0[last_0 = *in0++];
-    for (size_t i = 0, e = (record.size() - 1) % 4; i < e; ++i) {
-        ++hist_.o1[last_0][c0 = *in0++];
-        last_0 = c0;
+    ++hist_.o0[l0 = *in0++];
+    for (size_t i = 0, e = (record.size() - 1) % 8; i < e; ++i) {
+        ++hist_.o1[l0][c0 = *in0++]; l0 = c0;
     }
-    size_t idiv4 = (record.size() - 1) / 4;
-    if (idiv4 == 0) {
+    size_t idiv8 = (record.size() - 1) / 8;
+    if (idiv8 == 0) {
         return;
     }
 
-    const byte_t *in1 = in0 + idiv4 * 1;
-    const byte_t *in2 = in0 + idiv4 * 2;
-    const byte_t *in3 = in0 + idiv4 * 3;
+    const byte_t *in1 = in0 + idiv8 * 1;
+    const byte_t *in2 = in0 + idiv8 * 2;
+    const byte_t *in3 = in0 + idiv8 * 3;
+    const byte_t *in4 = in0 + idiv8 * 4;
+    const byte_t *in5 = in0 + idiv8 * 5;
+    const byte_t *in6 = in0 + idiv8 * 6;
+    const byte_t *in7 = in0 + idiv8 * 7;
 
-    last_1 = in1[-1];
-    last_2 = in2[-1];
-    last_3 = in3[-1];
+    l1 = in1[-1];
+    l2 = in2[-1];
+    l3 = in3[-1];
+    l4 = in4[-1];
+    l5 = in5[-1];
+    l6 = in6[-1];
+    l7 = in7[-1];
 
     const byte_t *in0_end = in1;
     while (in0 < in0_end) {
-        ++hist_.o1[last_0][c0 = *in0++];
-        last_0 = c0;
-
-        ++hist_.o1[last_1][c1 = *in1++];
-        last_1 = c1;
-
-        ++hist_.o1[last_2][c2 = *in2++];
-        last_2 = c2;
-
-        ++hist_.o1[last_3][c3 = *in3++];
-        last_3 = c3;
+        ++hist_.o1[l0][c0 = *in0++]; l0 = c0;
+        ++hist_.o1[l1][c1 = *in1++]; l1 = c1;
+        ++hist_.o1[l2][c2 = *in2++]; l2 = c2;
+        ++hist_.o1[l3][c3 = *in3++]; l3 = c3;
+        ++hist_.o1[l4][c4 = *in4++]; l4 = c4;
+        ++hist_.o1[l5][c5 = *in5++]; l5 = c5;
+        ++hist_.o1[l6][c6 = *in6++]; l6 = c6;
+        ++hist_.o1[l7][c7 = *in7++]; l7 = c7;
     }
 }
 
