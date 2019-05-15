@@ -7,7 +7,7 @@
 
 namespace terark { namespace Huffman {
 
-static constexpr size_t TF_SHIFT = 12;
+static constexpr size_t BLOCK_BITS = 12;
 static constexpr size_t NORMALISE = 1ull << 15;
 
 struct HuffmanEncSymbol {
@@ -45,7 +45,7 @@ public:
     bool bitwise_decode(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
 
 private:
-    byte_t ari_[1u << TF_SHIFT];
+    byte_t ari_[1u << BLOCK_BITS];
     uint8_t cnt_[256];
 };
 
@@ -98,7 +98,7 @@ private:
     template<size_t N>
     bool bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
 
-    byte_t ari_[257][1u << TF_SHIFT];
+    byte_t ari_[257][1u << BLOCK_BITS];
     uint8_t cnt_[257][256];
 };
 

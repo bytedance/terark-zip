@@ -27,7 +27,6 @@
 
 namespace terark { namespace Huffman {
 
-static constexpr size_t BLOCK_BITS = 12;
 static constexpr size_t HEADER_BLOCK_BITS = 64 - BLOCK_BITS;
 
 struct HuffmanState {
@@ -142,40 +141,40 @@ static void HuffmanBuildSort(HuffmanEncBuildItem* node, const uint64_t* count) {
 
 static void HuffmanBuildSetMaxHeight(HuffmanEncBuildItem* node, uint32_t last_not_null) {
     const uint32_t max_bit_count = node[last_not_null].bit_count;
-    if (max_bit_count <= TF_SHIFT) return;
+    if (max_bit_count <= BLOCK_BITS) return;
 
     /* there are several too large elements (at least >= 2) */
     int64_t total_value = 0;
-    const uint32_t base_value = 1 << (max_bit_count - TF_SHIFT);
+    const uint32_t base_value = 1 << (max_bit_count - BLOCK_BITS);
     uint32_t n = last_not_null;
 
-    while (node[n].bit_count > TF_SHIFT) {
+    while (node[n].bit_count > BLOCK_BITS) {
         total_value += base_value - (1 << (max_bit_count - node[n].bit_count));
-        node[n].bit_count = (uint8_t)TF_SHIFT;
+        node[n].bit_count = (uint8_t)BLOCK_BITS;
         n--;
-    }                                                   /* n stops at node[n].nbBits <= TF_SHIFT */
-    while (node[n].bit_count == TF_SHIFT) {
-        n--;                                            /* n end at index of smallest symbol using < TF_SHIFT */
+    }                                                   /* n stops at node[n].nbBits <= BLOCK_BITS */
+    while (node[n].bit_count == BLOCK_BITS) {
+        n--;                                            /* n end at index of smallest symbol using < BLOCK_BITS */
     }
 
     /* renorm total_value */
-    total_value >>= (max_bit_count - TF_SHIFT);         /* note : total_value is necessarily a multiple of base_value */
+    total_value >>= (max_bit_count - BLOCK_BITS);         /* note : total_value is necessarily a multiple of base_value */
 
     /* repay normalized cost */
     const uint32_t empty_symbol = 0xF0F0F0F0;
-    uint32_t rank_last[TF_SHIFT + 2];
+    uint32_t rank_last[BLOCK_BITS + 2];
     int pos;
 
     /* Get pos of last (smallest) symbol per rank */
     memset(rank_last, 0xF0, sizeof(rank_last));
     {
-        uint32_t current_bit_count = TF_SHIFT;
+        uint32_t current_bit_count = BLOCK_BITS;
         for (pos = n; pos >= 0; pos--) {
             if (node[pos].bit_count >= current_bit_count) {
                 continue;
             }
-            current_bit_count = node[pos].bit_count;    /* < TF_SHIFT */
-            rank_last[TF_SHIFT - current_bit_count] = pos;
+            current_bit_count = node[pos].bit_count;    /* < BLOCK_BITS */
+            rank_last[BLOCK_BITS - current_bit_count] = pos;
         }
     }
 
@@ -197,8 +196,8 @@ static void HuffmanBuildSetMaxHeight(HuffmanEncBuildItem* node, uint32_t last_no
             }
         }
         /* only triggered when no more rank 1 symbol left => find closest one (note : there is necessarily at least one !) */
-        /* TF_SHIFT test just to please gcc 5+; but it should not be necessary */
-        while ((bit_count_decrease <= TF_SHIFT) && (rank_last[bit_count_decrease] == empty_symbol)) {
+        /* BLOCK_BITS test just to please gcc 5+; but it should not be necessary */
+        while ((bit_count_decrease <= BLOCK_BITS) && (rank_last[bit_count_decrease] == empty_symbol)) {
             bit_count_decrease++;
         }
         total_value -= 1ll << (bit_count_decrease - 1);
@@ -211,16 +210,16 @@ static void HuffmanBuildSetMaxHeight(HuffmanEncBuildItem* node, uint32_t last_no
         }
         else {
             rank_last[bit_count_decrease]--;
-            if (node[rank_last[bit_count_decrease]].bit_count != TF_SHIFT - bit_count_decrease) {
+            if (node[rank_last[bit_count_decrease]].bit_count != BLOCK_BITS - bit_count_decrease) {
                 rank_last[bit_count_decrease] = empty_symbol;                   /* this rank is now empty */
             }
         }
     }
 
     while (total_value < 0) {   /* Sometimes, cost correction overshoot */
-        /* special case : no rank 1 symbol (using TF_SHIFT-1); let's create one from largest rank 0 (using TF_SHIFT) */
+        /* special case : no rank 1 symbol (using BLOCK_BITS-1); let's create one from largest rank 0 (using BLOCK_BITS) */
         if (rank_last[1] == empty_symbol) {
-            while (node[n].bit_count == TF_SHIFT) {
+            while (node[n].bit_count == BLOCK_BITS) {
                 n--;
             }
             node[n + 1].bit_count--;
@@ -287,14 +286,14 @@ static inline void HuffmanBuildCTable(byte_t** pptr, const uint64_t* freq, Huffm
     HuffmanBuildSetMaxHeight(node, null_rank);
 
     /* fill result into tree (val, nbBits) */
-    uint16_t bit_count_per_rank[TF_SHIFT + 1] = { 0 };
-    uint16_t bits_pre_rank[TF_SHIFT + 1] = { 0 };
+    uint16_t bit_count_per_rank[BLOCK_BITS + 1] = { 0 };
+    uint16_t bits_pre_rank[BLOCK_BITS + 1] = { 0 };
     for (n = 0; n <= null_rank; n++) {
         bit_count_per_rank[node[n].bit_count]++;
     }
     /* determine stating value per rank */
     uint16_t min = 0;
-    for (n = TF_SHIFT; n > 0; n--) {
+    for (n = BLOCK_BITS; n > 0; n--) {
         bits_pre_rank[n] = min;                             /* get starting value within each rank */
         min += bit_count_per_rank[n];
         min >>= 1;
@@ -350,7 +349,7 @@ inline void HuffmanBuildDTable(const HuffmanEncSymbol* csyms, byte_t* ari, uint8
             continue;
         }
         auto& ref = item[item_size++];
-        ref.bits = uint16_t(csyms[j].bits) << (TF_SHIFT - csyms[j].bit_count);
+        ref.bits = uint16_t(csyms[j].bits) << (BLOCK_BITS - csyms[j].bit_count);
         ref.bit_count = csyms[j].bit_count;
         ref.data = j;
     }
@@ -366,7 +365,7 @@ inline void HuffmanBuildDTable(const HuffmanEncSymbol* csyms, byte_t* ari, uint8
         memset(&ari[item[j].bits], item[j].data, item[j + 1].bits - item[j].bits);
     }
     cnt[item[max_j].data] = item[max_j].bit_count;
-    memset(&ari[item[max_j].bits], item[max_j].data, (1u << TF_SHIFT) - item[max_j].bits);
+    memset(&ari[item[max_j].bits], item[max_j].data, (1u << BLOCK_BITS) - item[max_j].bits);
 }
 
 // Build DTable from byte stream
@@ -515,7 +514,7 @@ bool decoder::bitwise_decode(EntropyBits data, valvec<byte_t>* record, EntropyCo
                     break;
                 }
             }
-            byte_t c = ari_[huf.bits >> (64 - TF_SHIFT)];
+            byte_t c = ari_[huf.bits >> (64 - BLOCK_BITS)];
             uint8_t b = cnt_[c];
             if (terark_unlikely(b > huf.bit_count)) return false;
             record->unchecked_push(c);
@@ -948,7 +947,7 @@ bool decoder_o1::bitwise_decode_x1(EntropyBits data, valvec<byte_t>* record, Ent
                     break;
                 }
             }
-            byte_t c = ari_[l][huf.bits >> (64 - TF_SHIFT)];
+            byte_t c = ari_[l][huf.bits >> (64 - BLOCK_BITS)];
             uint8_t b = cnt_[l][c];
             if (terark_unlikely(b > huf.bit_count)) return false;
             record->unchecked_push(l = c);
@@ -1091,7 +1090,7 @@ bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, Ent
                     break;                                                      \
                 }                                                               \
             }                                                                   \
-            byte_t c = ari_[l[w]][huf.bits >> (64 - TF_SHIFT)];                 \
+            byte_t c = ari_[l[w]][huf.bits >> (64 - BLOCK_BITS)];               \
             uint8_t b = cnt_[l[w]][c];                                          \
             if (terark_unlikely(b > huf.bit_count)) return false;               \
             output->unchecked_push(l[w] = c);                                   \
@@ -1299,7 +1298,7 @@ bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, Ent
                     break;                                                      \
                 }                                                               \
             }                                                                   \
-            byte_t c = ari_[l[w]][huf.bits >> (64 - TF_SHIFT)];                 \
+            byte_t c = ari_[l[w]][huf.bits >> (64 - BLOCK_BITS)];               \
             uint8_t b = cnt_[l[w]][c];                                          \
             if (terark_unlikely(b > huf.bit_count)) return false;               \
             output->unchecked_push(l[w] = c);                                   \
@@ -1608,7 +1607,7 @@ bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, Ent
                     break;                                                      \
                 }                                                               \
             }                                                                   \
-            byte_t c = ari_[l[w]][huf.bits >> (64 - TF_SHIFT)];                 \
+            byte_t c = ari_[l[w]][huf.bits >> (64 - BLOCK_BITS)];               \
             uint8_t b = cnt_[l[w]][c];                                          \
             if (terark_unlikely(b > huf.bit_count)) return false;               \
             output->unchecked_push(l[w] = c);                                   \

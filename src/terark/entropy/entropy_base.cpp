@@ -196,6 +196,26 @@ size_t freq_hist_o1::estimate_size_unfinish(const histogram_t& hist) {
     return size_t(entropy * o0_size / 8);
 }
 
+size_t freq_hist_o1::estimate_size_unfinish(const histogram_t& hist0, const histogram_t& hist1) {
+    double entropy = 0;
+    double o0_size = hist0.o0_size + hist1.o0_size;
+    for (size_t i = 0; i < 256; ++i) {
+        double o1_size = hist0.o1_size[i] + hist1.o1_size[i];
+        for (size_t j = 0; j < 256; ++j) {
+            o1_size += hist0.o1[i][j] + hist1.o1[i][j];
+        }
+        double pp = o1_size / o0_size;
+        for (size_t j = 0; j < 256; ++j) {
+            uint64_t o1_ij = hist0.o1[i][j] + hist1.o1[i][j];
+            if (o1_ij > 0) {
+                double p = o1_ij / o1_size;
+                entropy -= pp * p * log2(p);
+            }
+        }
+    }
+    return size_t(entropy * o0_size / 8);
+}
+
 void freq_hist_o1::add_record(fstring record) {
     if (record.size() < min_ || record.size() > max_) {
         return;
@@ -240,6 +260,22 @@ void freq_hist_o1::add_record(fstring record) {
         ++hist_.o1[last_3][c3 = *in3++];
         last_3 = c3;
     }
+}
+
+void freq_hist_o1::add_hist(const freq_hist_o1& other) {
+    const uint64_t* add = (const uint64_t*)&other.hist_;
+    uint64_t* val = (uint64_t*)&hist_;
+    for (size_t i = 0; i < sizeof hist_ / sizeof(uint64_t); ++i) {
+        val[i] += add[i];
+    }
+    //hist_.o0_size += other.hist_.o0_size;
+    //for (size_t i = 0; i < 256; ++i) {
+    //    hist_.o0[i] += other.hist_.o0[i];
+    //    hist_.o1_size[i] += other.hist_.o1_size[i];
+    //    for (size_t j = 0; j < 256; ++j) {
+    //        hist_.o1[i][j] += other.hist_.o1[i][j];
+    //    }
+    //}
 }
 
 void freq_hist_o1::finish() {
