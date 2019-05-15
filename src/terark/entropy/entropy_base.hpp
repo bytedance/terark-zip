@@ -42,7 +42,7 @@ public:
     }
     ENTROPY_FORCE_INLINE void read(size_t bit_count, uint64_t* pbits, size_t* pshift) {
         static constexpr uint64_t mask[] = {
-#define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> n)),
+#define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> (n & 63))),
             BOOST_PP_REPEAT(65, MAKE_MASK, ~)
 #undef MAKE_MASK
         };
@@ -107,7 +107,7 @@ public:
     }
     ENTROPY_FORCE_INLINE void write(uint64_t bits, size_t bit_count) {
         static constexpr uint64_t mask[] = {
-#define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> n)),
+#define MAKE_MASK(z, n, u) n == 64 ? uint64_t(-1) : (~(uint64_t(-1) >> (n & 63))),
             BOOST_PP_REPEAT(65, MAKE_MASK, ~)
 #undef MAKE_MASK
         };
@@ -242,7 +242,9 @@ public:
     const histogram_t& histogram() const;
     static size_t estimate_size(const histogram_t& hist);
     static size_t estimate_size_unfinish(const histogram_t& hist);
+    static size_t estimate_size_unfinish(const histogram_t& hist0, const histogram_t& hist1);
     void add_record(fstring sample);
+    void add_hist(const freq_hist_o1& other);
     void finish();
     void normalise(size_t norm);
 };
