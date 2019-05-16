@@ -56,6 +56,8 @@ Options:
 bool test_nlt = false;
 bool bench_iter_create = false;
 const char* dfa_file = NULL;
+const char* fname = "fab-data.txt";
+FILE* fp = NULL;
 
 int main(int argc, char* argv[]) {
     bool benchmark = false;
@@ -76,6 +78,13 @@ int main(int argc, char* argv[]) {
             break;
         }
     }
+    if (optind < argc) {
+        fname = argv[optind];
+    }
+    fp = fopen(fname, "r");
+    if (!fp) {
+        fprintf(stderr, "fatal: fopen(%s) = %s\n", fname, strerror(errno));
+    }
     if (benchmark) {
         run_benchmark();
     }
@@ -91,10 +100,10 @@ void run_benchmark() {
     LineBuf line;
     size_t lineno = 0;
     size_t bytes = 0;
-    printf("reading stdin...\n");
+    printf("reading file %s ...\n", fname);
     profiling pf;
     auto t0 = pf.now();
-    while (line.getline(stdin) > 0) {
+    while (line.getline(fp) > 0) {
         line.trim();
         strVec[line]++;
         bytes += line.size();
@@ -393,8 +402,8 @@ void unit_test_run(Inserter insert) {
 	hash_strmap<> strVec;
 	LineBuf line;
 	size_t lineno = 0;
-	printf("reading stdin...\n");
-	while (line.getline(stdin) > 0) {
+	printf("reading file %s ...\n", fname);
+	while (line.getline(fp) > 0) {
 		line.trim();
 		strVec.insert_i(line);
 		lineno++;

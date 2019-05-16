@@ -33,17 +33,12 @@ int main(int argc, char* argv[]) {
 	}
 GetoptDone:
 	const char* fname = argv[optind];
-	Auto_fclose fp;
-	if (fname) {
-		fp = fopen(fname, "r");
-		if (NULL == fp) {
-			fprintf(stderr, "FATAL: fopen(\"%s\", \"r\") = %s\n", fname, strerror(errno));
-			return 1;
-		}
-	}
-	else {
-		fprintf(stderr, "Reading from stdin...\n");
-	}
+	if (!fname) fname = "fab-data.txt";
+	Auto_fclose fp(fopen(fname, "r"));
+    if (NULL == fp) {
+        fprintf(stderr, "FATAL: fopen(\"%s\", \"r\") = %s\n", fname, strerror(errno));
+        return 1;
+    }
 	SortableStrVec strVec1;
 	LineBuf line;
 	while (line.getline(fp.self_or(stdin)) > 0) {

@@ -4,16 +4,26 @@
 #include <terark/util/linebuf.hpp>
 #include <terark/hash_strmap.hpp>
 #include <terark/num_to_str.hpp>
+#include <terark/util/autoclose.hpp>
 #include <getopt.h>
 
 using namespace terark;
 
 int main(int argc, char* argv[]) {
+    const char* fname = "fab-data.txt";
+    if (argc >= 2) {
+        fname = argv[1];
+    }
+    Auto_fclose fp(fopen(fname, "r"));
+    if (!fp) {
+        fprintf(stderr, "fopen(%s) = %s\n", fname, strerror(errno));
+        return 1;
+    }
 	hash_strmap<> strSet;
 	LineBuf line;
 	size_t lineno = 0;
-	printf("reading stdin...\n");
-	while (line.getline(stdin) > 0) {
+	printf("reading file %s ...\n", fname);
+	while (line.getline(fp) > 0) {
 		line.trim();
 		strSet.insert_i(line);
 		lineno++;

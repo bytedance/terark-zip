@@ -1129,6 +1129,54 @@ void BaseDFA::get_stat(DFA_MmapHeader* st) const {
 void BaseDFA::str_stat(std::string* st) const {
 }
 
+/// output @param keys are unsorted
+void BaseDFA::dfa_get_random_keys_append(SortableStrVec* keys, size_t num) const {
+    std::mt19937 rnd(keys->size() + keys->str_size() + num);
+    assert(m_dyn_sigma >= 256);
+    AutoFree<CharTarget<size_t> > children(m_dyn_sigma);
+    valvec<byte_t> key(256, valvec_reserve());
+    MatchContext ctx;
+    // this algo is likely to select short keys, it's not uniform distributed
+    for(size_t i = 0; i < num; ++i) {
+        size_t s = initial_state;
+        key.erase_all();
+        while (true) {
+            if (v_is_pzip(s)) {
+                key.append(v_get_zpath_data(s, &ctx));
+            }
+            size_t nc = get_all_move(s, children.p);
+            size_t rd = rnd();
+            size_t k;
+            if (v_is_term(s)) {
+                if (0 == nc)
+                    break; // done
+                k = rd % (nc + 1);
+                if (0 == k) { // select curr word
+                    break; // done
+                }
+                k--;
+            }
+            else if (nc) {
+                k = rd % nc;
+            }
+            else {
+                assert(false); // when 0 == nc, state must be term
+                k = 0; // to shut up compiler warn
+            }
+            key.push_back(byte_t(children.p[k].ch));
+            s = children.p[k].target;
+            assert(s < v_total_states());
+        }
+        keys->push_back(key);
+    }
+}
+
+void BaseDFA::dfa_get_random_keys(SortableStrVec* keys, size_t num) const {
+    keys->m_index.erase_all();
+    keys->m_strpool.erase_all();
+    dfa_get_random_keys_append(keys, num);
+}
+
 size_t BaseDFA::find_first_leaf(size_t root) const {
 	valvec<size_t> stack(512, valvec_reserve());
 	terark::AutoFree<size_t> children(m_dyn_sigma);
@@ -1405,21 +1453,21 @@ size_t BaseDAWG::state_to_dict_rank(size_t state) const {
 	THROW_STD(invalid_argument, "this method should not be called");
 }
 
-void BaseDAWG::get_random_keys_append(SortableStrVec* keys, size_t max_keys) const {
+void BaseDAWG::get_random_keys_append(SortableStrVec* keys, size_t num) const {
     size_t nWords = this->n_words;
-    size_t seed = keys->size() + keys->str_size() + max_keys;
+    size_t seed = keys->size() + keys->str_size() + num;
     std::mt19937_64 rnd(seed);
     std::string word;
-    for(size_t i = 0; i < max_keys; ++i) {
+    for(size_t i = 0; i < num; ++i) {
         size_t k = rnd() % nWords;
         nth_word(k, &word);
         keys->push_back(word);
     }
 }
 
-void BaseDAWG::get_random_keys(SortableStrVec* keys, size_t max_keys) const {
+void BaseDAWG::get_random_keys(SortableStrVec* keys, size_t num) const {
     keys->clear();
-    get_random_keys_append(keys, max_keys);
+    get_random_keys_append(keys, num);
 }
 
 size_t SuffixCountableDAWG::
