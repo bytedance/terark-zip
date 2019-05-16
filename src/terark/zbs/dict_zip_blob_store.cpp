@@ -630,7 +630,15 @@ void DictZipBlobStore_silentPipelineMsg(bool silent) {
   }
 }
 
-static size_t g_input_bufsize = 256*1024;
+static size_t DictZipBlobStore_batchBufferSize() {
+    long def = 2L*1024*1024; // 2M
+    long val = getEnvLong("DictZipBlobStore_batchBufferSize", def);
+    if (val <= 0) {
+        val = def;
+    }
+    return val;
+}
+static size_t g_input_bufsize = DictZipBlobStore_batchBufferSize();
 class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyTask : public PipelineTask {
 	public:
