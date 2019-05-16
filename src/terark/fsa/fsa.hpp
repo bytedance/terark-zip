@@ -18,6 +18,7 @@ const size_t state_not_found = size_t(-1);
 
 struct DFA_MmapHeader; // forward declaration
 class febitvec;
+class SortableStrVec;
 
 //#pragma pack(push,1)
 template<class Uint, int UintSize>
@@ -429,6 +430,10 @@ public:
     virtual void lower_bound(MatchContext&, fstring word, size_t* index, size_t* dict_rank) const;
 	virtual size_t v_state_to_word_id(size_t state) const;
 	virtual size_t state_to_dict_rank(size_t state) const;
+
+	/// output @param keys are unsorted
+	virtual void get_random_keys_append(SortableStrVec* keys, size_t max_keys) const;
+	void get_random_keys(SortableStrVec* keys, size_t max_keys) const;
 
 protected:
 	virtual void nth_word(MatchContext&, size_t nth, std::string* word) const = 0;

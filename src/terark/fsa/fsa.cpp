@@ -16,6 +16,7 @@
 #include <terark/util/crc.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/throw.hpp>
+#include <terark/util/sortable_strvec.hpp>
 #include <terark/num_to_str.hpp>
 
 #include <errno.h>
@@ -1402,6 +1403,23 @@ size_t BaseDAWG::v_state_to_word_id(size_t state) const {
 
 size_t BaseDAWG::state_to_dict_rank(size_t state) const {
 	THROW_STD(invalid_argument, "this method should not be called");
+}
+
+void BaseDAWG::get_random_keys_append(SortableStrVec* keys, size_t max_keys) const {
+    size_t nWords = this->n_words;
+    size_t seed = keys->size() + keys->str_size() + max_keys;
+    std::mt19937_64 rnd(seed);
+    std::string word;
+    for(size_t i = 0; i < max_keys; ++i) {
+        size_t k = rnd() % nWords;
+        nth_word(k, &word);
+        keys->push_back(word);
+    }
+}
+
+void BaseDAWG::get_random_keys(SortableStrVec* keys, size_t max_keys) const {
+    keys->clear();
+    get_random_keys_append(keys, max_keys);
 }
 
 size_t SuffixCountableDAWG::

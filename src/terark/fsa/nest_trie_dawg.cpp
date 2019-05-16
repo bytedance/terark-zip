@@ -420,6 +420,28 @@ nth_word(size_t nth, valvec<byte_t>* word) const {
 	m_trie->restore_dawg_string(node_id, word);
 }
 
+// may combine many NestTrieDAWG's random keys then sort
+template<class NestTrie, class DawgType>
+void NestTrieDAWG<NestTrie, DawgType>::
+get_random_keys_append(SortableStrVec* keys, size_t max_keys) const {
+    assert(nullptr != keys);
+    assert(m_trie->m_is_link.max_rank1() == this->m_zpath_states);
+    assert(getIsTerm().max_rank1() == this->n_words);
+    size_t nWords = this->n_words;
+    size_t seed = keys->size() + keys->str_size() + max_keys;
+    std::mt19937_64 rnd(seed);
+    for(size_t i = 0; i < max_keys; ++i) {
+        size_t k = rnd() % nWords;
+        size_t node_id = getIsTerm().select1(k);
+        assert(node_id < getIsTerm().size());
+        assert(getIsTerm()[node_id]);
+        size_t offset0 = keys->m_strpool.size();
+        m_trie->restore_dawg_string_append(node_id, &keys->m_strpool);
+        size_t offset1 = keys->m_strpool.size();
+        keys->m_index.push_back({offset0, offset1-offset0, keys->size()});
+    }
+}
+
 template<class NestTrie, class DawgType>
 size_t
 NestTrieDAWG<NestTrie, DawgType>::v_state_to_word_id(size_t state) const {

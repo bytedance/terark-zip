@@ -217,6 +217,8 @@ public:
 	void nth_word(MatchContext&, size_t, valvec<byte_t>*) const;
 	void nth_word(size_t, valvec<byte_t>*) const;
 
+	void get_random_keys_append(SortableStrVec* keys, size_t max_keys) const override;
+
 	DawgIndexIter dawg_lower_bound(MatchContext&, fstring) const override;
 
 	template<class OnMatch, class TR>
