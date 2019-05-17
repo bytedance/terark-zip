@@ -1,6 +1,8 @@
 export SHELL=bash
 DBG_FLAGS ?= -g3 -D_DEBUG
 RLS_FLAGS ?= -O3 -DNDEBUG -g3
+# 'AFR' means Assert For Release
+AFR_FLAGS ?= -O2 -g3
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
 CMAKE_INSTALL_PREFIX ?= /usr
 
@@ -22,6 +24,7 @@ BUILD_NAME := ${UNAME_MachineSystem}-${COMPILER}-bmi2-${WITH_BMI2}
 BUILD_ROOT := build/${BUILD_NAME}
 ddir:=${BUILD_ROOT}/dbg
 rdir:=${BUILD_ROOT}/rls
+adir:=${BUILD_ROOT}/afr
 
 TERARK_ROOT:=${PWD}
 COMMON_C_FLAGS  += -Wformat=2 -Wcomment
@@ -213,42 +216,56 @@ objs = $(addprefix ${${2}dir}/, $(addsuffix .o, $(basename ${${1}_src})))
 
 zstd_d_o := $(call objs,zstd,d)
 zstd_r_o := $(call objs,zstd,r)
+zstd_a_o := $(call objs,zstd,a)
 
 core_d_o := $(call objs,core,d)
 core_r_o := $(call objs,core,r)
+core_a_o := $(call objs,core,a)
 core_d := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-d${DLL_SUFFIX}
 core_r := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-r${DLL_SUFFIX}
+core_a := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-a${DLL_SUFFIX}
 static_core_d := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-d.a
 static_core_r := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-r.a
+static_core_a := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-a.a
 
 fsa_d_o := $(call objs,fsa,d)
 fsa_r_o := $(call objs,fsa,r)
+fsa_a_o := $(call objs,fsa,a)
 fsa_d := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-d${DLL_SUFFIX}
 fsa_r := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-r${DLL_SUFFIX}
+fsa_a := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-a${DLL_SUFFIX}
 static_fsa_d := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-d.a
 static_fsa_r := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-r.a
+static_fsa_a := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-a.a
 
 zbs_d_o := $(call objs,zbs,d)
 zbs_r_o := $(call objs,zbs,r)
+zbs_a_o := $(call objs,zbs,a)
 zbs_d := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-d${DLL_SUFFIX}
 zbs_r := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-r${DLL_SUFFIX}
+zbs_a := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-a${DLL_SUFFIX}
 static_zbs_d := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-d.a
 static_zbs_r := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-r.a
+static_zbs_a := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-a.a
 
 rpc_d_o := $(call objs,rpc,d)
 rpc_r_o := $(call objs,rpc,r)
+rpc_a_o := $(call objs,rpc,a)
 rpc_d := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-d${DLL_SUFFIX}
 rpc_r := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-r${DLL_SUFFIX}
+rpc_a := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-a${DLL_SUFFIX}
 static_rpc_d := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-d.a
 static_rpc_r := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-r.a
+static_rpc_a := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-a.a
 
-core := ${core_d} ${core_r} ${static_core_d} ${static_core_r}
-fsa  := ${fsa_d}  ${fsa_r}  ${static_fsa_d}  ${static_fsa_r}
-zbs  := ${zbs_d}  ${zbs_r}  ${static_zbs_d}  ${static_zbs_r}
+core := ${core_d} ${core_r} ${core_a} ${static_core_d} ${static_core_r} ${static_core_a}
+fsa  := ${fsa_d}  ${fsa_r}  ${fsa_a}  ${static_fsa_d}  ${static_fsa_r}  ${static_fsa_a}
+zbs  := ${zbs_d}  ${zbs_r}  ${zbs_a}  ${static_zbs_d}  ${static_zbs_r}  ${static_zbs_a}
 
-ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} core fsa rpc zbs
+ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa rpc zbs
 DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d} ${rpc_d}
 RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r} ${rpc_r}
+AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a} ${rpc_a}
 
 .PHONY : default all core fsa zbs
 
@@ -257,7 +274,7 @@ all : ${ALL_TARGETS}
 core: ${core}
 fsa: ${fsa}
 zbs: ${zbs}
-rpc: ${rpc_d} ${rpc_r} ${static_rpc_d} ${static_rpc_r}
+rpc: ${rpc_d} ${rpc_r} ${rpc_a} ${static_rpc_d} ${static_rpc_r} ${static_rpc_a}
 
 OpenSources := $(shell find -H src 3rdparty -name '*.h' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cpp' -o -name '*.c')
 ObfuseFiles := \
@@ -272,11 +289,13 @@ NotObfuseFiles := $(filter-out ${ObfuseFiles}, ${OpenSources})
 
 allsrc = ${core_src} ${fsa_src} ${zbs_src}
 alldep = $(addprefix ${rdir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
+         $(addprefix ${adir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
          $(addprefix ${ddir}/, $(addsuffix .dep, $(basename ${allsrc})))
 
-.PHONY : dbg rls
+.PHONY : dbg rls afr
 dbg: ${DBG_TARGETS}
 rls: ${RLS_TARGETS}
+afr: ${AFR_TARGETS}
 
 .PHONY: obfuscate
 obfuscate: $(addprefix ../obfuscated-terark/, ${ObfuseFiles})
@@ -300,45 +319,54 @@ tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
 	g++ -o $@ $<
 
 ifneq (${UNAME_System},Darwin)
-${core_d} ${core_r} : LIBS += -lrt -lpthread
+${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread
 endif
 ${core_d} : LIBS := $(filter-out -lterark-core-${COMPILER}-d, ${LIBS})
 ${core_r} : LIBS := $(filter-out -lterark-core-${COMPILER}-r, ${LIBS})
+${core_a} : LIBS := $(filter-out -lterark-core-${COMPILER}-a, ${LIBS})
 
 ${fsa_d} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-d, -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-d ${LIBS})
 ${fsa_r} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-r, -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-r ${LIBS})
-
+${fsa_a} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-a, -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-a ${LIBS})
 
 ${zbs_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
 ${zbs_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
+${zbs_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
 
-${zstd_d_o} ${zstd_r_o} : override CFLAGS += -Wno-sign-compare -Wno-implicit-fallthrough
+${zstd_d_o} ${zstd_r_o} ${zstd_a_o} : override CFLAGS += -Wno-sign-compare -Wno-implicit-fallthrough
 
-
-
-${rpc_d} ${rpc_r} : LIBS += ${LIBBOOST} -lpthread
+${rpc_d} ${rpc_r} {rpc_a} : LIBS += ${LIBBOOST} -lpthread
 ${rpc_d} : LIBS += -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-d
 ${rpc_r} : LIBS += -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-r
+${rpc_a} : LIBS += -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-a
 
 ${fsa_d} : $(call objs,fsa,d) ${core_d}
 ${fsa_r} : $(call objs,fsa,r) ${core_r}
+${fsa_a} : $(call objs,fsa,a) ${core_a}
 ${static_fsa_d} : $(call objs,fsa,d)
 ${static_fsa_r} : $(call objs,fsa,r)
+${static_fsa_a} : $(call objs,fsa,a)
 
 ${zbs_d} : $(call objs,zbs,d) ${fsa_d} ${core_d}
 ${zbs_r} : $(call objs,zbs,r) ${fsa_r} ${core_r}
+${zbs_a} : $(call objs,zbs,a) ${fsa_a} ${core_a}
 ${static_zbs_d} : $(call objs,zbs,d)
 ${static_zbs_r} : $(call objs,zbs,r)
+${static_zbs_a} : $(call objs,zbs,a)
 
 ${rpc_d} : $(call objs,rpc,d) ${core_d}
 ${rpc_r} : $(call objs,rpc,r) ${core_r}
+${rpc_a} : $(call objs,rpc,a) ${core_a}
 ${static_rpc_d} : $(call objs,rpc,d)
 ${static_rpc_r} : $(call objs,rpc,r)
+${static_rpc_a} : $(call objs,rpc,a)
 
 ${core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o
 ${core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o
+${core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o
 ${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o
 ${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o
+${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o
 
 
 .PHONY: git-version.phony
@@ -477,11 +505,11 @@ ${TarBall}: ${core} ${fsa} ${zbs}
 	cp    3rdparty/zstd/zstd/common/*.h          ${TarBall}/include/zstd/common
 ifeq (${PKG_WITH_DBG},1)
 	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*a${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-zbs-{${COMPILER}-,}d.a ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-fsa-{${COMPILER}-,}d.a ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-core-{${COMPILER}-,}d.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}d.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}a.a ${TarBall}/lib_static
   endif
 endif
 	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
@@ -489,9 +517,7 @@ endif
 	echo $(shell git log | head -n1) >> ${TarBall}/package.buildtime.txt
 ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-zbs-{${COMPILER}-,}r.a ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-fsa-{${COMPILER}-,}r.a ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-core-{${COMPILER}-,}r.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}r.a ${TarBall}/lib_static
 endif
 	cp -L tools/fsa/rls/*.exe ${TarBall}/bin/
 	cp -L tools/zbs/rls/*.exe ${TarBall}/bin/
@@ -524,6 +550,13 @@ ${rdir}/%.o: %.cpp
 	mkdir -p $(dir $@)
 	${CXX} ${CXX_STD} ${CPU} -c ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
 
+${adir}/%.o: %.cpp
+	@echo file: $< "->" $@
+	@echo TERARK_INC=${TERARK_INC}
+	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	mkdir -p $(dir $@)
+	${CXX} ${CXX_STD} ${CPU} -c ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
+
 ${ddir}/%.o: %.cc
 	@echo file: $< "->" $@
 	@echo TERARK_INC=${TERARK_INC}
@@ -538,6 +571,13 @@ ${rdir}/%.o: %.cc
 	mkdir -p $(dir $@)
 	${CXX} ${CXX_STD} ${CPU} -c ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
 
+${adir}/%.o: %.cc
+	@echo file: $< "->" $@
+	@echo TERARK_INC=${TERARK_INC}
+	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	mkdir -p $(dir $@)
+	${CXX} ${CXX_STD} ${CPU} -c ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
+
 ${ddir}/%.o : %.c
 	@echo file: $< "->" $@
 	mkdir -p $(dir $@)
@@ -548,6 +588,11 @@ ${rdir}/%.o : %.c
 	mkdir -p $(dir $@)
 	${CC} -c ${CPU} ${RLS_FLAGS} ${CFLAGS} ${INCS} $< -o $@
 
+${adir}/%.o : %.c
+	@echo file: $< "->" $@
+	mkdir -p $(dir $@)
+	${CC} -c ${CPU} ${AFR_FLAGS} ${CFLAGS} ${INCS} $< -o $@
+
 ${ddir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
 	@echo file: $< "->" $@
 	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${DBG_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
@@ -555,6 +600,10 @@ ${ddir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
 ${rdir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
 	@echo file: $< "->" $@
 	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
+
+${adir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
+	@echo file: $< "->" $@
+	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
 
 ${ddir}/%.s : %.c ${PRECOMPILED_HEADER_GCH}
 	@echo file: $< "->" $@
@@ -564,27 +613,43 @@ ${rdir}/%.s : %.c ${PRECOMPILED_HEADER_GCH}
 	@echo file: $< "->" $@
 	${CC} -S -fverbose-asm ${CPU} ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
 
+${adir}/%.s : %.c ${PRECOMPILED_HEADER_GCH}
+	@echo file: $< "->" $@
+	${CC} -S -fverbose-asm ${CPU} ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
+
 ${rdir}/%.dep : %.c
 	@echo file: $< "->" $@
 	@echo INCS = ${INCS}
 	mkdir -p $(dir $@)
-	${CC} -M -MT $(basename $@).o ${INCS} $< > $@; true
+	-${CC} ${RLS_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
 
 ${ddir}/%.dep : %.c
 	@echo file: $< "->" $@
 	@echo INCS = ${INCS}
 	mkdir -p $(dir $@)
-	${CC} -M -MT $(basename $@).o ${INCS} $< > $@; true
+	-${CC} ${DBG_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
+
+${adir}/%.dep : %.c
+	@echo file: $< "->" $@
+	@echo INCS = ${INCS}
+	mkdir -p $(dir $@)
+	-${CC} ${AFR_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
 
 ${rdir}/%.dep : %.cpp
 	@echo file: $< "->" $@
 	@echo INCS = ${INCS}
 	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} -M -MT $(basename $@).o ${INCS} $< > $@; true
+	-${CXX} ${CXX_STD} ${RLS_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
 
 ${ddir}/%.dep : %.cpp
 	@echo file: $< "->" $@
 	@echo INCS = ${INCS}
 	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} -M -MT $(basename $@).o ${INCS} $< > $@; true
+	-${CXX} ${CXX_STD} ${DBG_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
+
+${adir}/%.dep : %.cpp
+	@echo file: $< "->" $@
+	@echo INCS = ${INCS}
+	mkdir -p $(dir $@)
+	-${CXX} ${CXX_STD} ${AFR_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
 
