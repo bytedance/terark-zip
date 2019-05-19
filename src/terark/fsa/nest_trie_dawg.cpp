@@ -438,7 +438,11 @@ get_random_keys_append(SortableStrVec* keys, size_t max_keys) const {
         size_t offset0 = keys->m_strpool.size();
         m_trie->restore_dawg_string_append(node_id, &keys->m_strpool);
         size_t offset1 = keys->m_strpool.size();
-        keys->m_index.push_back({offset0, offset1-offset0, k});
+        SortableStrVec::SEntry en;
+        en.offset = offset0;
+        en.length = offset1 - offset0;
+        en.seq_id = k; // seq_id is word id
+        keys->m_index.push_back(en);
     }
 }
 
