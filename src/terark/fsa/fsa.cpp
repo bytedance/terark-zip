@@ -1168,6 +1168,7 @@ void BaseDFA::dfa_get_random_keys_append(SortableStrVec* keys, size_t num) const
             assert(s < v_total_states());
         }
         keys->push_back(key);
+        keys->m_index.back().seq_id = s; // 2^36, up to 64G
     }
 }
 

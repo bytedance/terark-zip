@@ -293,7 +293,7 @@ public:
 	virtual void str_stat(std::string*) const;
 	std::string  str_stat() const { std::string s; str_stat(&s); return s; }
 
-	/// output @param keys are unsorted
+	/// output @param keys are unsorted, .seq_id is the final state for that key
 	virtual void dfa_get_random_keys_append(SortableStrVec* keys, size_t max_keys) const;
 	void dfa_get_random_keys(SortableStrVec* keys, size_t max_keys) const;
 
@@ -435,7 +435,7 @@ public:
 	virtual size_t v_state_to_word_id(size_t state) const;
 	virtual size_t state_to_dict_rank(size_t state) const;
 
-	/// output @param keys are unsorted
+	/// output @param keys are unsorted, .seq_id is the final state for that key
 	virtual void get_random_keys_append(SortableStrVec* keys, size_t max_keys) const;
 	void get_random_keys(SortableStrVec* keys, size_t max_keys) const;
 
