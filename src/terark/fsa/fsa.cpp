@@ -1463,6 +1463,7 @@ void BaseDAWG::get_random_keys_append(SortableStrVec* keys, size_t num) const {
         size_t k = rnd() % nWords;
         nth_word(k, &word);
         keys->push_back(word);
+        keys->m_index.back().seq_id = k;
     }
 }
 

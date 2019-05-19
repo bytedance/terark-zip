@@ -435,7 +435,7 @@ public:
 	virtual size_t v_state_to_word_id(size_t state) const;
 	virtual size_t state_to_dict_rank(size_t state) const;
 
-	/// output @param keys are unsorted, .seq_id is the final state for that key
+	/// output @param keys are unsorted, .seq_id is the word id of that key
 	virtual void get_random_keys_append(SortableStrVec* keys, size_t max_keys) const;
 	void get_random_keys(SortableStrVec* keys, size_t max_keys) const;
 
