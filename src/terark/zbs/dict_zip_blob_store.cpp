@@ -631,7 +631,8 @@ void DictZipBlobStore_silentPipelineMsg(bool silent) {
 }
 
 static size_t DictZipBlobStore_batchBufferSize() {
-    long def = 2L*1024*1024; // 2M
+//  long def = 2L*1024*1024; // 2M
+    long def = 256*1024;
     long val = getEnvLong("DictZipBlobStore_batchBufferSize", def);
     if (val <= 0) {
         val = def;
