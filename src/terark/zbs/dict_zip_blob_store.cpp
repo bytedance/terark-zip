@@ -640,6 +640,7 @@ static size_t DictZipBlobStore_batchBufferSize() {
     return val;
 }
 static size_t g_input_bufsize = DictZipBlobStore_batchBufferSize();
+static std::mutex g_lake_mutex;
 class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyTask : public PipelineTask {
 	public:
@@ -687,7 +688,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 				zipThreads = min(cpuCount, 8);
 			}
 			this->m_silent = g_silentPipelineMsg;
-			this->setQueueSize(8*cpuCount);
+			this->setQueueSize(8*zipThreads);
 			this->add_step(new MyZipStage(zipThreads));
 			this->add_step(new MyWriteStage());
 			this->compile();
@@ -709,14 +710,28 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	valvec<HashTable> m_hash;
 	size_t m_inputRecords;
 	MyTask* m_curTask;
+	valvec<MyTask*> m_lake;
+	size_t m_lakeBytes = 0;
+	static constexpr size_t lake_MAX_BYTES = 16 * 1024 * 1024;
 
 public:
 	explicit MultiThread(const DictZipBlobStore::Options& opt)
 	: DictZipBlobStoreBuilder(opt) {
+		if (opt.enableLake) {
+			m_lake.reserve(getPipeline().getQueueSize());
+		}
 	}
 	void finishZip() override {
-		if (m_curTask && m_curTask->ibuf.size() > 0) {
-			getPipeline().inqueue(m_curTask);
+		if (m_opt.enableLake) {
+			if (m_curTask && m_curTask->ibuf.size() > 0) {
+				m_lake.push_back(m_curTask);
+				m_curTask = nullptr;
+			}
+			drainLake();
+		} else {
+			if (m_curTask && m_curTask->ibuf.size() > 0) {
+				getPipeline().inqueue(m_curTask);
+			}
 		}
 		while (m_lengthCount < m_inputRecords) {
 #if defined(_WIN32) || defined(_WIN64)
@@ -736,11 +751,37 @@ public:
 		m_hash.resize(getPipeline().zipThreads);
         m_xxhash64.reset(g_dzbsnark_seed);
 	}
+
+	void drainLake() {
+		auto& pipeline = getPipeline();
+		{
+			// serialize pipeline enqueue
+			//
+			// when there are multiple builders concurrently addRecord,
+			// the compressing stage in pipeline will work concurrently
+			// for these builders, each builder consumes many CPU Cache
+			// especially L3 cache which shared by multiple CPU core on
+			// one CPU socket/die!
+			std::lock_guard<std::mutex> lock(g_lake_mutex);
+			for (MyTask* t : m_lake) pipeline.inqueue(t);
+		}
+		m_lake.erase_all();
+		m_lakeBytes = 0;
+	}
+
 	void addRecord(const byte* rData, size_t rSize) override {
 		MyTask* task = m_curTask;
 		if (task->ibuf.strpool.size() > 0 &&
 			task->ibuf.strpool.unused() < rSize) {
-			getPipeline().inqueue(task);
+			if (m_opt.enableLake) {
+				if (m_lake.size() == m_lake.capacity() || m_lakeBytes >= lake_MAX_BYTES) {
+					drainLake();
+				}
+				m_lakeBytes += task->ibuf.strpool.size();
+				m_lake.push_back(task);
+			} else {
+				getPipeline().inqueue(task);
+			}
 			m_curTask = task = new MyTask(this, m_inputRecords);
 		}
 		task->ibuf.emplace_back((const char*)rData, rSize);
@@ -1206,6 +1247,7 @@ DictZipBlobStore::Options::Options() {
 	offsetArrayBlockUnits = 0; // default use UintVecMin0
     entropyZipRatioRequire = (float)getEnvDouble("Entropy_zipRatioRequire", 0.95);
     embeddedDict = false;
+    enableLake = false;
 }
 
 DictZipBlobStore::ZipStat::ZipStat() {

@@ -40,6 +40,7 @@ public:
 		int  offsetArrayBlockUnits; // 0 for no compress
         float entropyZipRatioRequire;
         bool embeddedDict;
+        bool enableLake;
 
 		Options();
 	};
