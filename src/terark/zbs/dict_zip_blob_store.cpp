@@ -687,7 +687,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 				zipThreads = min(cpuCount, 8);
 			}
 			this->m_silent = g_silentPipelineMsg;
-			this->setQueueSize(min(2*cpuCount, 20));
+			this->setQueueSize(8*cpuCount);
 			this->add_step(new MyZipStage(zipThreads));
 			this->add_step(new MyWriteStage());
 			this->compile();
