@@ -640,7 +640,6 @@ static size_t DictZipBlobStore_batchBufferSize() {
     return val;
 }
 static size_t g_input_bufsize = DictZipBlobStore_batchBufferSize();
-static std::mutex g_lake_mutex;
 class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyTask : public PipelineTask {
 	public:
@@ -730,7 +729,7 @@ public:
 			drainLake();
 		} else {
 			if (m_curTask && m_curTask->ibuf.size() > 0) {
-				getPipeline().inqueue(m_curTask);
+				getPipeline().enqueue(m_curTask);
 			}
 		}
 		while (m_lengthCount < m_inputRecords) {
@@ -762,8 +761,7 @@ public:
 			// for these builders, each builder consumes many CPU Cache
 			// especially L3 cache which shared by multiple CPU core on
 			// one CPU socket/die!
-			std::lock_guard<std::mutex> lock(g_lake_mutex);
-			for (MyTask* t : m_lake) pipeline.inqueue(t);
+			pipeline.enqueue((PipelineTask**)m_lake.data(), m_lake.size());
 		}
 		m_lake.erase_all();
 		m_lakeBytes = 0;
@@ -780,7 +778,7 @@ public:
 				m_lakeBytes += task->ibuf.strpool.size();
 				m_lake.push_back(task);
 			} else {
-				getPipeline().inqueue(task);
+				getPipeline().enqueue(task);
 			}
 			m_curTask = task = new MyTask(this, m_inputRecords);
 		}

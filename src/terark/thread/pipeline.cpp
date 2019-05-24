@@ -711,11 +711,21 @@ void PipelineProcessor::compile(int input_feed_queue_size)
 	start();
 }
 
-void PipelineProcessor::inqueue(PipelineTask* task)
+void PipelineProcessor::enqueue(PipelineTask* task)
 {
 	PipelineLockGuard lock(m_mutexForInqueue);
 	PipelineQueueItem item(++m_head->m_plserial, task);
 	m_head->m_out_queue->push_back(item);
+}
+
+void PipelineProcessor::enqueue(PipelineTask** tasks, size_t num) {
+	PipelineLockGuard lock(m_mutexForInqueue);
+	uintptr_t plserial = m_head->m_plserial;
+	auto queue = m_head->m_out_queue;
+	for (size_t i = 0; i < num; ++i) {
+		queue->push_back(PipelineQueueItem(++plserial, tasks[i]));
+	}
+	m_head->m_plserial = plserial;
 }
 
 void PipelineProcessor::wait()

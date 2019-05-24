@@ -208,7 +208,8 @@ public:
 	void compile(); // input feed from external, not first step
 	void compile(int input_feed_queue_size /* default = m_queue_size */);
 
-	void inqueue(PipelineTask* task);
+	void enqueue(PipelineTask* task);
+	void enqueue(PipelineTask** tasks, size_t num);
 
 	void stop() { m_run = false; }
 	void wait();
