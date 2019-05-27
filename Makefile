@@ -519,8 +519,7 @@ ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
 	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}r.a ${TarBall}/lib_static
 endif
-	cp -L tools/fsa/rls/*.exe ${TarBall}/bin/
-	cp -L tools/zbs/rls/*.exe ${TarBall}/bin/
+	cp -L tools/*/rls/*.exe ${TarBall}/bin/
 
 ${TarBall}.tgz: ${TarBall}
 	cd pkg; tar czf ${TarBallBaseName}.tgz ${TarBallBaseName}
