@@ -6,6 +6,11 @@
 
 namespace terark {
 
+EntropyContext* GetTlsEntropyContext() {
+    static thread_local EntropyContext tls_entropy_ctx;
+    return &tls_entropy_ctx;
+}
+
 fstring EntropyBitsToBytes(EntropyBits* bits, EntropyContext* context) {
     assert(bits->skip < 8);
     assert((bits->skip + bits->size) % 8 == 0);

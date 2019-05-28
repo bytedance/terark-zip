@@ -22,7 +22,9 @@ struct EntropyBits {
 
 struct EntropyContext {
     valvec<byte_t> buffer;
+    valvec<byte_t> data;
 };
+EntropyContext* GetTlsEntropyContext();
 
 class EntropyBitsReader {
 public:
