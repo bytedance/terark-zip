@@ -55,6 +55,7 @@ public:
 	void init_from_memory(fstring dataMem, Dictionary dict) override;
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
+    void detach_meta_blocks(const valvec<fstring>& blocks) override;
 	void get_record_append_imp(size_t recID, valvec<byte_t>* recData) const;
 	void reorder(const uint32_t* newToOld, fstring newFilePath);
 	fstring get_mmap() const override;

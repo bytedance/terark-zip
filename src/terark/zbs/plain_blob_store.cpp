@@ -105,6 +105,21 @@ void PlainBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
     blocks->emplace_back(m_content);
 }
 
+void PlainBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+    assert(!m_isDetachMeta);
+    assert(blocks.size() == 1);
+    auto offset_mem = blocks.front();
+    assert(offset_mem.size() == m_offsets.mem_size());
+    if (m_mmapBase) {
+        m_offsets.risk_release_ownership();
+    } else {
+        m_offsets.clear();
+    }
+    m_offsets.risk_set_data((byte_t*)offset_mem.data() + align_up(m_content.size(), 16),
+        m_numRecords + 1, ((const FileHeader*)m_mmapBase)->offsetsUintBits);
+    m_isDetachMeta = true;
+}
+
 void PlainBlobStore::save_mmap(function<void(const void*, size_t)> write) const {
     FunctionAdaptBuffer adaptBuffer(write);
     OutputBuffer buffer(&adaptBuffer);
@@ -142,6 +157,9 @@ PlainBlobStore::PlainBlobStore() {
 }
 
 PlainBlobStore::~PlainBlobStore() {
+    if (m_isDetachMeta) {
+        m_offsets.risk_release_ownership();
+    }
     if (m_mmapBase) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
@@ -322,6 +340,7 @@ public:
     }
     void finish() {
         assert(m_content_size <= m_content_input_size);
+        (void)m_content_input_size;
         PadzeroForAlign<16>(m_writer, m_content_size);
         m_writer.flush_buffer();
 

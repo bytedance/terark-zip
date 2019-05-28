@@ -30,6 +30,11 @@ void ZeroLengthBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
     blocks->erase_all();
 }
 
+void ZeroLengthBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+    assert(blocks.empty());
+}
+
+
 void ZeroLengthBlobStore::save_mmap(function<void(const void*, size_t)> write) const {
     FileHeaderBase header;
     memset(&header, 0, sizeof header);

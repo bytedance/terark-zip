@@ -173,6 +173,7 @@ fstring AbstractBlobStore::get_mmap() const {
 AbstractBlobStore::AbstractBlobStore()
   : m_fpath()
   , m_isMmapData(false)
+  , m_isDetachMeta(false)
   , m_dictCloseType(MemoryCloseType::Clear)
   , m_checksumLevel(0)
   , m_mmapBase(nullptr) {
@@ -186,7 +187,8 @@ void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
 	std::swap(m_numRecords   , y.m_numRecords   );
 	std::swap(m_unzipSize    , y.m_unzipSize    );
 	std::swap(m_fpath        , y.m_fpath        );
-	std::swap(m_isMmapData   , y.m_isMmapData   );
+  std::swap(m_isMmapData   , y.m_isMmapData   );
+    std::swap(m_isDetachMeta , y.m_isDetachMeta );
 	std::swap(m_dictCloseType, y.m_dictCloseType);
 	std::swap(m_checksumLevel, y.m_checksumLevel);
 	std::swap(m_mmapBase     , y.m_mmapBase     );

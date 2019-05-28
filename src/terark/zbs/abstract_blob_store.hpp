@@ -31,6 +31,7 @@ public:
 protected:
 	std::string m_fpath;
 	bool        m_isMmapData;
+	bool        m_isDetachMeta;
     MemoryCloseType m_dictCloseType;
 	int             m_checksumLevel;
 	const struct FileHeaderBase* m_mmapBase;
