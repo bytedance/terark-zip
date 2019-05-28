@@ -1,7 +1,7 @@
 /*
  * plain_blob_store.hpp
  *
- *  Created on: 2017Äê2ÔÂ10ÈÕ
+ *  Created on: 2017ï¿½ï¿½2ï¿½ï¿½10ï¿½ï¿½
  *      Author: leipeng
  */
 
@@ -20,6 +20,7 @@ public:
     void init_from_memory(fstring dataMem, Dictionary dict) override;
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
+    void detach_meta_blocks(const valvec<fstring>& blocks) override;
     void save_mmap(function<void(const void*, size_t)> write) const override;
     using AbstractBlobStore::save_mmap;
     using AbstractBlobStore::m_numRecords;

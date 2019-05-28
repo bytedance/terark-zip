@@ -179,6 +179,11 @@ void SimpleZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
     blocks->emplace_back(m_strpool.data(), m_strpool.used_mem_size());
 }
 
+void SimpleZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+    THROW_STD(invalid_argument
+        , "SimpleZipBlobStore detach_meta_blocks unsupported !");
+}
+
 size_t SimpleZipBlobStore::mem_size() const {
 	return m_strpool.used_mem_size() + m_off_len.mem_size() + m_records.mem_size();
 }

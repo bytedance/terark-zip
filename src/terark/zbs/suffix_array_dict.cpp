@@ -20,10 +20,10 @@ static bool g_suffixDictShowState = getEnvBool("SuffixDictCacheDFA_showStat");
 // 1 for divdufsort
 // 2 for inner_sais
 // 3 for gluten_sain
-int g_useDivSufSort = (int)getEnvLong("TerarkUseDivSufSort", 1);
+int g_useDivSufSort = (int)getEnvLong("TerarkUseDivSufSort", 0);
 
 void SetUseDivSufSort(int v) {
-    terark::g_useDivSufSort = !!v;
+    terark::g_useDivSufSort = v;
 }
 
 static const size_t MaxDepth = (1 << 8) - 1;

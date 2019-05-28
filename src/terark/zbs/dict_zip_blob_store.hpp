@@ -170,6 +170,7 @@ public:
 
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
+    void detach_meta_blocks(const valvec<fstring>& blocks) override;
 
 	size_t mem_size() const override;
 

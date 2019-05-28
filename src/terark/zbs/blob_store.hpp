@@ -19,6 +19,7 @@ public:
     virtual const char* name() const = 0;
     virtual void get_meta_blocks(valvec<fstring>* blocks) const = 0;
     virtual void get_data_blocks(valvec<fstring>* blocks) const = 0;
+    virtual void detach_meta_blocks(const valvec<fstring>& blocks) = 0;
     valvec<fstring> get_meta_blocks() const;
     valvec<fstring> get_data_blocks() const;
 

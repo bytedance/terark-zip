@@ -140,6 +140,13 @@ get_data_blocks(valvec<fstring>* blocks) const {
 }
 
 template<class NestLoudsTrie>
+void NestLoudsTrieBlobStore<NestLoudsTrie>::
+detach_meta_blocks(const valvec<fstring>& blocks) {
+    THROW_STD(invalid_argument
+        , "NestLoudsTrieBlobStore detach_meta_blocks unsupported !");
+}
+
+template<class NestLoudsTrie>
 void NestLoudsTrieBlobStore<NestLoudsTrie>::reorder_zip_data(
         ZReorderMap& newToOld,
         function<void(const void* data, size_t size)> writeAppend,

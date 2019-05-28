@@ -188,6 +188,10 @@ void DictZipBlobStore::swap(DictZipBlobStore& y) {
 }
 
 void DictZipBlobStore::destroyMe() {
+    if (m_isDetachMeta) {
+        m_strDict.risk_release_ownership();
+        m_offsets.risk_release_ownership();
+    }
     switch (m_dictCloseType) {
     case MemoryCloseType::Clear:
         m_strDict.clear();
@@ -711,7 +715,6 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	MyTask* m_curTask;
 	valvec<MyTask*> m_lake;
 	size_t m_lakeBytes = 0;
-	static constexpr size_t lake_MAX_BYTES = 16 * 1024 * 1024;
 
 public:
 	explicit MultiThread(const DictZipBlobStore::Options& opt)
@@ -768,6 +771,7 @@ public:
 	}
 
 	void addRecord(const byte* rData, size_t rSize) override {
+	  static const size_t lake_MAX_BYTES = getPipeline().zipThreads * 1024 * 1024;
 		MyTask* task = m_curTask;
 		if (task->ibuf.strpool.size() > 0 &&
 			task->ibuf.strpool.unused() < rSize) {
@@ -2333,6 +2337,45 @@ void DictZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
 void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
     blocks->erase_all();
     blocks->emplace_back(m_ptrList);
+}
+
+void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+    assert(!m_isDetachMeta);
+    assert(blocks.size() == 2);
+    auto dict_mem = blocks.front();
+    auto offset_mem = blocks.back();
+    assert(dict_mem.size() == m_strDict.size());
+    assert(offset_mem.size() == m_offsets.mem_size());
+    switch (m_dictCloseType) {
+    case MemoryCloseType::Clear:
+        m_strDict.clear();
+        break;
+    case MemoryCloseType::MmapClose:
+        mmap_close(m_strDict.data(), m_strDict.size());
+        // fall through
+    case MemoryCloseType::RiskRelease:
+        m_strDict.risk_release_ownership();
+        break;
+    }
+    m_strDict.risk_set_data((byte_t*)dict_mem.data(), dict_mem.size());
+    auto mmapBase = ((const FileHeader*)m_mmapBase);
+    if (mmapBase->zipOffsets_log2_blockUnits) {
+        if (m_mmapBase) {
+            m_zOffsets.risk_release_ownership();
+        } else {
+            m_zOffsets.clear();
+        }
+        m_zOffsets.risk_set_data((byte*)offset_mem.data(), offset_mem.size());
+    } else {
+        if (m_mmapBase) {
+            m_offsets.risk_release_ownership();
+        } else {
+            m_offsets.clear();
+        }
+        m_offsets.risk_set_data((byte*)offset_mem.data(), mmapBase->records + 1,
+            mmapBase->offsetsUintBits);
+    }
+    m_isDetachMeta = true;
 }
 
 size_t DictZipBlobStore::mem_size() const {

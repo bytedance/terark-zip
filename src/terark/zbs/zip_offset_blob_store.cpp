@@ -112,6 +112,20 @@ void ZipOffsetBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
     blocks->emplace_back(m_content);
 }
 
+void ZipOffsetBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+    assert(!m_isDetachMeta);
+    assert(blocks.size() == 1);
+    auto offset_mem = blocks.front();
+    assert(offset_mem.size() == m_offsets.mem_size());
+    if (m_mmapBase) {
+        m_offsets.risk_release_ownership();
+    } else {
+        m_offsets.clear();
+    }
+    m_offsets.risk_set_data((byte_t*)offset_mem.data(), offset_mem.size());
+    m_isDetachMeta = true;
+}
+
 void ZipOffsetBlobStore::save_mmap(function<void(const void*, size_t)> write) const {
     FunctionAdaptBuffer adaptBuffer(write);
     OutputBuffer buffer(&adaptBuffer);
@@ -148,6 +162,9 @@ ZipOffsetBlobStore::ZipOffsetBlobStore() {
 }
 
 ZipOffsetBlobStore::~ZipOffsetBlobStore() {
+    if (m_isDetachMeta) {
+        m_offsets.risk_release_ownership();
+    }
     if (m_mmapBase) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);

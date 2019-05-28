@@ -101,6 +101,10 @@ MixedLenBlobStoreTpl<rank_select_t>::MixedLenBlobStoreTpl() {
 
 template<class rank_select_t>
 MixedLenBlobStoreTpl<rank_select_t>::~MixedLenBlobStoreTpl() {
+    if (m_isDetachMeta) {
+        m_isFixedLen.risk_release_ownership();
+        m_varLenOffsets.risk_release_ownership();
+    }
     if (m_mmapBase) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
@@ -309,6 +313,34 @@ void MixedLenBlobStoreTpl<rank_select_t>::get_data_blocks(valvec<fstring>* block
     if (!m_varLenValues.empty()) {
         blocks->emplace_back(m_varLenValues);
     }
+}
+
+template<class rank_select_t>
+void MixedLenBlobStoreTpl<rank_select_t>::detach_meta_blocks(const valvec<fstring>& blocks) {
+    assert(!m_isDetachMeta);
+    if (m_isFixedLen.size()) {
+        auto fixed_len_mem = blocks.front();
+        assert(fixed_len_mem.size() == m_isFixedLen.mem_size());
+        if (m_mmapBase) {
+            m_isFixedLen.risk_release_ownership();
+        } else {
+            m_isFixedLen.clear();
+        }
+        m_isFixedLen.risk_mmap_from((byte_t*)fixed_len_mem.data(), fixed_len_mem.size());
+    }
+    if (m_varLenOffsets.size()) {
+        auto var_len_offsets_mem = blocks.back();
+        assert(var_len_offsets_mem.size() == m_varLenOffsets.mem_size());
+        if (m_mmapBase) {
+            m_varLenOffsets.risk_release_ownership();
+        } else {
+            m_isFixedLen.clear();
+        }
+        size_t varNum = m_numRecords - m_fixedNum;
+        m_varLenOffsets.risk_set_data((byte_t*)var_len_offsets_mem.data(), varNum + 1,
+            ((const FileHeader*)m_mmapBase)->offsetsUintBits);
+    }
+    m_isDetachMeta = true;
 }
 
 template<class rank_select_t>
