@@ -24,8 +24,12 @@ REGISTER_BlobStore(EntropyZipBlobStore, "EntropyZipBlobStore");
 
 static const uint64_t g_debsnark_seed = 0x5342425f5a617445ull; // echo EtaZ_BBS | od -t x8
 
+static size_t AlignEntropyZipSize(size_t bits, size_t table) {
+  return (bits + table * 8 + 127) / 128 * 16;
+}
+
 struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
-    uint64_t  contentBytes;
+    uint64_t  contentBits;
     uint64_t  offsetsBytes; // same as footer.indexBytes
     uint08_t  offsets_log2_blockUnits; // 6 or 7
     uint08_t  padding21[7];
@@ -39,39 +43,37 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         strcpy(magic, MagicString);
         strcpy(className, "EntropyZipBlobStore");
     }
-    FileHeader(fstring mem, size_t content_size, size_t offsets_size, size_t table_size) {
+    FileHeader(fstring mem, size_t raw_size, size_t entropy_bits, size_t offsets_size, size_t table_size) {
         init();
         fileSize = mem.size();
         assert(fileSize == 0
             + sizeof(FileHeader)
-            + align_up(content_size, 16)
+            + AlignEntropyZipSize(entropy_bits, table_size)
             + offsets_size
-            + align_up(table_size, 16)
             + sizeof(BlobStoreFileFooter));
         SortedUintVec offsets;
-        offsets.risk_set_data(mem.data() + sizeof(FileHeader) + align_up(content_size, 16), offsets_size);
-        unzipSize = content_size;
+        offsets.risk_set_data(mem.data() + mem.size() - sizeof(BlobStoreFileFooter) - offsets_size, offsets_size);
+        unzipSize = raw_size;
         records = offsets.size() - 1;
-        contentBytes = content_size;
+        contentBits = entropy_bits;
         offsetsBytes = offsets_size;
         offsets_log2_blockUnits = offsets.log2_block_units();
         offsets.risk_release_ownership();
         tableBytes = table_size;
     }
-    FileHeader(const EntropyZipBlobStore* store, const SortedUintVec& offsets, size_t table_size) {
+    FileHeader(const EntropyZipBlobStore* store, const SortedUintVec& offsets) {
         init();
+        contentBits = offsets[offsets.size() - 1];
+        tableBytes = store->m_table.size();
         fileSize = 0
             + sizeof(FileHeader)
-            + align_up(store->m_content.size(), 16)
+            + AlignEntropyZipSize(contentBits, tableBytes)
             + offsets.mem_size()
-            + align_up(table_size, 16)
             + sizeof(BlobStoreFileFooter);
-        unzipSize = store->m_content.size();
+        unzipSize = store->m_unzipSize;
         records = store->m_numRecords;
-        contentBytes = store->m_content.size();
         offsetsBytes = offsets.mem_size();
         offsets_log2_blockUnits = offsets.log2_block_units();
-        tableBytes = table_size;
     }
 };
 
@@ -89,9 +91,11 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
         }
     }
     m_numRecords = mmapBase->records;
-    m_unzipSize = mmapBase->contentBytes;
-    m_content.risk_set_data((byte_t*)(mmapBase + 1), mmapBase->contentBytes);
-    m_offsets.risk_set_data(m_content.data() + align_up(m_content.size(), 16), mmapBase->offsetsBytes);
+    m_unzipSize = mmapBase->unzipSize;
+    m_content.risk_set_data((byte_t*)(mmapBase + 1), (mmapBase->contentBits + 7) / 8);
+    m_table.risk_set_data(m_content.data() + m_content.size(), mmapBase->tableBytes);
+    m_offsets.risk_set_data(m_content.data() +
+        AlignEntropyZipSize(mmapBase->contentBits, mmapBase->tableBytes), mmapBase->offsetsBytes);
     assert(m_offsets.size() == mmapBase->records+1);
     assert(m_offsets.mem_size() == mmapBase->offsetsBytes);
     if (m_offsets.size() != mmapBase->records+1) {
@@ -106,10 +110,23 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
             ,  m_offsets.mem_size(), llong(mmapBase->offsetsBytes)
         );
     }
-    m_table.risk_set_data((byte_t*)m_offsets.data() + m_offsets.mem_size(), mmapBase->tableBytes);
     size_t table_size;
     m_decoder.reset(new Huffman::decoder_o1(m_table, &table_size));
     assert(table_size == mmapBase->tableBytes);
+}
+
+void EntropyZipBlobStore::init_from_components(
+    SortedUintVec&& offset, valvec<byte_t>&& data,
+    valvec<byte_t>&& table, uint64_t raw_size) {
+    m_numRecords = offset.size() - 1;
+    m_unzipSize = raw_size;
+    m_content.swap(data);
+    m_table.swap(table);
+    m_offsets.swap(offset);
+    size_t table_size;
+    m_decoder.reset(new Huffman::decoder_o1(m_table, &table_size));
+    assert(table_size == m_table.size());
+    m_isUserMem = true;
 }
 
 void EntropyZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
@@ -127,7 +144,7 @@ void EntropyZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
     assert(blocks.size() == 1);
     auto offset_mem = blocks.front();
     assert(offset_mem.size() == m_offsets.mem_size());
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         m_offsets.risk_release_ownership();
     } else {
         m_offsets.clear();
@@ -142,7 +159,7 @@ void EntropyZipBlobStore::save_mmap(function<void(const void*, size_t)> write) c
 
     assert(m_offsets.mem_size() % 16 == 0);
     XXHash64 xxhash64(g_debsnark_seed);
-    FileHeader header(this, m_offsets, m_table.size());
+    FileHeader header(this, m_offsets);
 
     xxhash64.update(&header, sizeof header);
     buffer.ensureWrite(&header, sizeof(header));
@@ -150,15 +167,12 @@ void EntropyZipBlobStore::save_mmap(function<void(const void*, size_t)> write) c
     xxhash64.update(m_content.data(), m_content.size());
     buffer.ensureWrite(m_content.data(), m_content.size());
 
-    PadzeroForAlign<16>(buffer, xxhash64, m_content.size());
-
-    xxhash64.update(m_offsets.data(), m_offsets.mem_size());
-    buffer.ensureWrite(m_offsets.data(), m_offsets.mem_size());
-
     xxhash64.update(m_table.data(), m_table.size());
     buffer.ensureWrite(m_table.data(), m_table.size());
-
-    PadzeroForAlign<16>(buffer, xxhash64, m_table.size());
+    PadzeroForAlign<16>(buffer, xxhash64, m_content.size() + m_table.size());
+  
+    xxhash64.update(m_offsets.data(), m_offsets.mem_size());
+    buffer.ensureWrite(m_offsets.data(), m_offsets.mem_size());
 
     BlobStoreFileFooter footer;
     footer.fileXXHash = xxhash64.digest();
@@ -180,12 +194,13 @@ EntropyZipBlobStore::~EntropyZipBlobStore() {
     if (m_isDetachMeta) {
         m_offsets.risk_release_ownership();
     }
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
         }
         m_mmapBase = nullptr;
         m_isMmapData = false;
+        m_isUserMem = false;
         m_content.risk_release_ownership();
         m_offsets.risk_release_ownership();
         m_table.risk_release_ownership();
@@ -262,7 +277,6 @@ const {
     size_t BegEnd[2];
     m_offsets.get2(recID, BegEnd);
     assert(BegEnd[0] <= BegEnd[1]);
-    assert(BegEnd[1] <= m_content.size());
     size_t byte_beg = (BegEnd[0] - BegEnd[0] % 64) / 8;
     size_t byte_end = (BegEnd[1] + 63) / 64 * 8;
     size_t offset = sizeof(FileHeader) + byte_beg;
@@ -310,10 +324,12 @@ const {
     SortedUintVec newZipOffsets;
     newZipOffsets.risk_set_data(mmapOffset.base, mmapOffset.size);
     TERARK_SCOPE_EXIT(newZipOffsets.risk_release_ownership());
-    FileHeader header(this, newZipOffsets, m_table.size());
+    FileHeader header(this, newZipOffsets);
     xxhash64.update(&header, sizeof header);
     buffer.ensureWrite(&header, sizeof header);
-    auto output_data = [&buffer, &xxhash64](const void* data, size_t size) {
+    offset = 0;
+    auto output_data = [&offset, &buffer, &xxhash64](const void* data, size_t size) {
+        offset += size;
         xxhash64.update(data, size);
         buffer.ensureWrite(data, size);
     };
@@ -327,17 +343,16 @@ const {
         writer.write(bits);
     }
     writer.finish();
-    PadzeroForAlign<16>(buffer, xxhash64, offset);
+  
+    xxhash64.update(m_table.data(), m_table.size());
+    buffer.ensureWrite(m_table.data(), m_table.size());
+    PadzeroForAlign<16>(buffer, xxhash64, offset + m_table.size());
 
     xxhash64.update(newZipOffsets.data(), newZipOffsets.mem_size());
     buffer.ensureWrite(newZipOffsets.data(), newZipOffsets.mem_size());
 
     MmapWholeFile().swap(mmapOffset);
     ::remove(tmpFile.c_str());
-
-    xxhash64.update(m_table.data(), m_table.size());
-    buffer.ensureWrite(m_table.data(), m_table.size());
-    PadzeroForAlign<16>(buffer, xxhash64, m_table.size());
 
     BlobStoreFileFooter footer;
     footer.fileXXHash = xxhash64.digest();
@@ -357,7 +372,9 @@ class EntropyZipBlobStore::MyBuilder::Impl : boost::noncopyable {
     EntropyBitsWriter<std::function<void(const void*, size_t)>> m_bitWriter;
     EntropyContext m_ctx;
     size_t m_offset;
-    size_t m_content_size;
+    size_t m_raw_size;
+    size_t m_output_size;
+    size_t m_entropy_bits;
 public:
     Impl(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset)
         : m_fpath(fpath.begin(), fpath.end())
@@ -368,7 +385,9 @@ public:
         , m_writer(&m_file)
         , m_bitWriter(m_output)
         , m_offset(offset)
-        , m_content_size(0) {
+        , m_raw_size(0)
+        , m_output_size(0)
+        , m_entropy_bits(0) {
         assert(offset % 8 == 0);
         if (offset == 0) {
           m_file.open(fpath, "wb");
@@ -389,13 +408,16 @@ public:
         , m_writer(&m_memStream)
         , m_bitWriter(m_output)
         , m_offset(0)
-        , m_content_size(0) {
+        , m_raw_size(0)
+        , m_output_size(0)
+        , m_entropy_bits(0) {
         init(freq);
     }
     void init(freq_hist_o1& freq) {
         freq.normalise(Huffman::NORMALISE);
         m_encoder.reset(new Huffman::encoder_o1(freq.histogram()));
         m_output = [this](const void* d, size_t s) {
+            m_output_size += s;
             m_writer.ensureWrite(d, s);
         };
         std::aligned_storage<sizeof(FileHeader)>::type header;
@@ -405,15 +427,18 @@ public:
     void add_record(fstring rec) {
         auto bits = m_encoder->bitwise_encode_x1(rec, &m_ctx);
         m_bitWriter.write(bits);
-        m_builder->push_back(m_content_size);
-        m_content_size += bits.size;
+        m_builder->push_back(m_entropy_bits);
+        m_raw_size += rec.size();
+        m_entropy_bits += bits.size;
     }
     void finish() {
         auto bits = m_bitWriter.finish();
-        PadzeroForAlign<16>(m_writer, m_content_size);
-        assert(bits.size == m_content_size);
-        m_builder->push_back(m_content_size);
+        assert(bits.size == m_entropy_bits); (void)bits;
+        assert(m_output_size == (m_entropy_bits + 7) / 8);
         auto& table = m_encoder->table();
+        m_writer.ensureWrite(table.data(), table.size());
+        PadzeroForAlign<16>(m_writer, m_output_size + table.size());
+        m_builder->push_back(m_entropy_bits);
         if (m_file.fp() == nullptr) {
             SortedUintVec vec;
             m_builder->finish(&vec);
@@ -421,22 +446,19 @@ public:
 
             size_t offsets_size = vec.mem_size();
             m_writer.ensureWrite(vec.data(), offsets_size);
-            m_writer.ensureWrite(table.data(), table.size());
-            PadzeroForAlign<16>(m_writer, table.size());
             m_writer.flush_buffer();
 
             size_t file_size = m_offset
                 + sizeof(FileHeader)
-                + align_up(m_content_size, 16)
+                + AlignEntropyZipSize(m_entropy_bits, table.size())
                 + offsets_size
-                + align_up(table.size(), 16)
                 + sizeof(BlobStoreFileFooter);
 
             assert(m_memStream.size() == file_size - sizeof(BlobStoreFileFooter));
             m_memStream.stream()->resize(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
                 FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()),
-                    m_content_size, offsets_size, table.size());
+                    m_raw_size, m_entropy_bits, offsets_size, table.size());
 
             XXHash64 xxhash64(g_debsnark_seed);
             xxhash64.update(m_memStream.stream()->begin(), m_memStream.size() - sizeof(BlobStoreFileFooter));
@@ -459,21 +481,15 @@ public:
 
             size_t file_size = m_offset
                 + sizeof(FileHeader)
-                + align_up(m_content_size, 16)
+                + AlignEntropyZipSize(m_entropy_bits, table.size())
                 + offsets_size
-                + align_up(table.size(), 16)
                 + sizeof(BlobStoreFileFooter);
             assert(FileStream(m_fpath, "rb+").fsize() == file_size - sizeof(BlobStoreFileFooter));
             FileStream(m_fpath, "rb+").chsize(file_size);
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
-            *(FileHeader*)mem.data() = FileHeader(mem, m_content_size, offsets_size, table.size());
-
-            size_t table_offset = m_offset + sizeof(FileHeader) + align_up(m_content_size, 16) + offsets_size;
-            memcpy((byte_t*)mem.data() + table_offset, table.data(), table.size());
-            if (table.size() % 16 != 0) {
-                memset((byte_t*)mem.data() + table_offset + table.size(), 0, 16 - table.size() % 16);
-            }
+            *(FileHeader*)mem.data() =
+                FileHeader(mem, m_raw_size, m_entropy_bits, offsets_size, table.size());
 
             XXHash64 xxhash64(g_debsnark_seed);
             xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));

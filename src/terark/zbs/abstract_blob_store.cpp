@@ -88,6 +88,7 @@ AbstractBlobStore::load_from_mmap(fstring fpath, bool mmapPopulate) {
     store->init_from_memory({(const char*)fmmap.base, (ptrdiff_t)fmmap.size}, Dictionary());
     fmmap.base = nullptr;
     store->m_isMmapData = true;
+    store->m_isUserMem = true;
     return store.release();
   }
   else {
@@ -127,6 +128,7 @@ AbstractBlobStore::load_from_user_memory(fstring dataMem, Dictionary dict) {
     std::unique_ptr<AbstractBlobStore> store(find->second());
     store->init_from_memory(dataMem, dict);
     store->m_isMmapData = false;
+    store->m_isUserMem = true;
     return store.release();
   }
   else {
@@ -173,6 +175,7 @@ fstring AbstractBlobStore::get_mmap() const {
 AbstractBlobStore::AbstractBlobStore()
   : m_fpath()
   , m_isMmapData(false)
+  , m_isUserMem(false)
   , m_isDetachMeta(false)
   , m_dictCloseType(MemoryCloseType::Clear)
   , m_checksumLevel(0)
@@ -188,6 +191,7 @@ void AbstractBlobStore::risk_swap(AbstractBlobStore& y) {
 	std::swap(m_unzipSize    , y.m_unzipSize    );
 	std::swap(m_fpath        , y.m_fpath        );
   std::swap(m_isMmapData   , y.m_isMmapData   );
+    std::swap(m_isUserMem    , y.m_isUserMem    );
     std::swap(m_isDetachMeta , y.m_isDetachMeta );
 	std::swap(m_dictCloseType, y.m_dictCloseType);
 	std::swap(m_checksumLevel, y.m_checksumLevel);

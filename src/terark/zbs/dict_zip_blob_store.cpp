@@ -204,7 +204,7 @@ void DictZipBlobStore::destroyMe() {
         break;
     }
     m_dictCloseType = MemoryCloseType::Clear;
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
         }
@@ -213,6 +213,7 @@ void DictZipBlobStore::destroyMe() {
         m_entropyBitmap.risk_release_ownership();
         m_mmapBase = nullptr;
         m_isMmapData = false;
+        m_isUserMem = false;
     }
     else {
         m_offsets.clear();
@@ -1247,7 +1248,7 @@ DictZipBlobStore::Options::Options() {
 	compressGlobalDict = false;
     entropyInterleaved = (uint8_t)getEnvLong("Entropy_interleaved", 8);
 	offsetArrayBlockUnits = 0; // default use UintVecMin0
-    entropyZipRatioRequire = (float)getEnvDouble("Entropy_zipRatioRequire", 0.95);
+    entropyZipRatioRequire = (float)getEnvDouble("Entropy_zipRatioRequire", 0.92);
     embeddedDict = false;
     enableLake = false;
 }
@@ -1648,6 +1649,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     else {
         store->setDataMemory(m_memStream.stream()->begin(), m_memStream.size());
     }
+    store->m_isUserMem = true;
     t2 = g_pf.now();
     byte* storeBase = m_entropyZipDataBase = store->m_ptrList.data();
     assert(m_freq_hist);
@@ -2360,14 +2362,14 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
     m_strDict.risk_set_data((byte_t*)dict_mem.data(), dict_mem.size());
     auto mmapBase = ((const FileHeader*)m_mmapBase);
     if (mmapBase->zipOffsets_log2_blockUnits) {
-        if (m_mmapBase) {
+        if (m_isUserMem) {
             m_zOffsets.risk_release_ownership();
         } else {
             m_zOffsets.clear();
         }
         m_zOffsets.risk_set_data((byte*)offset_mem.data(), offset_mem.size());
     } else {
-        if (m_mmapBase) {
+        if (m_isUserMem) {
             m_offsets.risk_release_ownership();
         } else {
             m_offsets.clear();

@@ -105,12 +105,13 @@ MixedLenBlobStoreTpl<rank_select_t>::~MixedLenBlobStoreTpl() {
         m_isFixedLen.risk_release_ownership();
         m_varLenOffsets.risk_release_ownership();
     }
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
         }
         m_mmapBase = nullptr;
         m_isMmapData = false;
+        m_isUserMem = false;
         m_isFixedLen.risk_release_ownership();
         m_fixedLenValues.risk_release_ownership();
         m_varLenValues.risk_release_ownership();
@@ -321,7 +322,7 @@ void MixedLenBlobStoreTpl<rank_select_t>::detach_meta_blocks(const valvec<fstrin
     if (m_isFixedLen.size()) {
         auto fixed_len_mem = blocks.front();
         assert(fixed_len_mem.size() == m_isFixedLen.mem_size());
-        if (m_mmapBase) {
+        if (m_isUserMem) {
             m_isFixedLen.risk_release_ownership();
         } else {
             m_isFixedLen.clear();
@@ -331,7 +332,7 @@ void MixedLenBlobStoreTpl<rank_select_t>::detach_meta_blocks(const valvec<fstrin
     if (m_varLenOffsets.size()) {
         auto var_len_offsets_mem = blocks.back();
         assert(var_len_offsets_mem.size() == m_varLenOffsets.mem_size());
-        if (m_mmapBase) {
+        if (m_isUserMem) {
             m_varLenOffsets.risk_release_ownership();
         } else {
             m_isFixedLen.clear();

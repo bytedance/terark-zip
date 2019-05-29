@@ -59,12 +59,13 @@ ZeroLengthBlobStore::ZeroLengthBlobStore() {
 }
 
 ZeroLengthBlobStore::~ZeroLengthBlobStore() {
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
         }
         m_mmapBase = nullptr;
         m_isMmapData = false;
+        m_isUserMem = false;
     }
 }
 

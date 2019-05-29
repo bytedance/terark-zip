@@ -36,6 +36,9 @@ public:
     void swap(EntropyZipBlobStore& other);
 
     void init_from_memory(fstring dataMem, Dictionary dict) override;
+    void init_from_components(
+        SortedUintVec&& offset, valvec<byte_t>&& data,
+        valvec<byte_t>&& table, uint64_t raw_size);
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
     void detach_meta_blocks(const valvec<fstring>& blocks) override;

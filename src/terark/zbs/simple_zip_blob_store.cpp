@@ -32,12 +32,13 @@ SimpleZipBlobStore::SimpleZipBlobStore() {
 }
 
 SimpleZipBlobStore::~SimpleZipBlobStore() {
-	if (m_mmapBase) {
+	if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
         }
         m_mmapBase = nullptr;
         m_isMmapData = false;
+        m_isUserMem = false;
 		m_strpool.risk_release_ownership();
 		m_off_len.risk_release_ownership();
 		m_records.risk_release_ownership();

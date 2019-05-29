@@ -117,7 +117,7 @@ void ZipOffsetBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
     assert(blocks.size() == 1);
     auto offset_mem = blocks.front();
     assert(offset_mem.size() == m_offsets.mem_size());
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         m_offsets.risk_release_ownership();
     } else {
         m_offsets.clear();
@@ -165,12 +165,13 @@ ZipOffsetBlobStore::~ZipOffsetBlobStore() {
     if (m_isDetachMeta) {
         m_offsets.risk_release_ownership();
     }
-    if (m_mmapBase) {
+    if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
         }
         m_mmapBase = nullptr;
         m_isMmapData = false;
+        m_isUserMem = false;
         m_content.risk_release_ownership();
         m_offsets.risk_release_ownership();
     }
