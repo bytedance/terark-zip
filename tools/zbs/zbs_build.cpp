@@ -7,12 +7,14 @@
 #include <unistd.h>
 #endif
 
-#include <terark/zbs/fast_zip_blob_store.hpp>
 #include <terark/zbs/nest_louds_trie_blob_store.hpp>
+#include <terark/zbs/dict_zip_blob_store.hpp>
 #include <terark/zbs/mixed_len_blob_store.hpp>
 #include <terark/zbs/plain_blob_store.hpp>
 #include <terark/zbs/zip_offset_blob_store.hpp>
+#include <terark/zbs/entropy_zip_blob_store.hpp>
 #include <terark/zbs/zip_reorder_map.hpp>
+#include <terark/entropy/entropy_base.hpp>
 #include <terark/util/autoclose.hpp>
 #include <terark/util/profiling.hpp>
 #include <terark/util/linebuf.hpp>
@@ -62,6 +64,7 @@ Options:
      m: force use      MixedLenBlobStore
      p: force use         PlainBlobStore
      o: force use     ZipOffsetBlobStore
+     e: force use    EntropyZipBlobStore
   -R integer: test reorder times
   -j [BlockUnits of Zipped Offset Array]
      This option is only for DictZipBlobStore and ZipOffsetBlobStore.
@@ -298,8 +301,8 @@ TERARK_IF_DEBUG(,try) {
             break;
         case 'T':
             select_store = optarg[0];
-            if (strchr("adnmpo", select_store) == NULL) {
-                fprintf(stderr, "ERROR: -T store type must be 'a', 'd', 'n', 'm', 'p' or 'o'\n\n");
+            if (strchr("adnmpoe", select_store) == NULL) {
+                fprintf(stderr, "ERROR: -T store type must be 'a', 'd', 'n', 'm', 'p', 'o' or 'e'\n\n");
                 usage(argv[0]);
             }
             break;
@@ -379,6 +382,7 @@ GetoptDone:
 		}
 		inputFileSize = st.st_size; // compute one by one
 	}
+    std::unique_ptr<freq_hist_o1> freq;
 	SortableStrVec strVec;
 	std::unique_ptr<AbstractBlobStore> store;
 	std::unique_ptr<DictZipBlobStore::ZipBuilder> dzb;
@@ -407,6 +411,14 @@ GetoptDone:
 	size_t allstrlen = 0;
 	size_t allstrnum = 0;
 	long long t0 = pf.now();
+    if (select_store == 'e') {
+        freq.reset(new freq_hist_o1);
+        size_t recno = 0;
+        for (; readoneRecord(fp, &rec, recno, isBson); recno++) {
+            freq->add_record(rec);
+        }
+        freq->finish();
+    }
 	if (sampleFile) {
 		Auto_fclose sfp(fopen(sampleFile, isBson ? "rb" : "r"));
 		if (!sfp) {
@@ -501,10 +513,14 @@ GetoptDone:
         zobuilder.finish();
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
-	else if (0 == conf.nestLevel) {
-		store.reset(new SimpleZipBlobStore());
-		static_cast<SimpleZipBlobStore&>(*store).build_from(strVec, conf);
-	}
+    else if (select_store == 'e') {
+        EntropyZipBlobStore::MyBuilder ezbuilder(*freq.get(), dzopt.offsetArrayBlockUnits, nlt_fname);
+        for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
+            ezbuilder.addRecord(strVec[i]);
+        }
+        ezbuilder.finish();
+        store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
+    }
 	else {
 		dfa = new NestLoudsTrieBlobStore_SE_512();
 		store.reset(dfa);

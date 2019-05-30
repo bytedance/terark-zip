@@ -3,7 +3,7 @@
 #define _CRT_NONSTDC_NO_WARNINGS
 
 #include <terark/fsa/fsa.hpp>
-#include <terark/zbs/fast_zip_blob_store.hpp>
+#include <terark/zbs/dict_zip_blob_store.hpp>
 #include <terark/util/sortable_strvec.hpp>
 #include <terark/util/autoclose.hpp>
 #include <terark/util/linebuf.hpp>
