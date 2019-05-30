@@ -2635,7 +2635,7 @@ const {
             default: success = false; break;
             }
             if (!success) {
-                THROW_STD(logic_error, "Huffman decode error");
+                THROW_STD(logic_error, "DictZipBlobStore Huffman decode error");
             }
             zlen = tls.data.size();
         }

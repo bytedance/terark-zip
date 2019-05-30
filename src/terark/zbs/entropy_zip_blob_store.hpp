@@ -21,10 +21,14 @@ class TERARK_DLL_EXPORT EntropyZipBlobStore : public AbstractBlobStore {
     valvec<byte_t> m_content;
     SortedUintVec  m_offsets;
     valvec<byte_t> m_table;
-    std::unique_ptr<Huffman::decoder_o1> m_decoder;
+    std::unique_ptr<Huffman::decoder> m_decoder_o0;
+    std::unique_ptr<Huffman::decoder_o1> m_decoder_o1;
 
+    template<size_t Order>
     void get_record_append_imp(size_t recID, valvec<byte_t>* recData) const;
+    template<size_t Order>
     void get_record_append_CacheOffsets(size_t recID, CacheOffsets*) const;
+    template<size_t Order>
     void fspread_record_append_imp(pread_func_t fspread, void* lambda,
                                    size_t baseOffset, size_t recID,
                                    valvec<byte_t>* recData,
@@ -34,11 +38,12 @@ public:
     ~EntropyZipBlobStore();
 
     void swap(EntropyZipBlobStore& other);
+    void init_get_calls(size_t order);
 
     void init_from_memory(fstring dataMem, Dictionary dict) override;
     void init_from_components(
         SortedUintVec&& offset, valvec<byte_t>&& data,
-        valvec<byte_t>&& table, uint64_t raw_size);
+        valvec<byte_t>&& table, size_t order, uint64_t raw_size);
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
     void detach_meta_blocks(const valvec<fstring>& blocks) override;
