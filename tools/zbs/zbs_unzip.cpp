@@ -5,8 +5,8 @@
 #endif
 
 #include <thread>
-#include <terark/zbs/fast_zip_blob_store.hpp>
 #include <terark/fsa/fsa.hpp>
+#include <terark/zbs/dict_zip_blob_store.hpp>
 #include <terark/util/sortable_strvec.hpp>
 #include <terark/util/profiling.hpp>
 #include <getopt.h>
