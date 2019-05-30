@@ -6,6 +6,11 @@
 
 namespace terark {
 
+EntropyContext* GetTlsEntropyContext() {
+    static thread_local EntropyContext tls_entropy_ctx;
+    return &tls_entropy_ctx;
+}
+
 fstring EntropyBitsToBytes(EntropyBits* bits, EntropyContext* context) {
     assert(bits->skip < 8);
     assert((bits->skip + bits->size) % 8 == 0);
@@ -147,14 +152,28 @@ void freq_hist::normalise(size_t norm) {
     normalise_hist(hist_.o0, hist_.o0_size, norm);
 }
 
-freq_hist_o1::freq_hist_o1(size_t min_len, size_t max_len) {
+freq_hist_o1::freq_hist_o1(bool r1, size_t min_len, size_t max_len) {
     min_ = min_len;
     max_ = max_len;
-    clear();
+    if (r1) {
+        reset1();
+    } else {
+        clear();
+    }
 }
 
 void freq_hist_o1::clear() {
-  memset(&hist_, 0, sizeof hist_);
+    memset(&hist_, 0, sizeof hist_);
+}
+
+void freq_hist_o1::reset1() {
+    hist_.o0_size = 65536;
+    auto ptr = (uint64_t*)hist_.o1;
+    for (size_t i = 0; i < 65536; ++i) {
+        ptr[i] = 1;
+    }
+    memset(hist_.o1_size, 0, sizeof hist_.o1_size);
+    memset(hist_.o0, 0, sizeof hist_.o0);
 }
 
 const freq_hist_o1::histogram_t& freq_hist_o1::histogram() const {

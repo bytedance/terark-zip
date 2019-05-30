@@ -22,7 +22,9 @@ struct EntropyBits {
 
 struct EntropyContext {
     valvec<byte_t> buffer;
+    valvec<byte_t> data;
 };
+EntropyContext* GetTlsEntropyContext();
 
 class EntropyBitsReader {
 public:
@@ -236,8 +238,11 @@ private:
     size_t max_;
 
 public:
-    freq_hist_o1(size_t min_len = 0, size_t max_len = size_t(-1));
+    freq_hist_o1(bool r1 = false, size_t min_len = 0, size_t max_len = size_t(-1));
+    freq_hist_o1(const freq_hist_o1&) = default;
+    freq_hist_o1& operator = (const freq_hist_o1&) = default;
     void clear();
+    void reset1();
 
     const histogram_t& histogram() const;
     static size_t estimate_size(const histogram_t& hist);
