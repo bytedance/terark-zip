@@ -4,7 +4,7 @@
 #include <terark/util/linebuf.hpp>
 #include <terark/util/profiling.hpp>
 #include <terark/hash_strmap.hpp>
-#include <terark/fsa/dynamic_patricia_trie.inl>
+#include <terark/fsa/cspptrie.inl>
 #include <terark/fsa/nest_trie_dawg.hpp>
 #include <getopt.h>
 #include <random>

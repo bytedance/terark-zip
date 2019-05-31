@@ -9,7 +9,7 @@
   #define MainPatricia BOOST_PP_CAT(MainPatricia_TBB_, TERARK_WITH_TBB)
 #endif
 
-#include "dynamic_patricia_trie.hpp"
+#include "cspptrie.hpp"
 #include <limits.h>
 #include <boost/noncopyable.hpp>
 #include <terark/bitmap.hpp>

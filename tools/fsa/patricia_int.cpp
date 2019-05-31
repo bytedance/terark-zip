@@ -7,7 +7,7 @@
 #include <unistd.h>
 #endif
 
-#include <terark/fsa/dynamic_patricia_trie.inl>
+#include <terark/fsa/cspptrie.inl>
 #include <terark/util/autoclose.hpp>
 #include <terark/util/profiling.hpp>
 #include <terark/util/linebuf.hpp>

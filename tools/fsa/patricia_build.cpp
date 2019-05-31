@@ -7,7 +7,7 @@
 #include <unistd.h>
 #endif
 
-#include <terark/fsa/dynamic_patricia_trie.inl>
+#include <terark/fsa/cspptrie.inl>
 #include <terark/fsa/nest_trie_dawg.hpp>
 #ifdef __GNUC__
   #include <terark/fsa/nest_louds_trie_inline.hpp>

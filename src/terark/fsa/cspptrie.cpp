@@ -2,7 +2,7 @@
 # pragma clang diagnostic ignored "-Warray-bounds"
 #endif
 
-#include "dynamic_patricia_trie.inl"
+#include "cspptrie.inl"
 #include "tmplinst.hpp"
 #include <terark/util/small_memcpy.hpp>
 #include <terark/util/hugepage.hpp>

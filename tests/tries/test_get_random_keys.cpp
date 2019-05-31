@@ -2,7 +2,7 @@
 // Created by leipeng on 2019-05-16.
 //
 
-#include <terark/fsa/dynamic_patricia_trie.inl>
+#include <terark/fsa/cspptrie.inl>
 #include <terark/fsa/nest_trie_dawg.hpp>
 #include <terark/util/autoclose.hpp>
 #include <terark/util/linebuf.hpp>

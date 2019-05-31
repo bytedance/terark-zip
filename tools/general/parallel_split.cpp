@@ -45,10 +45,7 @@ int main(int argc, char* argv[]) {
         valvec<std::thread> thrVec(argc - 2, valvec_reserve());
         size_t ptlen = mmap.size / thrVec.capacity();
         auto finish = (const byte_t*)mmap.base + mmap.size;
-
         int ret = 0; // success
-
-
         auto tfunc = [&](size_t tid) {
             const byte_t* beg = (const byte_t*)mmap.base + ptlen * tid;
             const byte_t* end = beg + ptlen;
@@ -56,7 +53,6 @@ int main(int argc, char* argv[]) {
                 beg = adjust_bondary(beg, end);
             }
             end = adjust_bondary(end, finish);
-
             const char* ofname = argv[2 + tid];
             int fd = open(ofname, O_WRONLY|O_CREAT, 0600);
             if (fd < 0) {
