@@ -364,8 +364,8 @@ public:
 	virtual void finishZip() = 0;
 
 	bool entropyZip(const byte* rData, size_t rSize,
-					EntropyContext& context,
-					NativeDataOutput<AutoGrownMemIO>& dio);
+                  TerarkContext& context,
+                  NativeDataOutput<AutoGrownMemIO>& dio);
 
 	void zipRecord(const byte* rData, size_t rSize,
 				   valvec<uint32_t>& hashTabl,
@@ -563,7 +563,6 @@ void DictZipBlobStoreBuilder::dictSwapIn(fstring fname) {
 class DictZipBlobStoreBuilder::SingleThread : public DictZipBlobStoreBuilder {
 	valvec<uint32_t> m_hashLink;
 	valvec<uint32_t> m_hashBucket;
-    EntropyContext m_entropyCtx;
 	NativeDataOutput<AutoGrownMemIO> m_dio;
 public:
 	explicit SingleThread(const DictZipBlobStore::Options& opt)
@@ -585,7 +584,7 @@ public:
 			size_t maxBytes = align_up(FSE_compressBound(rSize), 4);
 			m_hashBucket.resize_no_init(maxBytes/4);
 			m_hashLink.resize_no_init(maxBytes/4);
-			bool zip = entropyZip(rData, rSize, m_entropyCtx, m_dio);
+			bool zip = entropyZip(rData, rSize, *GetTlsTerarkContext(), m_dio);
 			memcpy(m_entropyZipDataBase + m_zipDataSize, m_dio.begin(), m_dio.tell());
 			m_xxhash64.update(m_dio.begin(), m_dio.tell());
 			m_entropyBitmap.push_back(zip);
@@ -708,7 +707,6 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	struct HashTable {
 		valvec<uint32_t> hashLink;
 		valvec<uint32_t> hashTabl;
-        EntropyContext eCtx;
 	//	size_t  paddingForSeparateThreads[10]; // insignificant
 	};
 	valvec<HashTable> m_hash;
@@ -806,10 +804,11 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
 	task->obuf.resize(task->ibuf.strpool.size() / 2);
 	task->offsets.reserve(task->ibuf.size());
 	if (builder->m_entropyZipDataBase) {
+	      auto ctx = GetTlsTerarkContext();
 		for(size_t i = 0; i < task->ibuf.size(); ++i) {
 			fstring rec = task->ibuf[i];
 			bool zip = builder->entropyZip(rec.udata(), rec.size(),
-				hash.eCtx, task->obuf);
+				*ctx, task->obuf);
 			task->entropyBitmap.push_back(zip);
 			task->offsets.push_back(task->obuf.tell());
 		}
@@ -876,8 +875,8 @@ MyWriteStage::process(int tno, PipelineQueueItem* item) {
 
 bool
 DictZipBlobStoreBuilder::entropyZip(const byte* rData, size_t rSize,
-			EntropyContext& context,
-			NativeDataOutput<AutoGrownMemIO>& dio) {
+                                    TerarkContext& context,
+                                    NativeDataOutput<AutoGrownMemIO>& dio) {
 	if (0 == rSize) {
 		return false;
 	}
@@ -895,12 +894,13 @@ DictZipBlobStoreBuilder::entropyZip(const byte* rData, size_t rSize,
     auto gtab = m_fse_gtable;
     auto zzn = size_t(0);
     const void* zzd = nullptr;
+    ContextBuffer ctx_buffer;
     if (m_opt.entropyAlgo == DictZipBlobStore::Options::kFSE) {
-        context.buffer.ensure_capacity(FSE_compressBound(dsize));
-        zzd = FSE_zip(rData, dsize, context.buffer.data(), context.buffer.capacity(), gtab, &zzn);
-    }
-    if (m_opt.entropyAlgo == DictZipBlobStore::Options::kHuffmanO1) {
-        fstring bytes;
+        ctx_buffer = context.alloc();
+        ctx_buffer.ensure_capacity(FSE_compressBound(dsize));
+        zzd = FSE_zip(rData, dsize, ctx_buffer.data(), ctx_buffer.capacity(), gtab, &zzn);
+    } else if (m_opt.entropyAlgo == DictZipBlobStore::Options::kHuffmanO1) {
+        EntropyBytes bytes;
         switch (m_opt.entropyInterleaved) {
         default:
         case 8: bytes = m_huffman_encoder->encode_x8(fstring(rData, dsize), &context); break;
@@ -908,9 +908,10 @@ DictZipBlobStoreBuilder::entropyZip(const byte* rData, size_t rSize,
         case 2: bytes = m_huffman_encoder->encode_x2(fstring(rData, dsize), &context); break;
         case 1: bytes = m_huffman_encoder->encode_x1(fstring(rData, dsize), &context); break;
         }
-        if (bytes.size() < dsize) {
-            zzd = bytes.data();
-            zzn = bytes.size();
+        if (bytes.data.size() < dsize) {
+            zzd = bytes.data.data();
+            zzn = bytes.data.size();
+            ctx_buffer = std::move(bytes.buffer);
         }
         else {
             zzd = nullptr;
@@ -2619,39 +2620,33 @@ DictZipBlobStore::read_record_append_entropy(const byte_t* zpos, size_t zlen,
                                              valvec<byte_t>* recData)
 const {
     if (m_entropyBitmap[recId]) {
-    #if defined(__DARWIN_C_LEVEL) || defined(__GNUC__) && __GNUC__*1000 + __GNUC_MINOR__ < 4008
-        EntropyContext tls;
-    #else
-        auto& tls = *GetTlsEntropyContext();
-    #endif
-        tls.data.ensure_capacity((zlen + 1024) * 4);
+        auto ctx = GetTlsTerarkContext();
+        auto ctx_data = ctx->alloc();
+        auto& data = ctx_data.get();
+        data.ensure_capacity((zlen + 1024) * 4);
         if (Entropy == Options::kHuffmanO1) {
             bool success = false;
             switch (EntropyInterLeave) {
-            case 1: success = m_huffman_decoder->decode_x1(fstring(zpos, zlen), &tls.data, &tls); break;
-            case 2: success = m_huffman_decoder->decode_x2(fstring(zpos, zlen), &tls.data, &tls); break;
-            case 4: success = m_huffman_decoder->decode_x4(fstring(zpos, zlen), &tls.data, &tls); break;
-            case 8: success = m_huffman_decoder->decode_x8(fstring(zpos, zlen), &tls.data, &tls); break;
+            case 1: success = m_huffman_decoder->decode_x1(fstring(zpos, zlen), &data, ctx); break;
+            case 2: success = m_huffman_decoder->decode_x2(fstring(zpos, zlen), &data, ctx); break;
+            case 4: success = m_huffman_decoder->decode_x4(fstring(zpos, zlen), &data, ctx); break;
+            case 8: success = m_huffman_decoder->decode_x8(fstring(zpos, zlen), &data, ctx); break;
             default: success = false; break;
             }
             if (!success) {
                 THROW_STD(logic_error, "DictZipBlobStore Huffman decode error");
             }
-            zlen = tls.data.size();
+            zlen = data.size();
         }
         else if (Entropy == Options::kFSE) {
-            tls.data.risk_set_size(tls.data.capacity());
-            zlen = FSE_unzip(zpos, zlen, tls.data, m_globalEntropyTableObject);
+            data.risk_set_size(data.capacity());
+            zlen = FSE_unzip(zpos, zlen, data, m_globalEntropyTableObject);
             if (FSE_isError(zlen)) {
                 THROW_STD(logic_error, "FSE_unzip() = %s", FSE_getErrorName(zlen));
             }
         }
-        m_unzip(tls.data.data(), tls.data.data() + zlen, recData,
+        m_unzip(data.data(), data.data() + zlen, recData,
                 m_strDict.data(), m_gOffsetBits, m_reserveOutputMultiplier);
-        if (tls.data.capacity() > 512 * 1024) {
-            tls.data.clear(); // free large thread local memory
-            tls.buffer.clear();
-        }
         TERARK_IF_DEBUG(zlen = zlen, ;);
     }
     else {

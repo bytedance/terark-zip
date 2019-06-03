@@ -184,10 +184,9 @@ static inline void Rans64EncPutSymbol(Rans64State* r, const Rans64EncSymbol* sym
 }
 
 // Ensure context buffer capacity
-static inline void Rans64EncWrite(byte_t** pptr, const void* data, size_t size, EntropyContext* context) {
+static inline void Rans64EncWrite(byte_t** pptr, const void* data, size_t size, ContextBuffer& buffer) {
     *pptr -= size;
-    if (*pptr < context->buffer.data()) {
-        auto& buffer = context->buffer;
+    if (*pptr < buffer.data()) {
         size_t pos = *pptr + size - buffer.data();
         size_t len = buffer.size() - pos;
         buffer.resize_no_init(buffer.size() * 2);
@@ -198,21 +197,21 @@ static inline void Rans64EncWrite(byte_t** pptr, const void* data, size_t size, 
 }
 
 // Renormalize.
-static inline void Rans64EncRenorm(Rans64State* r, byte_t** pptr, EntropyContext* context, size_t freq, uint32_t scale_bits) {
+static inline void Rans64EncRenorm(Rans64State* r, byte_t** pptr, ContextBuffer& buffer, size_t freq, uint32_t scale_bits) {
     assert(freq > 0);
     // renormalize
     uint64_t x = *r;
     uint64_t x_max = ((RANS_L >> scale_bits) << (BLOCK_SIZE * 8)) * freq; // turns into a shift
 
     if (x >= x_max) {
-        Rans64EncWrite(pptr, &x, BLOCK_SIZE, context);
+        Rans64EncWrite(pptr, &x, BLOCK_SIZE, buffer);
         x >>= (BLOCK_SIZE * 8);
         *r = x;
     }
 }
 
 // Flushes the rANS encoder.
-static inline void Rans64EncFlush(Rans64State* r, byte_t** pptr, EntropyContext* context, size_t* psize, XCheck check) {
+static inline void Rans64EncFlush(Rans64State* r, byte_t** pptr, ContextBuffer& buffer, size_t* psize, XCheck check) {
     uint64_t x = *r;
     size_t c = (terark_bsr_u64(x) + 8 + HEAD_BITS + check.enable) / 8;
     assert(c >= 2 && c <= 8);
@@ -222,7 +221,7 @@ static inline void Rans64EncFlush(Rans64State* r, byte_t** pptr, EntropyContext*
         x = (x << 1) | check.value;
     }
     *psize /= RECORD_MAX_SIZE;
-    Rans64EncWrite(pptr, &x, c, context);
+    Rans64EncWrite(pptr, &x, c, buffer);
 }
 
 // Initialize a decoder symbol to start "start" and frequency "freq"
@@ -381,14 +380,15 @@ static inline void Rans64BuildDTable(const byte_t** pptr, byte_t* ari, Rans64Dec
 
 // --------------------------------------------------------------------------
 
-fstring encode(fstring record, EntropyContext* context) {
+EntropyBytes encode(fstring record, TerarkContext* context) {
     freq_hist hist;
     hist.add_record(record);
     hist.finish();
     hist.normalise(TOTFREQ);
     encoder e(hist.histogram());
-    auto ret = e.encode(record, context);
-    auto& buffer = context->buffer;
+    auto ret_bytes = e.encode(record, context);
+    auto ret = ret_bytes.data;
+    auto buffer = context->alloc();
     assert(ret.udata() + ret.size() == buffer.data() + buffer.size());
     size_t table_size = e.table().size();
     if (buffer.data() + table_size > ret.udata()) {
@@ -396,22 +396,25 @@ fstring encode(fstring record, EntropyContext* context) {
         buffer.resize_no_init(table_size + ret.size());
         memmove(buffer.data() + table_size, buffer.data() + pos, ret.size());
         memcpy(buffer.data(), e.table().data(), table_size);
-        return buffer;
+        return {buffer, std::move(buffer)};
     }
     else {
         memcpy((byte_t*)ret.data() - table_size, e.table().data(), table_size);
-        return fstring(ret.data() - table_size, ret.size() + table_size);
+        return {
+            fstring(ret.data() - table_size, ret.size() + table_size),
+            std::move(ret_bytes.buffer)
+        };
     }
 }
 
-size_t decode(fstring data, valvec<byte_t>* record, EntropyContext* context) {
+size_t decode(fstring data, valvec<byte_t>* record, TerarkContext* context) {
     size_t table_size;
     decoder d(data, &table_size);
     size_t read = d.decode(data.substr(table_size), record, context);
     return read == 0 ? 0 : table_size + read;
 }
 
-fstring encode_o1(fstring record, EntropyContext* context) {
+EntropyBytes encode_o1(fstring record, TerarkContext* context) {
     struct encoder_mem {
         freq_hist_o1 hist;
         encoder_o1 e;
@@ -421,8 +424,9 @@ fstring encode_o1(fstring record, EntropyContext* context) {
     p->hist.finish();
     p->hist.normalise(TOTFREQ);
     p->e.init(p->hist.histogram());
-    auto ret = p->e.encode(record, context);
-    auto& buffer = context->buffer;
+    auto ret_bytes = p->e.encode(record, context);
+    auto ret = ret_bytes.data;
+    auto buffer = context->alloc();
     assert(ret.udata() + ret.size() == buffer.data() + buffer.size());
     size_t table_size = p->e.table().size();
     if (buffer.data() + table_size > ret.udata()) {
@@ -430,22 +434,25 @@ fstring encode_o1(fstring record, EntropyContext* context) {
         buffer.resize_no_init(table_size + ret.size());
         memmove(buffer.data() + table_size, buffer.data() + pos, ret.size());
         memcpy(buffer.data(), p->e.table().data(), table_size);
-        return buffer;
+        return {buffer, std::move(buffer)};
     }
     else {
         memcpy((byte_t*)ret.data() - table_size, p->e.table().data(), table_size);
-        return fstring(ret.data() - table_size, ret.size() + table_size);
+        return {
+            fstring(ret.data() - table_size, ret.size() + table_size),
+            std::move(ret_bytes.buffer)
+        };
     }
 }
 
-size_t decode_o1(fstring data, valvec<byte_t>* record, EntropyContext* context) {
+size_t decode_o1(fstring data, valvec<byte_t>* record, TerarkContext* context) {
     size_t table_size;
     std::unique_ptr<decoder_o1> d(new decoder_o1(data, &table_size));
     size_t read = d->decode(data.substr(table_size), record, context);
     return read == 0 ? 0 : table_size + read;
 }
 
-fstring encode_o2(fstring record, EntropyContext* context) {
+EntropyBytes encode_o2(fstring record, TerarkContext* context) {
     struct encoder_mem {
         freq_hist_o2 hist;
         encoder_o2 e;
@@ -455,8 +462,9 @@ fstring encode_o2(fstring record, EntropyContext* context) {
     p->hist.finish();
     p->hist.normalise(TOTFREQ);
     p->e.init(p->hist.histogram());
-    auto ret = p->e.encode(record, context);
-    auto& buffer = context->buffer;
+    auto ret_bytes = p->e.encode(record, context);
+    auto ret = ret_bytes.data;
+    auto buffer = context->alloc();
     assert(ret.udata() + ret.size() == buffer.data() + buffer.size());
     size_t table_size = p->e.table().size();
     if (buffer.data() + table_size > ret.udata()) {
@@ -464,15 +472,18 @@ fstring encode_o2(fstring record, EntropyContext* context) {
         buffer.resize_no_init(table_size + ret.size());
         memmove(buffer.data() + table_size, buffer.data() + pos, ret.size());
         memcpy(buffer.data(), p->e.table().data(), table_size);
-        return buffer;
+        return {buffer, std::move(buffer)};
     }
     else {
         memcpy((byte_t*)ret.data() - table_size, p->e.table().data(), table_size);
-        return fstring(ret.data() - table_size, ret.size() + table_size);
+        return {
+            fstring(ret.data() - table_size, ret.size() + table_size),
+            std::move(ret_bytes.buffer)
+        };
     }
 }
 
-size_t decode_o2(fstring data, valvec<byte_t>* record, EntropyContext* context) {
+size_t decode_o2(fstring data, valvec<byte_t>* record, TerarkContext* context) {
     size_t table_size;
     std::unique_ptr<decoder_o2> d(new decoder_o2(data, &table_size));
     size_t read = d->decode(data.substr(table_size), record, context);
@@ -499,7 +510,7 @@ const valvec<byte_t>& encoder::table() const {
     return table_;
 }
 
-fstring encoder::encode(fstring record, EntropyContext* context) const {
+EntropyBytes encoder::encode(fstring record, TerarkContext* context) const {
     if (record.size() < pow_t<RECORD_MAX_SIZE, 1>::value) {
         return encode_xN<1>(record, context, true);
     }
@@ -514,28 +525,29 @@ fstring encoder::encode(fstring record, EntropyContext* context) const {
     }
 }
 
-fstring encoder::encode_x1(fstring record, EntropyContext* context) const {
+EntropyBytes encoder::encode_x1(fstring record, TerarkContext* context) const {
     return encode_xN<1>(record, context, false);
 }
 
-fstring encoder::encode_x2(fstring record, EntropyContext* context) const {
+EntropyBytes encoder::encode_x2(fstring record, TerarkContext* context) const {
     return encode_xN<2>(record, context, false);
 }
 
-fstring encoder::encode_x4(fstring record, EntropyContext* context) const {
+EntropyBytes encoder::encode_x4(fstring record, TerarkContext* context) const {
     return encode_xN<4>(record, context, false);
 }
 
-fstring encoder::encode_x8(fstring record, EntropyContext* context) const {
+EntropyBytes encoder::encode_x8(fstring record, TerarkContext* context) const {
     return encode_xN<8>(record, context, false);
 }
 
 template<size_t N>
-fstring encoder::encode_xN(fstring record, EntropyContext* context, bool check) const {
+EntropyBytes encoder::encode_xN(fstring record, TerarkContext* context, bool check) const {
     if (record.size() >= pow_t<RECORD_MAX_SIZE, N>::value) {
-        return { nullptr, ptrdiff_t(0) };
+        return {{ nullptr, ptrdiff_t(0) }, {}};
     }
-    context->buffer.resize(record.size() * 5 / 4 + 8 * N + 8);
+    auto ctx_buffer = context->alloc();
+    ctx_buffer.resize(record.size() * 5 / 4 + 8 * N + 8);
 
 #define w7 (N == 8 ? 7 : 0)
 #define w6 (N == 8 ? 6 : 0)
@@ -559,12 +571,12 @@ fstring encoder::encode_xN(fstring record, EntropyContext* context, bool check) 
     if (w1 == 1) Rans64EncInit(&rans[w1], &end, &size);
     if (w0 == 0) Rans64EncInit(&rans[w0], &end, &size);
 
-    byte_t* ptr = context->buffer.data() + context->buffer.size();
+    byte_t* ptr = ctx_buffer.data() + ctx_buffer.size();
     const byte_t* record_data = record.udata();
 
     for (intptr_t i = (intptr_t)size - 1, e = (intptr_t)(size - size % N) - 1; N > 1 && i > e; --i) {
         const Rans64EncSymbol* s = &syms_[record_data[i]];
-        Rans64EncRenorm(&rans[N - 1], &ptr, context, s->freq, TF_SHIFT);
+        Rans64EncRenorm(&rans[N - 1], &ptr, ctx_buffer, s->freq, TF_SHIFT);
         Rans64EncPutSymbol(&rans[N - 1], s, TF_SHIFT);
     }
 
@@ -592,14 +604,14 @@ fstring encoder::encode_xN(fstring record, EntropyContext* context, bool check) 
             if (w1 == 1) s[w1] = &syms_[c[w1] = record_data[i[w1]]];
             if (w0 == 0) s[w0] = &syms_[c[w0] = record_data[i[w0]]];
 
-            if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, context, s[w7]->freq, TF_SHIFT);
-            if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, context, s[w6]->freq, TF_SHIFT);
-            if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, context, s[w5]->freq, TF_SHIFT);
-            if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, context, s[w4]->freq, TF_SHIFT);
-            if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, context, s[w3]->freq, TF_SHIFT);
-            if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, context, s[w2]->freq, TF_SHIFT);
-            if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, context, s[w1]->freq, TF_SHIFT);
-            if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, context, s[w0]->freq, TF_SHIFT);
+            if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, ctx_buffer, s[w7]->freq, TF_SHIFT);
+            if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, ctx_buffer, s[w6]->freq, TF_SHIFT);
+            if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, ctx_buffer, s[w5]->freq, TF_SHIFT);
+            if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, ctx_buffer, s[w4]->freq, TF_SHIFT);
+            if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, ctx_buffer, s[w3]->freq, TF_SHIFT);
+            if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, ctx_buffer, s[w2]->freq, TF_SHIFT);
+            if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, ctx_buffer, s[w1]->freq, TF_SHIFT);
+            if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, ctx_buffer, s[w0]->freq, TF_SHIFT);
 
             if (w7 == 7) Rans64EncPutSymbol(&rans[w7], s[w7], TF_SHIFT);
             if (w6 == 6) Rans64EncPutSymbol(&rans[w6], s[w6], TF_SHIFT);
@@ -623,14 +635,14 @@ fstring encoder::encode_xN(fstring record, EntropyContext* context, bool check) 
 
     size = record.size();
 
-    if (w7 == 7) Rans64EncFlush(&rans[w7], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w6 == 6) Rans64EncFlush(&rans[w6], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w5 == 5) Rans64EncFlush(&rans[w5], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w4 == 4) Rans64EncFlush(&rans[w4], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w3 == 3) Rans64EncFlush(&rans[w3], &ptr, context, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
-    if (w2 == 2) Rans64EncFlush(&rans[w2], &ptr, context, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
-    if (w1 == 1) Rans64EncFlush(&rans[w1], &ptr, context, &size, XCheck{ check, N > 2 });  // 1:0 2:0 4:1 8:1
-    if (w0 == 0) Rans64EncFlush(&rans[w0], &ptr, context, &size, XCheck{ check, N > 1 });  // 1:0 2:1 4:1 8:1
+    if (w7 == 7) Rans64EncFlush(&rans[w7], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w6 == 6) Rans64EncFlush(&rans[w6], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w5 == 5) Rans64EncFlush(&rans[w5], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w4 == 4) Rans64EncFlush(&rans[w4], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w3 == 3) Rans64EncFlush(&rans[w3], &ptr, ctx_buffer, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
+    if (w2 == 2) Rans64EncFlush(&rans[w2], &ptr, ctx_buffer, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
+    if (w1 == 1) Rans64EncFlush(&rans[w1], &ptr, ctx_buffer, &size, XCheck{ check, N > 2 });  // 1:0 2:0 4:1 8:1
+    if (w0 == 0) Rans64EncFlush(&rans[w0], &ptr, ctx_buffer, &size, XCheck{ check, N > 1 });  // 1:0 2:1 4:1 8:1
 
     assert(size == 0);
 
@@ -643,7 +655,10 @@ fstring encoder::encode_xN(fstring record, EntropyContext* context, bool check) 
 #undef w1
 #undef w0
 
-    return { ptr, context->buffer.data() + context->buffer.size() - ptr };
+    return EntropyBytes{
+        fstring{ptr, ctx_buffer.data() + ctx_buffer.size() - ptr},
+        std::move(ctx_buffer)
+    };
 }
 
 // --------------------------------------------------------------------------
@@ -664,7 +679,7 @@ void decoder::init(fstring table, size_t* psize) {
     }
 }
 
-size_t decoder::decode(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder::decode(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     size_t read;
     if ((read = decode_xN<8>(data, record, context, true)) > 0) {
         return read;
@@ -681,24 +696,24 @@ size_t decoder::decode(fstring data, valvec<byte_t>* record, EntropyContext* con
     return 0;
 }
 
-size_t decoder::decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder::decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<1>(data, record, context, false);
 }
 
-size_t decoder::decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder::decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<2>(data, record, context, false);
 }
 
-size_t decoder::decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder::decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<4>(data, record, context, false);
 }
 
-size_t decoder::decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder::decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<8>(data, record, context, false);
 }
 
 template<size_t N>
-size_t decoder::decode_xN(fstring data, valvec<byte_t>* record, EntropyContext* context, bool check) const {
+size_t decoder::decode_xN(fstring data, valvec<byte_t>* record, TerarkContext* context, bool check) const {
     record->risk_set_size(0);
     if (data.size() < N * 2) {
         return 0;
@@ -877,8 +892,9 @@ void encoder_o1::init(const freq_hist_o1::histogram_t& hist) {
     Rans64BuildCTable(&cp, hist.o0, syms_[256]);
     table_.risk_set_size(cp - table_.data());
     assert(table_.size() < 258 * 257 * 3);
-    EntropyContext context;
-    auto table_ans = rANS_static_64::encode(fstring(table_).substr(1), &context);
+    TerarkContext context;
+    auto table_ans_bytes = rANS_static_64::encode(fstring(table_).substr(1), &context);
+    auto table_ans = table_ans_bytes.data;
     if (table_ans.size() < table_.size()) {
         table_[0] = 255;  // encoded
         memcpy(table_.data() + 1, table_ans.data(), table_ans.size());
@@ -891,7 +907,7 @@ const valvec<byte_t>& encoder_o1::table() const {
     return table_;
 }
 
-fstring encoder_o1::encode(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode(fstring record, TerarkContext* context) const {
     if (record.size() < pow_t<RECORD_MAX_SIZE, 1>::value) {
         return encode_xN<1>(record, context, true);
     }
@@ -906,28 +922,29 @@ fstring encoder_o1::encode(fstring record, EntropyContext* context) const {
     }
 }
 
-fstring encoder_o1::encode_x1(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x1(fstring record, TerarkContext* context) const {
     return encode_xN<1>(record, context, false);
 }
 
-fstring encoder_o1::encode_x2(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x2(fstring record, TerarkContext* context) const {
     return encode_xN<2>(record, context, false);
 }
 
-fstring encoder_o1::encode_x4(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x4(fstring record, TerarkContext* context) const {
     return encode_xN<4>(record, context, false);
 }
 
-fstring encoder_o1::encode_x8(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x8(fstring record, TerarkContext* context) const {
     return encode_xN<8>(record, context, false);
 }
 
 template<size_t N>
-fstring encoder_o1::encode_xN(fstring record, EntropyContext* context, bool check) const {
+EntropyBytes encoder_o1::encode_xN(fstring record, TerarkContext* context, bool check) const {
     if (record.size() >= pow_t<RECORD_MAX_SIZE, N>::value) {
-        return { nullptr, ptrdiff_t(0) };
+        return {{ nullptr, ptrdiff_t(0) }, {}};
     }
-    context->buffer.resize(record.size() * 5 / 4 + 8 * N + 8);
+    auto ctx_buffer = context->alloc();
+    ctx_buffer.resize(record.size() * 5 / 4 + 8 * N + 8);
 
 #define w7 (N == 8 ? 7 : 0)
 #define w6 (N == 8 ? 6 : 0)
@@ -951,12 +968,12 @@ fstring encoder_o1::encode_xN(fstring record, EntropyContext* context, bool chec
     if (w1 == 1) Rans64EncInit(&rans[w1], &end, &size);
     if (w0 == 0) Rans64EncInit(&rans[w0], &end, &size);
 
-    byte_t* ptr = context->buffer.data() + context->buffer.size();
+    byte_t* ptr = ctx_buffer.data() + ctx_buffer.size();
     const byte_t* record_data = record.udata();
 
     for (intptr_t i = (intptr_t)size - 2, e = (intptr_t)(size - size % N) - 1; N > 1 && i >= e; --i) { 
         const Rans64EncSymbol* s = &syms_[i == -1 ? 256 : record_data[i]][record_data[i + 1]];
-        Rans64EncRenorm(&rans[N - 1], &ptr, context, s->freq, TF_SHIFT);
+        Rans64EncRenorm(&rans[N - 1], &ptr, ctx_buffer, s->freq, TF_SHIFT);
         Rans64EncPutSymbol(&rans[N - 1], s, TF_SHIFT);
     }
 
@@ -994,14 +1011,14 @@ fstring encoder_o1::encode_xN(fstring record, EntropyContext* context, bool chec
             if (w1 == 1) s[w1] = &syms_[c[w1] = record_data[i[w1]]][l[w1]];
             if (w0 == 0) s[w0] = &syms_[c[w0] = record_data[i[w0]]][l[w0]];
 
-            if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, context, s[w7]->freq, TF_SHIFT);
-            if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, context, s[w6]->freq, TF_SHIFT);
-            if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, context, s[w5]->freq, TF_SHIFT);
-            if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, context, s[w4]->freq, TF_SHIFT);
-            if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, context, s[w3]->freq, TF_SHIFT);
-            if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, context, s[w2]->freq, TF_SHIFT);
-            if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, context, s[w1]->freq, TF_SHIFT);
-            if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, context, s[w0]->freq, TF_SHIFT);
+            if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, ctx_buffer, s[w7]->freq, TF_SHIFT);
+            if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, ctx_buffer, s[w6]->freq, TF_SHIFT);
+            if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, ctx_buffer, s[w5]->freq, TF_SHIFT);
+            if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, ctx_buffer, s[w4]->freq, TF_SHIFT);
+            if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, ctx_buffer, s[w3]->freq, TF_SHIFT);
+            if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, ctx_buffer, s[w2]->freq, TF_SHIFT);
+            if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, ctx_buffer, s[w1]->freq, TF_SHIFT);
+            if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, ctx_buffer, s[w0]->freq, TF_SHIFT);
 
             if (w7 == 7) Rans64EncPutSymbol(&rans[w7], s[w7], TF_SHIFT);
             if (w6 == 6) Rans64EncPutSymbol(&rans[w6], s[w6], TF_SHIFT);
@@ -1031,14 +1048,14 @@ fstring encoder_o1::encode_xN(fstring record, EntropyContext* context, bool chec
             if (w0 == 0) --i[w0];
         }
 
-        if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, context, syms_[256][l[w7]].freq, TF_SHIFT);
-        if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, context, syms_[256][l[w6]].freq, TF_SHIFT);
-        if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, context, syms_[256][l[w5]].freq, TF_SHIFT);
-        if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, context, syms_[256][l[w4]].freq, TF_SHIFT);
-        if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, context, syms_[256][l[w3]].freq, TF_SHIFT);
-        if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, context, syms_[256][l[w2]].freq, TF_SHIFT);
-        if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, context, syms_[256][l[w1]].freq, TF_SHIFT);
-        if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, context, syms_[256][l[w0]].freq, TF_SHIFT);
+        if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, ctx_buffer, syms_[256][l[w7]].freq, TF_SHIFT);
+        if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, ctx_buffer, syms_[256][l[w6]].freq, TF_SHIFT);
+        if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, ctx_buffer, syms_[256][l[w5]].freq, TF_SHIFT);
+        if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, ctx_buffer, syms_[256][l[w4]].freq, TF_SHIFT);
+        if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, ctx_buffer, syms_[256][l[w3]].freq, TF_SHIFT);
+        if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, ctx_buffer, syms_[256][l[w2]].freq, TF_SHIFT);
+        if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, ctx_buffer, syms_[256][l[w1]].freq, TF_SHIFT);
+        if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, ctx_buffer, syms_[256][l[w0]].freq, TF_SHIFT);
 
         if (w7 == 7) Rans64EncPutSymbol(&rans[w7], &syms_[256][l[w7]], TF_SHIFT);
         if (w6 == 6) Rans64EncPutSymbol(&rans[w6], &syms_[256][l[w6]], TF_SHIFT);
@@ -1053,14 +1070,14 @@ fstring encoder_o1::encode_xN(fstring record, EntropyContext* context, bool chec
 
     size = record.size();
 
-    if (w7 == 7) Rans64EncFlush(&rans[w7], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w6 == 6) Rans64EncFlush(&rans[w6], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w5 == 5) Rans64EncFlush(&rans[w5], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w4 == 4) Rans64EncFlush(&rans[w4], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w3 == 3) Rans64EncFlush(&rans[w3], &ptr, context, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
-    if (w2 == 2) Rans64EncFlush(&rans[w2], &ptr, context, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
-    if (w1 == 1) Rans64EncFlush(&rans[w1], &ptr, context, &size, XCheck{ check, N > 2 });  // 1:0 2:0 4:1 8:1
-    if (w0 == 0) Rans64EncFlush(&rans[w0], &ptr, context, &size, XCheck{ check, N > 1 });  // 1:0 2:1 4:1 8:1
+    if (w7 == 7) Rans64EncFlush(&rans[w7], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w6 == 6) Rans64EncFlush(&rans[w6], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w5 == 5) Rans64EncFlush(&rans[w5], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w4 == 4) Rans64EncFlush(&rans[w4], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w3 == 3) Rans64EncFlush(&rans[w3], &ptr, ctx_buffer, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
+    if (w2 == 2) Rans64EncFlush(&rans[w2], &ptr, ctx_buffer, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
+    if (w1 == 1) Rans64EncFlush(&rans[w1], &ptr, ctx_buffer, &size, XCheck{ check, N > 2 });  // 1:0 2:0 4:1 8:1
+    if (w0 == 0) Rans64EncFlush(&rans[w0], &ptr, ctx_buffer, &size, XCheck{ check, N > 1 });  // 1:0 2:1 4:1 8:1
 
     assert(size == 0);
 
@@ -1073,7 +1090,10 @@ fstring encoder_o1::encode_xN(fstring record, EntropyContext* context, bool chec
 #undef w1
 #undef w0
 
-    return { ptr, context->buffer.data() + context->buffer.size() - ptr };
+    return EntropyBytes{
+        fstring{ptr, ctx_buffer.data() + ctx_buffer.size() - ptr},
+        std::move(ctx_buffer)
+    };
 }
 
 // --------------------------------------------------------------------------
@@ -1095,7 +1115,7 @@ void decoder_o1::init(fstring table, size_t* psize) {
 
     valvec<byte_t> table_ans;
     if (*cp++ == 255) {
-        EntropyContext context;
+        TerarkContext context;
         size_t read = rANS_static_64::decode(table.substr(1), &table_ans, &context);
         if (psize != nullptr) {
             *psize = read + 1;
@@ -1128,7 +1148,7 @@ void decoder_o1::init(fstring table, size_t* psize) {
     }
 }
 
-size_t decoder_o1::decode(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o1::decode(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     size_t read;
     if ((read = decode_xN<8>(data, record, context, true)) > 0) {
         return read;
@@ -1145,24 +1165,24 @@ size_t decoder_o1::decode(fstring data, valvec<byte_t>* record, EntropyContext* 
     return 0;
 }
 
-size_t decoder_o1::decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o1::decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<1>(data, record, context, false);
 }
 
-size_t decoder_o1::decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o1::decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<2>(data, record, context, false);
 }
 
-size_t decoder_o1::decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o1::decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<4>(data, record, context, false);
 }
 
-size_t decoder_o1::decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o1::decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<8>(data, record, context, false);
 }
 
 template<size_t N>
-size_t decoder_o1::decode_xN(fstring data, valvec<byte_t>* record, EntropyContext* context, bool check) const {
+size_t decoder_o1::decode_xN(fstring data, valvec<byte_t>* record, TerarkContext* context, bool check) const {
     record->risk_set_size(0);
     if(data.size() < N * 2) {
         return 0;
@@ -1378,8 +1398,9 @@ void encoder_o2::init(const freq_hist_o2::histogram_t& hist) {
     Rans64BuildCTable(&cp, hist.o0, syms_[256][256]);
     table_.risk_set_size(cp - table_.data());
     assert(table_.size() < 258 * 258 * 257 * 3);
-    EntropyContext context;
-    auto table_ans = rANS_static_64::encode_o1(fstring(table_).substr(1), &context);
+    TerarkContext context;
+    auto table_ans_bytes = rANS_static_64::encode_o1(fstring(table_).substr(1), &context);
+    auto table_ans = table_ans_bytes.data;
     if (table_ans.size() < table_.size()) {
         table_[0] = 255;  // encoded
         memcpy(table_.data() + 1, table_ans.data(), table_ans.size());
@@ -1392,7 +1413,7 @@ const valvec<byte_t>& encoder_o2::table() const {
     return table_;
 }
 
-fstring encoder_o2::encode(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o2::encode(fstring record, TerarkContext* context) const {
     if (record.size() < pow_t<RECORD_MAX_SIZE, 1>::value) {
         return encode_xN<1>(record, context, true);
     }
@@ -1407,28 +1428,29 @@ fstring encoder_o2::encode(fstring record, EntropyContext* context) const {
     }
 }
 
-fstring encoder_o2::encode_x1(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o2::encode_x1(fstring record, TerarkContext* context) const {
     return encode_xN<1>(record, context, false);
 }
 
-fstring encoder_o2::encode_x2(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o2::encode_x2(fstring record, TerarkContext* context) const {
     return encode_xN<2>(record, context, false);
 }
 
-fstring encoder_o2::encode_x4(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o2::encode_x4(fstring record, TerarkContext* context) const {
     return encode_xN<4>(record, context, false);
 }
 
-fstring encoder_o2::encode_x8(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o2::encode_x8(fstring record, TerarkContext* context) const {
     return encode_xN<8>(record, context, false);
 }
 
 template<size_t N>
-fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool check) const {
+EntropyBytes encoder_o2::encode_xN(fstring record, TerarkContext* context, bool check) const {
     if (record.size() >= pow_t<RECORD_MAX_SIZE, N>::value) {
-        return { nullptr, ptrdiff_t(0) };
+        return {{ nullptr, ptrdiff_t(0) }, {}};
     }
-    context->buffer.resize(record.size() * 5 / 4 + 8 * N + 8);
+    auto ctx_buffer = context->alloc();
+    ctx_buffer.resize(record.size() * 5 / 4 + 8 * N + 8);
 
 #define w7 (N == 8 ? 7 : 0)
 #define w6 (N == 8 ? 6 : 0)
@@ -1452,14 +1474,14 @@ fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool chec
     if (w1 == 1) Rans64EncInit(&rans[w1], &end, &size);
     if (w0 == 0) Rans64EncInit(&rans[w0], &end, &size);
 
-    byte_t* ptr = context->buffer.data() + context->buffer.size();
+    byte_t* ptr = ctx_buffer.data() + ctx_buffer.size();
     const byte_t* record_data = record.udata();
 
     if (N > 1) {
         intptr_t b = (intptr_t)size / N * (N - 1) + 1;
         for (intptr_t i = (intptr_t)size - 1, e = (intptr_t)(size - size % N); i >= e; --i) {
             const Rans64EncSymbol* s = &syms_[i <= b ? 256 : record_data[i - 2]][i < b ? 256 : record_data[i - 1]][record_data[i]];
-            Rans64EncRenorm(&rans[N - 1], &ptr, context, s->freq, TF_SHIFT);
+            Rans64EncRenorm(&rans[N - 1], &ptr, ctx_buffer, s->freq, TF_SHIFT);
             Rans64EncPutSymbol(&rans[N - 1], s, TF_SHIFT);
         }
     }
@@ -1510,14 +1532,14 @@ fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool chec
                 if (w1 == 1) s[w1] = &syms_[c[w1] = record_data[i[w1]]][l[w1]][ll[w1]];
                 if (w0 == 0) s[w0] = &syms_[c[w0] = record_data[i[w0]]][l[w0]][ll[w0]];
 
-                if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, context, s[w7]->freq, TF_SHIFT);
-                if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, context, s[w6]->freq, TF_SHIFT);
-                if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, context, s[w5]->freq, TF_SHIFT);
-                if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, context, s[w4]->freq, TF_SHIFT);
-                if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, context, s[w3]->freq, TF_SHIFT);
-                if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, context, s[w2]->freq, TF_SHIFT);
-                if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, context, s[w1]->freq, TF_SHIFT);
-                if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, context, s[w0]->freq, TF_SHIFT);
+                if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, ctx_buffer, s[w7]->freq, TF_SHIFT);
+                if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, ctx_buffer, s[w6]->freq, TF_SHIFT);
+                if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, ctx_buffer, s[w5]->freq, TF_SHIFT);
+                if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, ctx_buffer, s[w4]->freq, TF_SHIFT);
+                if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, ctx_buffer, s[w3]->freq, TF_SHIFT);
+                if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, ctx_buffer, s[w2]->freq, TF_SHIFT);
+                if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, ctx_buffer, s[w1]->freq, TF_SHIFT);
+                if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, ctx_buffer, s[w0]->freq, TF_SHIFT);
 
                 if (w7 == 7) Rans64EncPutSymbol(&rans[w7], s[w7], TF_SHIFT);
                 if (w6 == 6) Rans64EncPutSymbol(&rans[w6], s[w6], TF_SHIFT);
@@ -1556,14 +1578,14 @@ fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool chec
             if (w1 == 1) s[w1] = &syms_[256][l[w1]][ll[w1]];
             if (w0 == 0) s[w0] = &syms_[256][l[w0]][ll[w0]];
 
-            if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, context, s[w7]->freq, TF_SHIFT);
-            if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, context, s[w6]->freq, TF_SHIFT);
-            if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, context, s[w5]->freq, TF_SHIFT);
-            if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, context, s[w4]->freq, TF_SHIFT);
-            if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, context, s[w3]->freq, TF_SHIFT);
-            if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, context, s[w2]->freq, TF_SHIFT);
-            if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, context, s[w1]->freq, TF_SHIFT);
-            if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, context, s[w0]->freq, TF_SHIFT);
+            if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, ctx_buffer, s[w7]->freq, TF_SHIFT);
+            if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, ctx_buffer, s[w6]->freq, TF_SHIFT);
+            if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, ctx_buffer, s[w5]->freq, TF_SHIFT);
+            if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, ctx_buffer, s[w4]->freq, TF_SHIFT);
+            if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, ctx_buffer, s[w3]->freq, TF_SHIFT);
+            if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, ctx_buffer, s[w2]->freq, TF_SHIFT);
+            if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, ctx_buffer, s[w1]->freq, TF_SHIFT);
+            if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, ctx_buffer, s[w0]->freq, TF_SHIFT);
 
             if (w7 == 7) Rans64EncPutSymbol(&rans[w7], s[w7], TF_SHIFT);
             if (w6 == 6) Rans64EncPutSymbol(&rans[w6], s[w6], TF_SHIFT);
@@ -1597,14 +1619,14 @@ fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool chec
         if (w1 == 1) s[w1] = &syms_[256][256][l[w1]];
         if (w0 == 0) s[w0] = &syms_[256][256][l[w0]];
 
-        if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, context, s[w7]->freq, TF_SHIFT);
-        if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, context, s[w6]->freq, TF_SHIFT);
-        if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, context, s[w5]->freq, TF_SHIFT);
-        if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, context, s[w4]->freq, TF_SHIFT);
-        if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, context, s[w3]->freq, TF_SHIFT);
-        if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, context, s[w2]->freq, TF_SHIFT);
-        if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, context, s[w1]->freq, TF_SHIFT);
-        if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, context, s[w0]->freq, TF_SHIFT);
+        if (w7 == 7) Rans64EncRenorm(&rans[w7], &ptr, ctx_buffer, s[w7]->freq, TF_SHIFT);
+        if (w6 == 6) Rans64EncRenorm(&rans[w6], &ptr, ctx_buffer, s[w6]->freq, TF_SHIFT);
+        if (w5 == 5) Rans64EncRenorm(&rans[w5], &ptr, ctx_buffer, s[w5]->freq, TF_SHIFT);
+        if (w4 == 4) Rans64EncRenorm(&rans[w4], &ptr, ctx_buffer, s[w4]->freq, TF_SHIFT);
+        if (w3 == 3) Rans64EncRenorm(&rans[w3], &ptr, ctx_buffer, s[w3]->freq, TF_SHIFT);
+        if (w2 == 2) Rans64EncRenorm(&rans[w2], &ptr, ctx_buffer, s[w2]->freq, TF_SHIFT);
+        if (w1 == 1) Rans64EncRenorm(&rans[w1], &ptr, ctx_buffer, s[w1]->freq, TF_SHIFT);
+        if (w0 == 0) Rans64EncRenorm(&rans[w0], &ptr, ctx_buffer, s[w0]->freq, TF_SHIFT);
 
         if (w7 == 7) Rans64EncPutSymbol(&rans[w7], s[w7], TF_SHIFT);
         if (w6 == 6) Rans64EncPutSymbol(&rans[w6], s[w6], TF_SHIFT);
@@ -1619,14 +1641,14 @@ fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool chec
 
     size = record.size();
 
-    if (w7 == 7) Rans64EncFlush(&rans[w7], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w6 == 6) Rans64EncFlush(&rans[w6], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w5 == 5) Rans64EncFlush(&rans[w5], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w4 == 4) Rans64EncFlush(&rans[w4], &ptr, context, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
-    if (w3 == 3) Rans64EncFlush(&rans[w3], &ptr, context, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
-    if (w2 == 2) Rans64EncFlush(&rans[w2], &ptr, context, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
-    if (w1 == 1) Rans64EncFlush(&rans[w1], &ptr, context, &size, XCheck{ check, N > 2 });  // 1:0 2:0 4:1 8:1
-    if (w0 == 0) Rans64EncFlush(&rans[w0], &ptr, context, &size, XCheck{ check, N > 1 });  // 1:0 2:1 4:1 8:1
+    if (w7 == 7) Rans64EncFlush(&rans[w7], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w6 == 6) Rans64EncFlush(&rans[w6], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w5 == 5) Rans64EncFlush(&rans[w5], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w4 == 4) Rans64EncFlush(&rans[w4], &ptr, ctx_buffer, &size, XCheck{ check, N > 8 });  // 1:0 2:0 4:0 8:0
+    if (w3 == 3) Rans64EncFlush(&rans[w3], &ptr, ctx_buffer, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
+    if (w2 == 2) Rans64EncFlush(&rans[w2], &ptr, ctx_buffer, &size, XCheck{ check, N > 4 });  // 1:0 2:0 4:0 8:1
+    if (w1 == 1) Rans64EncFlush(&rans[w1], &ptr, ctx_buffer, &size, XCheck{ check, N > 2 });  // 1:0 2:0 4:1 8:1
+    if (w0 == 0) Rans64EncFlush(&rans[w0], &ptr, ctx_buffer, &size, XCheck{ check, N > 1 });  // 1:0 2:1 4:1 8:1
 
     assert(size == 0);
 
@@ -1639,7 +1661,10 @@ fstring encoder_o2::encode_xN(fstring record, EntropyContext* context, bool chec
 #undef w1
 #undef w0
 
-    return { ptr, context->buffer.data() + context->buffer.size() - ptr };
+    return EntropyBytes{
+        fstring{ptr, ctx_buffer.data() + ctx_buffer.size() - ptr},
+        std::move(ctx_buffer)
+    };
 }
 
 // --------------------------------------------------------------------------
@@ -1658,7 +1683,7 @@ void decoder_o2::init(fstring table, size_t* psize) {
 
     valvec<byte_t> table_ans;
     if (*cp++ == 255) {
-        EntropyContext context;
+        TerarkContext context;
         size_t read = rANS_static_64::decode_o1(table.substr(1), &table_ans, &context);
         if (psize != nullptr) {
             *psize = read + 1;
@@ -1717,7 +1742,7 @@ void decoder_o2::init(fstring table, size_t* psize) {
     }
 }
 
-size_t decoder_o2::decode(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o2::decode(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     size_t read;
     if ((read = decode_xN<8>(data, record, context, true)) > 0) {
         return read;
@@ -1734,24 +1759,24 @@ size_t decoder_o2::decode(fstring data, valvec<byte_t>* record, EntropyContext* 
     return 0;
 }
 
-size_t decoder_o2::decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o2::decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<1>(data, record, context, false);
 }
 
-size_t decoder_o2::decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o2::decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<2>(data, record, context, false);
 }
 
-size_t decoder_o2::decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o2::decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<4>(data, record, context, false);
 }
 
-size_t decoder_o2::decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+size_t decoder_o2::decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     return decode_xN<8>(data, record, context, false);
 }
 
 template<size_t N>
-size_t decoder_o2::decode_xN(fstring data, valvec<byte_t>* record, EntropyContext* context, bool check) const {
+size_t decoder_o2::decode_xN(fstring data, valvec<byte_t>* record, TerarkContext* context, bool check) const {
     record->risk_set_size(0);
     if (data.size() < N * 2) {
         return 0;

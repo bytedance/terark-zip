@@ -6,33 +6,46 @@
 
 namespace terark {
 
-EntropyContext* GetTlsEntropyContext() {
-    static thread_local EntropyContext tls_entropy_ctx;
-    return &tls_entropy_ctx;
+
+ContextBuffer::~ContextBuffer() {
+    if (b_ == nullptr) {
+        return;
+    }
+    if (c_ == nullptr || b_->capacity() > 65536) {
+        delete b_;
+    } else {
+        b_->risk_set_size(reinterpret_cast<size_t>(c_->list_));
+        c_->list_ = b_;
+    }
 }
 
-fstring EntropyBitsToBytes(EntropyBits* bits, EntropyContext* context) {
+TerarkContext* GetTlsTerarkContext() {
+    static thread_local TerarkContext tls_terark_ctx;
+    return &tls_terark_ctx;
+}
+
+EntropyBytes EntropyBitsToBytes(EntropyBits* bits) {
     assert(bits->skip < 8);
     assert((bits->skip + bits->size) % 8 == 0);
     size_t size = (bits->skip + bits->size) / 8;
-    assert(bits->data + size == context->buffer.data() + context->buffer.capacity());
+    assert(bits->data + size == bits->buffer.data() + bits->buffer.capacity());
     byte_t* ptr = bits->data;
     if (bits->skip == 0) {
         ++size;
-        EntropyBitsReverseWriter<valvec<byte_t>>::prepare(&ptr, 1, &context->buffer);
+        EntropyBitsReverseWriter<ContextBuffer>::prepare(&ptr, 1, &bits->buffer);
         *ptr = 0x80;
     }
     else {
         *ptr = (*ptr & ~((size_t(0xFF) >> (8 - bits->skip)))) | (1ull << (bits->skip - 1));
     }
-    return fstring(ptr, size);
+    return EntropyBytes{ fstring(ptr, size), std::move(bits->buffer) };
 }
 
 EntropyBits EntropyBytesToBits(fstring bytes) {
     assert(bytes.size() > 0);
     assert(bytes[0] != 0);
     size_t skip = fast_ctz(uint32_t(bytes[0])) + 1;
-    return { (byte_t*)bytes.udata(), skip, bytes.size() * 8 - skip };
+    return { (byte_t*)bytes.udata(), skip, bytes.size() * 8 - skip, ContextBuffer() };
 }
 
 freq_hist::freq_hist(size_t min_len, size_t max_len) {

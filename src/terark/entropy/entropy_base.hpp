@@ -14,21 +14,88 @@
 
 namespace terark {
 
+class TerarkContext;
+
+class ContextBuffer {
+private:
+    friend class TerarkContext;
+    TerarkContext *c_;
+    valvec<byte_t> *b_;
+    ContextBuffer(const ContextBuffer&) = delete;
+    ContextBuffer& operator = (const ContextBuffer&) = delete;
+
+public:
+    ContextBuffer() : c_(nullptr), b_(nullptr) {}
+    ContextBuffer(ContextBuffer&& other) : c_(other.c_), b_(other.b_) {
+        other.b_ = nullptr;
+    }
+    ContextBuffer& operator = (ContextBuffer&& other) {
+        this->~ContextBuffer();
+        ::new(this) ContextBuffer(std::move(other));
+        return *this;
+    }
+    ~ContextBuffer();
+
+    operator valvec<byte_t>&() noexcept { assert(b_ != nullptr); return *b_; }
+    operator fstring() noexcept { assert(b_ != nullptr); return *b_; }
+    valvec<byte_t>& get() noexcept { assert(b_ != nullptr); return *b_; }
+
+    byte_t* data() noexcept { assert(b_ != nullptr); return b_->data(); }
+    size_t size() noexcept { assert(b_ != nullptr); return b_->size(); }
+    size_t capacity() noexcept { assert(b_ != nullptr); return b_->capacity(); }
+
+    void resize(size_t s, byte_t v = 0) { assert(b_ != nullptr); b_->resize(s, v); }
+    void resize_no_init(size_t s) { assert(b_ != nullptr); b_->resize_no_init(s); }
+    void ensure_capacity(size_t cap) { assert(b_ != nullptr); b_->ensure_capacity(cap); }
+};
+
+class TerarkContext {
+private:
+    friend class ContextBuffer;
+    valvec<byte_t> *list_ = nullptr;
+    TerarkContext(const ContextBuffer&) = delete;
+    TerarkContext(ContextBuffer&&) = delete;
+    TerarkContext& operator = (const ContextBuffer&) = delete;
+    TerarkContext& operator = (ContextBuffer&&) = delete;
+public:
+    TerarkContext() = default;
+
+    ContextBuffer alloc() {
+        ContextBuffer cb;
+        cb.c_ = this;
+        if (list_ == nullptr) {
+            cb.b_ = new valvec<byte_t>();
+        } else {
+            cb.b_ = list_;
+            list_ = reinterpret_cast<valvec<byte_t>*>(list_->size());
+        }
+        return cb;
+    }
+    ~TerarkContext() {
+        while (list_ != nullptr) {
+            auto l = list_;
+            list_ = reinterpret_cast<valvec<byte_t>*>(l->size());
+            delete l;
+        }
+    }
+};
+
+class TerarkContext* GetTlsTerarkContext();
+
+struct EntropyBytes {
+    fstring data;
+    ContextBuffer buffer;
+};
 struct EntropyBits {
     byte_t* data;
     size_t skip;
     size_t size;
+    ContextBuffer buffer;
 };
-
-struct EntropyContext {
-    valvec<byte_t> buffer;
-    valvec<byte_t> data;
-};
-EntropyContext* GetTlsEntropyContext();
 
 class EntropyBitsReader {
 public:
-    ENTROPY_FORCE_INLINE EntropyBitsReader(EntropyBits bits) {
+    ENTROPY_FORCE_INLINE EntropyBitsReader(const EntropyBits& bits) {
         data_ = bits.data + bits.skip / 8;
         size_ = bits.size;
         size_t s = bits.skip % 8;
@@ -125,12 +192,16 @@ public:
             cache_ = bits << (bit_count - written_);
         }
     }
-    ENTROPY_FORCE_INLINE EntropyBits finish() {
+    ENTROPY_FORCE_INLINE EntropyBits finish(ContextBuffer* ctx_buffer) {
         size_t c = (written_ + 7) / 8;
         prepare(&ptr_, c, buffer_);
         memcpy(ptr_, (byte_t*)&cache_ + (8 - c), c);
         size_t skip_ = c * 8 - written_;
-        return { ptr_, skip_, (buffer_->data() + buffer_->capacity() - ptr_) * 8 - skip_ };
+        return EntropyBits{
+            ptr_, skip_,
+            (buffer_->data() + buffer_->capacity() - ptr_) * 8 - skip_,
+            ctx_buffer == nullptr ? ContextBuffer() : std::move(*ctx_buffer)
+        };
     }
     ENTROPY_FORCE_INLINE void reset() {
         written_ = 0;
@@ -151,7 +222,7 @@ public:
     ENTROPY_FORCE_INLINE EntropyBitsWriter(Output& o) : output_(o) {
         reset();
     }
-    ENTROPY_FORCE_INLINE void write(EntropyBits bits) {
+    ENTROPY_FORCE_INLINE void write(const EntropyBits& bits) {
         EntropyBitsReader reader(bits);
         while (reader.size() >= remain_) {
             size_t bit_shift = 0;
@@ -177,7 +248,7 @@ public:
         size_t c = (w + 7) / 8;
         output_((byte_t*)&cache_, c);
         output_byte_ += c;
-        return { nullptr, 0, output_byte_ * 8 + w - c * 8 };
+        return { nullptr, 0, output_byte_ * 8 + w - c * 8, {} };
     }
     ENTROPY_FORCE_INLINE void reset() {
         remain_ = 64;
@@ -192,7 +263,7 @@ private:
     size_t output_byte_;
 };
 
-fstring EntropyBitsToBytes(EntropyBits* bits, EntropyContext* context);
+EntropyBytes EntropyBitsToBytes(EntropyBits* bits);
 EntropyBits EntropyBytesToBits(fstring bytes);
 
 class TERARK_DLL_EXPORT freq_hist {

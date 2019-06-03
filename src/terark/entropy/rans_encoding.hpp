@@ -29,14 +29,14 @@ namespace terark { namespace rANS_static_64 {
         size_t value : 1;
     };
 
-    TERARK_DLL_EXPORT fstring encode(fstring record, EntropyContext* context);
-    TERARK_DLL_EXPORT size_t decode(fstring data, valvec<byte_t>* record, EntropyContext* context);
+    TERARK_DLL_EXPORT EntropyBytes encode(fstring record, TerarkContext* context);
+    TERARK_DLL_EXPORT size_t decode(fstring data, valvec<byte_t>* record, TerarkContext* context);
 
-    TERARK_DLL_EXPORT fstring encode_o1(fstring record, EntropyContext* context);
-    TERARK_DLL_EXPORT size_t decode_o1(fstring data, valvec<byte_t>* record, EntropyContext* context);
+    TERARK_DLL_EXPORT EntropyBytes encode_o1(fstring record, TerarkContext* context);
+    TERARK_DLL_EXPORT size_t decode_o1(fstring data, valvec<byte_t>* record, TerarkContext* context);
 
-    TERARK_DLL_EXPORT fstring encode_o2(fstring record, EntropyContext* context);
-    TERARK_DLL_EXPORT size_t decode_o2(fstring data, valvec<byte_t>* record, EntropyContext* context);
+    TERARK_DLL_EXPORT EntropyBytes encode_o2(fstring record, TerarkContext* context);
+    TERARK_DLL_EXPORT size_t decode_o2(fstring data, valvec<byte_t>* record, TerarkContext* context);
 
     class TERARK_DLL_EXPORT encoder {
     public:
@@ -47,15 +47,15 @@ namespace terark { namespace rANS_static_64 {
 
         const valvec<byte_t>& table() const;
 
-        fstring encode   (fstring record, EntropyContext* context) const;
-        fstring encode_x1(fstring record, EntropyContext* context) const;
-        fstring encode_x2(fstring record, EntropyContext* context) const;
-        fstring encode_x4(fstring record, EntropyContext* context) const;
-        fstring encode_x8(fstring record, EntropyContext* context) const;
+        EntropyBytes encode   (fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x1(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x2(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x4(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x8(fstring record, TerarkContext* context) const;
 
     private:
         template<size_t N>
-        fstring encode_xN(fstring record, EntropyContext* context, bool check) const;
+        EntropyBytes encode_xN(fstring record, TerarkContext* context, bool check) const;
 
         Rans64EncSymbol syms_[256];
         valvec<byte_t> table_;
@@ -68,15 +68,15 @@ namespace terark { namespace rANS_static_64 {
 
         void init(fstring table, size_t* psize);
 
-        size_t decode   (fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
+        size_t decode   (fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
 
     private:
         template<size_t N>
-        size_t decode_xN(fstring data, valvec<byte_t>* record, EntropyContext* context, bool check) const;
+        size_t decode_xN(fstring data, valvec<byte_t>* record, TerarkContext* context, bool check) const;
 
         Rans64DecSymbol syms_[256];
         byte_t ari_[TOTFREQ];
@@ -91,15 +91,15 @@ namespace terark { namespace rANS_static_64 {
 
         const valvec<byte_t>& table() const;
 
-        fstring encode   (fstring record, EntropyContext* context) const;
-        fstring encode_x1(fstring record, EntropyContext* context) const;
-        fstring encode_x2(fstring record, EntropyContext* context) const;
-        fstring encode_x4(fstring record, EntropyContext* context) const;
-        fstring encode_x8(fstring record, EntropyContext* context) const;
+        EntropyBytes encode   (fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x1(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x2(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x4(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x8(fstring record, TerarkContext* context) const;
 
     private:
         template<size_t N>
-        fstring encode_xN(fstring record, EntropyContext* context, bool check) const;
+        EntropyBytes encode_xN(fstring record, TerarkContext* context, bool check) const;
 
         Rans64EncSymbol syms_[257][256];
         valvec<byte_t> table_;
@@ -112,15 +112,15 @@ namespace terark { namespace rANS_static_64 {
 
         void init(fstring table, size_t* psize);
 
-        size_t decode   (fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
+        size_t decode   (fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
 
     private:
         template<size_t N>
-        size_t decode_xN(fstring data, valvec<byte_t>* record, EntropyContext* context, bool check) const;
+        size_t decode_xN(fstring data, valvec<byte_t>* record, TerarkContext* context, bool check) const;
 
         Rans64DecSymbol syms_[257][256];
         byte_t ari_[257][TOTFREQ];
@@ -136,15 +136,15 @@ namespace terark { namespace rANS_static_64 {
 
         const valvec<byte_t>& table() const;
 
-        fstring encode(fstring record, EntropyContext* context) const;
-        fstring encode_x1(fstring record, EntropyContext* context) const;
-        fstring encode_x2(fstring record, EntropyContext* context) const;
-        fstring encode_x4(fstring record, EntropyContext* context) const;
-        fstring encode_x8(fstring record, EntropyContext* context) const;
+        EntropyBytes encode   (fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x1(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x2(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x4(fstring record, TerarkContext* context) const;
+        EntropyBytes encode_x8(fstring record, TerarkContext* context) const;
 
     private:
         template<size_t N>
-        fstring encode_xN(fstring record, EntropyContext* context, bool check) const;
+        EntropyBytes encode_xN(fstring record, TerarkContext* context, bool check) const;
 
         Rans64EncSymbol syms_[257][257][256];
         valvec<byte_t> table_;
@@ -157,15 +157,15 @@ namespace terark { namespace rANS_static_64 {
 
         void init(fstring table, size_t* psize);
 
-        size_t decode(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-        size_t decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
+        size_t decode   (fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+        size_t decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
 
     private:
         template<size_t N>
-        size_t decode_xN(fstring data, valvec<byte_t>* record, EntropyContext* context, bool check) const;
+        size_t decode_xN(fstring data, valvec<byte_t>* record, TerarkContext* context, bool check) const;
 
         struct Symbol {
             uint16_t start[256];

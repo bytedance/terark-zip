@@ -263,21 +263,22 @@ const {
     size_t BegEnd[2];
     m_offsets.get2(recID, BegEnd);
     assert(BegEnd[0] <= BegEnd[1]);
-    auto ctx = GetTlsEntropyContext();
+    auto ctx = GetTlsTerarkContext();
     EntropyBits bits = {
-        (byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0]
+        (byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0], {}
     };
+    auto ctx_data = ctx->alloc();
     bool ok;
     if (Order == 0) {
-        ok = m_decoder_o0->bitwise_decode(bits, &ctx->data, ctx);
+        ok = m_decoder_o0->bitwise_decode(bits, &ctx_data.get(), ctx);
     } else {
-        ok = m_decoder_o1->bitwise_decode_x1(bits, &ctx->data, ctx);
+        ok = m_decoder_o1->bitwise_decode_x1(bits, &ctx_data.get(), ctx);
     }
     if (!ok) {
         THROW_STD(logic_error, "EntropyZipBlobStore Huffman decode error");
     }
     assert(ok); (void)ok;
-    recData->append(ctx->data);
+    recData->append(ctx_data.get());
 }
 
 template<size_t Order>
@@ -296,20 +297,21 @@ const {
     }
     size_t inBlockID = recID & mask;
     size_t BegEnd[2] = { co->offsets[inBlockID], co->offsets[inBlockID+1] };
-    auto ctx = GetTlsEntropyContext();
+    auto ctx = GetTlsTerarkContext();
     EntropyBits bits = {
-        (byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0]
+        (byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0], {}
     };
+    auto ctx_data = ctx->alloc();
     bool ok;
     if (Order == 0) {
-        ok = m_decoder_o0->bitwise_decode(bits, &ctx->data, ctx);
+        ok = m_decoder_o0->bitwise_decode(bits, &ctx_data.get(), ctx);
     } else {
-        ok = m_decoder_o1->bitwise_decode_x1(bits, &ctx->data, ctx);
+        ok = m_decoder_o1->bitwise_decode_x1(bits, &ctx_data.get(), ctx);
     }
     if (!ok) {
         THROW_STD(logic_error, "EntropyZipBlobStore Huffman decode error");
     }
-    co->recData.append(ctx->data);
+    co->recData.append(ctx_data.get());
 }
 
 template<size_t Order>
@@ -329,20 +331,21 @@ const {
     size_t offset = sizeof(FileHeader) + byte_beg;
     auto pData = fspread(lambda, baseOffset + offset, byte_end - byte_beg, rdbuf);
     assert(NULL != pData);
-    auto ctx = GetTlsEntropyContext();
+    auto ctx = GetTlsTerarkContext();
     EntropyBits bits = {
-        (byte_t*)pData, BegEnd[0] - byte_beg * 8, BegEnd[1] - BegEnd[0]
+        (byte_t*)pData, BegEnd[0] - byte_beg * 8, BegEnd[1] - BegEnd[0], {}
     };
+    auto ctx_data = ctx->alloc();
     bool ok;
     if (Order == 0) {
-        ok = m_decoder_o0->bitwise_decode(bits, &ctx->data, ctx);
+        ok = m_decoder_o0->bitwise_decode(bits, &ctx_data.get(), ctx);
     } else {
-        ok = m_decoder_o1->bitwise_decode_x1(bits, &ctx->data, ctx);
+        ok = m_decoder_o1->bitwise_decode_x1(bits, &ctx_data.get(), ctx);
     }
     if (!ok) {
         THROW_STD(logic_error, "EntropyZipBlobStore Huffman decode error");
     }
-    recData->append(ctx->data);
+    recData->append(ctx_data.get());
 }
 
 void EntropyZipBlobStore::reorder_zip_data(ZReorderMap& newToOld,
@@ -393,7 +396,7 @@ const {
         size_t oldId = *newToOld;
         size_t BegEnd[2];
         m_offsets.get2(oldId, BegEnd);
-        EntropyBits bits = {(byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0]};
+        EntropyBits bits = {(byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0], {}};
         writer.write(bits);
     }
     writer.finish();
@@ -425,7 +428,7 @@ class EntropyZipBlobStore::MyBuilder::Impl : boost::noncopyable {
     std::unique_ptr<Huffman::encoder_o1> m_encoder_o1;
     std::function<void(const void*, size_t)> m_output;
     EntropyBitsWriter<std::function<void(const void*, size_t)>> m_bitWriter;
-    EntropyContext m_ctx;
+    TerarkContext m_ctx;
     size_t m_offset;
     size_t m_raw_size;
     size_t m_output_size;
