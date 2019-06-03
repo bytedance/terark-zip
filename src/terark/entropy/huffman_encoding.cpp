@@ -435,15 +435,16 @@ void encoder::take_table(valvec<byte_t>* ptr) {
     *ptr = std::move(table_);
 }
 
-fstring encoder::encode(fstring record, EntropyContext* context) const {
+EntropyBytes encoder::encode(fstring record, TerarkContext* context) const {
     auto bits = bitwise_encode(record, context);
-    return EntropyBitsToBytes(&bits, context);
+    return EntropyBitsToBytes(&bits);
 }
 
-EntropyBits encoder::bitwise_encode(fstring record, EntropyContext* context) const {
-    context->buffer.ensure_capacity(record.size() * 5 / 4 + 8);
+EntropyBits encoder::bitwise_encode(fstring record, TerarkContext* context) const {
+    auto ctx_buffer = context->alloc();
+    ctx_buffer.ensure_capacity(record.size() * 5 / 4 + 8);
     const byte_t* data = record.udata();
-    EntropyBitsReverseWriter<valvec<byte_t>> writer(&context->buffer);
+    EntropyBitsReverseWriter<ContextBuffer> writer(&ctx_buffer);
     HuffmanState huf = { (uint64_t)0, (size_t)0 };
     for (intptr_t i = (intptr_t)record.size() - 1; i >= 0; --i) {
         HuffmanEncPutSymbol(&huf, syms_[data[i]]);
@@ -453,7 +454,7 @@ EntropyBits encoder::bitwise_encode(fstring record, EntropyContext* context) con
         }
     }
     HuffmanEncFlush(&huf, &writer);
-    return writer.finish();
+    return writer.finish(&ctx_buffer);
 }
 
 // --------------------------------------------------------------------------
@@ -489,12 +490,12 @@ void decoder::init(fstring table, size_t* psize) {
     }
 }
 
-bool decoder::decode(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder::decode(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     auto bits = EntropyBytesToBits(data);
     return bitwise_decode(bits, record, context);
 }
 
-bool decoder::bitwise_decode(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder::bitwise_decode(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     record->risk_set_size(0);
 
     EntropyBitsReader reader(data);
@@ -579,7 +580,6 @@ void encoder_o1::init(const freq_hist_o1::histogram_t& hist) {
     }
     table_.risk_set_size(cp - table_.data());
     assert(table_.size() < 258 * 257 * 3);
-    EntropyContext context;
     freq_hist h;
     h.add_record(table_);
     h.finish();
@@ -587,7 +587,8 @@ void encoder_o1::init(const freq_hist_o1::histogram_t& hist) {
         h.normalise(NORMALISE);
     }
     encoder e(h.histogram());
-    auto table_huf = e.encode(table_, &context);
+    auto table_huf_bytes = e.encode(table_, GetTlsTerarkContext());
+    auto& table_huf = table_huf_bytes.data;
     if (table_huf.size() + e.table().size() + 1 < table_.size()) {
         table_[0] = 255;  // encoded
         size_t offset = 1;
@@ -608,30 +609,31 @@ void encoder_o1::take_table(valvec<byte_t>* ptr) {
     *ptr = std::move(table_);
 }
 
-fstring encoder_o1::encode_x1(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x1(fstring record, TerarkContext* context) const {
     auto bits = bitwise_encode_x1(record, context);
-    return EntropyBitsToBytes(&bits, context);
+    return EntropyBitsToBytes(&bits);
 }
 
-fstring encoder_o1::encode_x2(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x2(fstring record, TerarkContext* context) const {
     auto bits = bitwise_encode_x2(record, context);
-    return EntropyBitsToBytes(&bits, context);
+    return EntropyBitsToBytes(&bits);
 }
 
-fstring encoder_o1::encode_x4(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x4(fstring record, TerarkContext* context) const {
     auto bits = bitwise_encode_x4(record, context);
-    return EntropyBitsToBytes(&bits, context);
+    return EntropyBitsToBytes(&bits);
 }
 
-fstring encoder_o1::encode_x8(fstring record, EntropyContext* context) const {
+EntropyBytes encoder_o1::encode_x8(fstring record, TerarkContext* context) const {
     auto bits = bitwise_encode_x8(record, context);
-    return EntropyBitsToBytes(&bits, context);
+    return EntropyBitsToBytes(&bits);
 }
 
-EntropyBits encoder_o1::bitwise_encode_x1(fstring record, EntropyContext* context) const {
-    context->buffer.ensure_capacity(record.size() * 5 / 4 + 8);
+EntropyBits encoder_o1::bitwise_encode_x1(fstring record, TerarkContext* context) const {
+    auto ctx_buffer = context->alloc();
+    ctx_buffer.ensure_capacity(record.size() * 5 / 4 + 8);
     const byte_t* data = record.udata();
-    EntropyBitsReverseWriter<valvec<byte_t>> writer(&context->buffer);
+    EntropyBitsReverseWriter<ContextBuffer> writer(&ctx_buffer);
     HuffmanState huf = { (uint64_t)0, (size_t)0 };
     for (intptr_t i = (intptr_t)record.size() - 1; i >= 0; --i) {
         HuffmanEncPutSymbol(&huf, syms_[i == 0 ? 256 : data[i - 1]][data[i]]);
@@ -641,24 +643,25 @@ EntropyBits encoder_o1::bitwise_encode_x1(fstring record, EntropyContext* contex
         }
     }
     HuffmanEncFlush(&huf, &writer);
-    return writer.finish();
+    return writer.finish(&ctx_buffer);
 }
 
-EntropyBits encoder_o1::bitwise_encode_x2(fstring record, EntropyContext* context) const {
+EntropyBits encoder_o1::bitwise_encode_x2(fstring record, TerarkContext* context) const {
     return bitwise_encode_xN<2>(record, context);
 }
 
-EntropyBits encoder_o1::bitwise_encode_x4(fstring record, EntropyContext* context) const {
+EntropyBits encoder_o1::bitwise_encode_x4(fstring record, TerarkContext* context) const {
     return bitwise_encode_xN<4>(record, context);
 }
 
-EntropyBits encoder_o1::bitwise_encode_x8(fstring record, EntropyContext* context) const {
+EntropyBits encoder_o1::bitwise_encode_x8(fstring record, TerarkContext* context) const {
     return bitwise_encode_xN<8>(record, context);
 }
 
 template<size_t N>
-EntropyBits encoder_o1::bitwise_encode_xN(fstring record, EntropyContext* context) const {
-    context->buffer.ensure_capacity(record.size() * 5 / 4 + N * 8);
+EntropyBits encoder_o1::bitwise_encode_xN(fstring record, TerarkContext* context) const {
+    auto ctx_buffer = context->alloc();
+    ctx_buffer.ensure_capacity(record.size() * 5 / 4 + N * 8);
 
 #define w7 (N >= 8 ? 7 : 0)
 #define w6 (N >= 8 ? 6 : 0)
@@ -673,7 +676,7 @@ EntropyBits encoder_o1::bitwise_encode_xN(fstring record, EntropyContext* contex
     size_t record_size = record.size();
     HuffmanState huf_init = { (uint64_t)0, (size_t)0 };
 
-    EntropyBitsReverseWriter<valvec<byte_t>> writer(&context->buffer);
+    EntropyBitsReverseWriter<ContextBuffer> writer(&ctx_buffer);
     intptr_t i[N], e[N];
 
     if (w0 == 0) i[w0] = (intptr_t)record_size / N + (0 < record_size % N) - 1;
@@ -738,7 +741,7 @@ EntropyBits encoder_o1::bitwise_encode_xN(fstring record, EntropyContext* contex
 
 
     if (remain != N) {
-        EntropyBitsReader reader(writer.finish());
+        EntropyBitsReader reader(writer.finish(nullptr));
         HuffmanState huf[N];
         memset(huf, 0, sizeof huf);
 
@@ -825,7 +828,7 @@ EntropyBits encoder_o1::bitwise_encode_xN(fstring record, EntropyContext* contex
 
     }
 
-    return writer.finish();
+    return writer.finish(&ctx_buffer);
 
 #undef w7
 #undef w6
@@ -857,10 +860,9 @@ void decoder_o1::init(fstring table, size_t* psize) {
 
     valvec<byte_t> table_huf;
     if (*cp == 255) {
-        EntropyContext context;
         size_t read = 0;
         decoder d(table.substr(1), &read);
-        d.decode(table.substr(1 + read), &table_huf, &context);
+        d.decode(table.substr(1 + read), &table_huf, GetTlsTerarkContext());
         if (psize != nullptr) {
             *psize = table.size();
         }
@@ -906,27 +908,27 @@ void decoder_o1::init(fstring table, size_t* psize) {
 }
 
 
-bool decoder_o1::decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     auto bits = EntropyBytesToBits(data);
     return bitwise_decode_x1(bits, record, context);
 }
 
-bool decoder_o1::decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     auto bits = EntropyBytesToBits(data);
     return bitwise_decode_x2(bits, record, context);
 }
 
-bool decoder_o1::decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     auto bits = EntropyBytesToBits(data);
     return bitwise_decode_x4(bits, record, context);
 }
 
-bool decoder_o1::decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const {
     auto bits = EntropyBytesToBits(data);
     return bitwise_decode_x8(bits, record, context);
 }
 
-bool decoder_o1::bitwise_decode_x1(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_x1(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     record->risk_set_size(0);
 
     EntropyBitsReader reader(data);
@@ -958,19 +960,20 @@ bool decoder_o1::bitwise_decode_x1(EntropyBits data, valvec<byte_t>* record, Ent
     return true;
 }
 
-bool decoder_o1::bitwise_decode_x2(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_x2(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     return bitwise_decode_xN<2>(data, record, context);
 }
 
 #ifdef __AVX2__
 
-bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_x4(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     constexpr size_t N = 4;
     record->risk_set_size(0);
 
     valvec<byte_t>* output;
     EntropyBitsReader reader(data);
-    output = &context->buffer;
+    auto ctx_output = context->alloc();
+    output = &ctx_output.get();
     output->risk_set_size(0);
     output->ensure_capacity(N);
 
@@ -1077,7 +1080,7 @@ bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, Ent
         if (remain == 2) writer.write(uint64_t(bits[2]) << (64 - BLOCK_BITS), bit_count);
         if (remain == 3) writer.write(uint64_t(bits[3]) << (64 - BLOCK_BITS), bit_count);
 
-        reader = writer.finish();
+        reader = writer.finish(nullptr);
         output->ensure_capacity(output->size() + N);
     }
 
@@ -1144,13 +1147,14 @@ bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, Ent
     return true;
 }
 
-bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_x8(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     constexpr size_t N = 8;
     record->risk_set_size(0);
 
     valvec<byte_t>* output;
     EntropyBitsReader reader(data);
-    output = &context->buffer;
+    auto ctx_output = context->alloc();
+    output = &ctx_output.get();
     output->risk_set_size(0);
     output->ensure_capacity(N);
 
@@ -1285,7 +1289,7 @@ bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, Ent
         if (remain == 6) writer.write(uint64_t(bits[6]) << (64 - BLOCK_BITS), bit_count);
         if (remain == 7) writer.write(uint64_t(bits[7]) << (64 - BLOCK_BITS), bit_count);
 
-        reader = writer.finish();
+        reader = writer.finish(nullptr);
         output->ensure_capacity(output->size() + N);
     }
 
@@ -1370,18 +1374,18 @@ bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, Ent
 
 #else
 
-bool decoder_o1::bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_x4(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     return bitwise_decode_xN<4>(data, record, context);
 }
 
-bool decoder_o1::bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_x8(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     return bitwise_decode_xN<8>(data, record, context);
 }
 
 #endif
 
 template<size_t N>
-bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const {
+bool decoder_o1::bitwise_decode_xN(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const {
     record->risk_set_size(0);
 
 #define w0 0
@@ -1395,11 +1399,13 @@ bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, Ent
 
     valvec<byte_t>* output;
     EntropyBitsReader reader(data);
+    ContextBuffer ctx_output;
     if (N == 1) {
         output = record;
     }
     else {
-        output = &context->buffer;
+        ctx_output = context->alloc();
+        output = &ctx_output.get();
         output->risk_set_size(0);
     }
     output->ensure_capacity(N);
@@ -1593,7 +1599,7 @@ bool decoder_o1::bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, Ent
         if (w6 == 6 && remain == 6) writer.write(uint64_t(bits[w6]) << (64 - BLOCK_BITS), bit_count);
         if (w7 == 7 && remain == 7) writer.write(uint64_t(bits[w7]) << (64 - BLOCK_BITS), bit_count);
 
-        reader = writer.finish();
+        reader = writer.finish(nullptr);
         output->ensure_capacity(output->size() + N);
     }
 

@@ -25,9 +25,9 @@ public:
     const valvec<byte_t>& table() const;
     void take_table(valvec<byte_t>* ptr);
 
-    fstring encode(fstring record, EntropyContext* context) const;
+    EntropyBytes encode(fstring record, TerarkContext* context) const;
 
-    EntropyBits bitwise_encode(fstring record, EntropyContext* context) const;
+    EntropyBits bitwise_encode(fstring record, TerarkContext* context) const;
 
     HuffmanEncSymbol syms_[256];
     valvec<byte_t> table_;
@@ -40,9 +40,9 @@ public:
 
     void init(fstring table, size_t* psize);
 
-    bool decode(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
+    bool decode(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
 
-    bool bitwise_decode(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
+    bool bitwise_decode(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
 
 private:
     byte_t ari_[1u << BLOCK_BITS];
@@ -59,19 +59,19 @@ public:
     const valvec<byte_t>& table() const;
     void take_table(valvec<byte_t>* ptr);
 
-    fstring encode_x1(fstring record, EntropyContext* context) const;
-    fstring encode_x2(fstring record, EntropyContext* context) const;
-    fstring encode_x4(fstring record, EntropyContext* context) const;
-    fstring encode_x8(fstring record, EntropyContext* context) const;
+    EntropyBytes encode_x1(fstring record, TerarkContext* context) const;
+    EntropyBytes encode_x2(fstring record, TerarkContext* context) const;
+    EntropyBytes encode_x4(fstring record, TerarkContext* context) const;
+    EntropyBytes encode_x8(fstring record, TerarkContext* context) const;
 
-    EntropyBits bitwise_encode_x1(fstring record, EntropyContext* context) const;
-    EntropyBits bitwise_encode_x2(fstring record, EntropyContext* context) const;
-    EntropyBits bitwise_encode_x4(fstring record, EntropyContext* context) const;
-    EntropyBits bitwise_encode_x8(fstring record, EntropyContext* context) const;
+    EntropyBits bitwise_encode_x1(fstring record, TerarkContext* context) const;
+    EntropyBits bitwise_encode_x2(fstring record, TerarkContext* context) const;
+    EntropyBits bitwise_encode_x4(fstring record, TerarkContext* context) const;
+    EntropyBits bitwise_encode_x8(fstring record, TerarkContext* context) const;
 
 private:
     template<size_t N>
-    EntropyBits bitwise_encode_xN(fstring record, EntropyContext* context) const;
+    EntropyBits bitwise_encode_xN(fstring record, TerarkContext* context) const;
 
     HuffmanEncSymbol syms_[257][256];
     valvec<byte_t> table_;
@@ -84,19 +84,19 @@ public:
 
     void init(fstring table, size_t* psize);
 
-    bool decode_x1(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-    bool decode_x2(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-    bool decode_x4(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
-    bool decode_x8(fstring data, valvec<byte_t>* record, EntropyContext* context) const;
+    bool decode_x1(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+    bool decode_x2(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+    bool decode_x4(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
+    bool decode_x8(fstring data, valvec<byte_t>* record, TerarkContext* context) const;
 
-    bool bitwise_decode_x1(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
-    bool bitwise_decode_x2(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
-    bool bitwise_decode_x4(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
-    bool bitwise_decode_x8(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
+    bool bitwise_decode_x1(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
+    bool bitwise_decode_x2(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
+    bool bitwise_decode_x4(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
+    bool bitwise_decode_x8(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
 
 private:
     template<size_t N>
-    bool bitwise_decode_xN(EntropyBits data, valvec<byte_t>* record, EntropyContext* context) const;
+    bool bitwise_decode_xN(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
 
     byte_t ari_[257][1u << BLOCK_BITS];
     uint8_t cnt_[257][256];
