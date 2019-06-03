@@ -53,7 +53,6 @@ const {
 			return NestLoudsTrie_label_first_byte_nested(m_next_trie, next_id);
 		}
 		else {
-			uint64_t linkVal = uint64_t(link_hig) << 8 | link_low;
 			size_t offset = size_t(linkVal >> m_core_len_bits);
 #if !defined(NDEBUG)
 			size_t length = size_t(linkVal &  m_core_len_mask);
