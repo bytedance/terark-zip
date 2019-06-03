@@ -11,8 +11,7 @@ git submodule update --init
 
 rm -rf pkg
 
-PKG_WITH_DBG=1 make pkg -j $cpuNum
-
+make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
 
 # move all binaries to output/ dir for next CICD steps
 WITH_BMI2=`./cpu_has_bmi2.sh`

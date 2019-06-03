@@ -6,7 +6,7 @@
 //#include <boost/static_assert.hpp>
 #include "config.hpp"
 
-#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 4005
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__+0 >= 4005 || defined(__clang__)
 	#include <x86intrin.h>
 #endif
 
