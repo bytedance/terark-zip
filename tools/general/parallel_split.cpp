@@ -17,10 +17,15 @@ void fuck_write(size_t tid, int fd, const void* vbuf, size_t len) {
         intptr_t len1 = std::min(len, size_t(1)<<30);
         intptr_t len2 = write(fd, pbuf, len1);
         if (len2 != len1) {
-            int ret = errno;
-            fprintf(stderr, "ERROR: tid = %zd, write(fd=%d, len=%zd) = %zd : %s\n"
-                          , tid, fd, len1, len2, strerror(ret));
-            exit(ret);
+            int err = errno;
+            if (err || len2 < 0) {
+                fprintf(stderr, "ERROR: tid = %zd, write(fd=%d, len=%zd) = %zd : %s\n"
+                              , tid, fd, len1, len2, strerror(err));
+                exit(err);
+            }
+            else {
+                // may interrupted by an harmless signal such as SIGSTOP
+            }
         }
         remain -= len2;
         pbuf += len2;

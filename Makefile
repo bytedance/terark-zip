@@ -458,6 +458,7 @@ tgz : ${TarBall}.tgz
 ${TarBall}: ${core} ${fsa} ${zbs}
 	+make -C tools/fsa
 	+make -C tools/zbs
+	+make -C tools/general
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
