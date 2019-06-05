@@ -26,16 +26,30 @@ protected:
             if (!owner->m_is_dying) { // is called by thread die
                 // put into free list, to be reused by another thread
                 if (owner->reuse(t)) {
-                    owner->m_tls_mtx.lock();
-                    t->m_next_free = owner->m_first_free;
-                    owner->m_first_free = t;
-                    owner->m_free_cnt++;
-                    owner->m_tls_mtx.unlock();
+                    push_head(owner, t);
                 }
                 else {
                     delete t;
                 }
             }
+        }
+        void push_head(Owner* owner, TlsMember* t) {
+        #if 1
+            owner->m_free_cnt++;
+            auto old_head = as_atomic(owner->m_first_free).load(std::memory_order_relaxed);
+            do {
+                t->m_next_free = old_head;
+            } while (!as_atomic(owner->m_first_free).compare_exchange_weak(
+                         old_head, t,
+                         std::memory_order_release,
+                         std::memory_order_relaxed));
+        #else
+            owner->m_tls_mtx.lock();
+            t->m_next_free = owner->m_first_free;
+            owner->m_first_free = t;
+            owner->m_free_cnt++;
+            owner->m_tls_mtx.unlock();
+        #endif
         }
     };
     friend struct TlsPtr;
