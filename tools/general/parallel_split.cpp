@@ -2,9 +2,8 @@
 // Created by leipeng on 2019-05-27.
 //
 #include <terark/util/mmap.hpp>
-#include <terark/util/autoclose.hpp>
 #include <terark/valvec.hpp>
-#include <thread>
+#include <mutex>
 #include <fcntl.h>
 #include <getopt.h>
 
