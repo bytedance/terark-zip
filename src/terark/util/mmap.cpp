@@ -270,8 +270,10 @@ void parallel_for_lines(byte_t* base, size_t size, size_t num_threads,
     const function<void(size_t tid, byte_t* beg, byte_t* end)>& func)
 {
     assert(num_threads > 0);
+    if (0 == num_threads)
+        return;
     valvec<std::thread> thrVec(num_threads, valvec_reserve());
-    size_t part_len = size / thrVec.capacity();
+    size_t part_len = size / num_threads;
     auto finish_ptr = (byte_t*)base + size;
     auto thread_fun = [&](size_t tid) {
         byte_t* beg = (byte_t*)base + part_len * tid;
@@ -282,10 +284,11 @@ void parallel_for_lines(byte_t* base, size_t size, size_t num_threads,
         end = adjust_bondary(end, finish_ptr);
         func(tid, beg, end);
     };
-    for (size_t i = 0; i < thrVec.capacity(); ++i) {
-        thrVec.unchecked_emplace_back([=](){thread_fun(i);});
+    for (size_t i = 0; i + 1 < num_threads; ++i) {
+        thrVec.unchecked_emplace_back([&,i](){thread_fun(i);});
     }
-    assert(thrVec.size() == thrVec.capacity());
+    assert(thrVec.size() + 1 == num_threads);
+    thread_fun(num_threads-1); // last partition
     for (auto& t : thrVec) {
         t.join();
     }
