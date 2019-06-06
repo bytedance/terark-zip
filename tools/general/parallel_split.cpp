@@ -6,6 +6,7 @@
 #include <terark/valvec.hpp>
 #include <thread>
 #include <fcntl.h>
+#include <getopt.h>
 
 using namespace terark;
 
@@ -32,14 +33,53 @@ void fuck_write(size_t tid, int fd, const void* vbuf, size_t len) {
     }
 }
 
+int usage(const char* prog) {
+    fprintf(stderr, "usage: %s input output1 output2 ...\n", prog);
+    fprintf(stderr, "  -- or\n");
+    fprintf(stderr, "usage: %s -l num_threads input\n", prog);
+    return 1;
+}
+
 int main(int argc, char* argv[]) {
-    if (argc < 3) {
-        fprintf(stderr, "usage: %s input output1 output2 ...\n", argv[0]);
+    intptr_t num_threads_for_list = 0;
+    for (;;) {
+        int opt = getopt(argc, argv, "l:");
+        switch (opt) {
+        case 'l':
+            num_threads_for_list = atoi(optarg);
+            if (num_threads_for_list <= 0) {
+                return usage(argv[0]);
+            }
+            break;
+        case '?':
+            return usage(argv[0]);
+		case -1:
+			goto GetoptDone;
+        }
+    }
+GetoptDone:
+    if (optind + 2 < argc) {
         return 1;
     }
-    const char* fname = argv[1];
+    const char* fname = argv[optind];
     try {
         MmapWholeFile mmap(fname);
+        if (num_threads_for_list) {
+            valvec<std::pair<size_t, size_t> >
+                    poslen(num_threads_for_list, valvec_reserve());
+            std::mutex mtx;
+            mmap.parallel_for_lines(num_threads_for_list,
+            [&](size_t, byte_t* beg, byte_t* end) {
+                mtx.lock();
+                poslen.emplace_back(beg - (byte_t*)mmap.base, end-beg);
+                mtx.unlock();
+            });
+            std::sort(poslen.begin(), poslen.end());
+            for (intptr_t i = 0; i < num_threads_for_list; ++i) {
+                printf("%zd\t%zd\t%zd\n", i, poslen[i].first, poslen[i].second);
+            }
+            return 0;
+        }
         int ret = 0; // success
         mmap.parallel_for_lines(argc-2,
                 [&](size_t tid, byte_t* beg, byte_t* end) {
