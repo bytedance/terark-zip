@@ -32,13 +32,6 @@ void fuck_write(size_t tid, int fd, const void* vbuf, size_t len) {
     }
 }
 
-const byte_t* adjust_bondary(const byte_t* ptr, const byte_t* end) {
-#define isnewline(c) ('\n' == c || '\r' == c)
-    while (ptr < end && !isnewline(*ptr)) ++ptr;
-    while (ptr < end &&  isnewline(*ptr)) ++ptr;
-    return ptr;
-}
-
 int main(int argc, char* argv[]) {
     if (argc < 3) {
         fprintf(stderr, "usage: %s input output1 output2 ...\n", argv[0]);
@@ -47,34 +40,21 @@ int main(int argc, char* argv[]) {
     const char* fname = argv[1];
     try {
         MmapWholeFile mmap(fname);
-        valvec<std::thread> thrVec(argc - 2, valvec_reserve());
-        size_t ptlen = mmap.size / thrVec.capacity();
-        auto finish = (const byte_t*)mmap.base + mmap.size;
         int ret = 0; // success
-        auto tfunc = [&](size_t tid) {
-            const byte_t* beg = (const byte_t*)mmap.base + ptlen * tid;
-            const byte_t* end = beg + ptlen;
-            if (0 != tid) {
-                beg = adjust_bondary(beg, end);
-            }
-            end = adjust_bondary(end, finish);
+        mmap.parallel_for_lines(argc-2,
+                [&](size_t tid, byte_t* beg, byte_t* end) {
             const char* ofname = argv[2 + tid];
             int fd = open(ofname, O_WRONLY|O_CREAT, 0600);
             if (fd < 0) {
                 ret = errno;
-                fprintf(stderr, "ERROR: open(%s, O_WRONLY|O_CREAT) = %s\n", ofname, strerror(ret));
+                fprintf(stderr,
+                        "ERROR: tid = %zd, open(%s, O_WRONLY|O_CREAT) = %s\n",
+                        tid, ofname, strerror(ret));
                 return;
             }
             fuck_write(tid, fd, beg, end - beg);
             close(fd);
-        };
-        for (size_t i = 0; i < thrVec.capacity(); ++i) {
-            thrVec.unchecked_emplace_back([=](){tfunc(i);});
-        }
-        assert(thrVec.size() == thrVec.capacity());
-        for (auto& t : thrVec) {
-            t.join();
-        }
+        });
         return ret;
     }
     catch (const std::exception& ex) {

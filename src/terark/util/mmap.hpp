@@ -5,6 +5,7 @@
 #include <utility>
 #include "../config.hpp"
 #include "../fstring.hpp"
+#include "function.hpp"
 
 namespace terark {
 
@@ -33,7 +34,11 @@ void* mmap_write(const String& fname, size_t* size, intptr_t* pfd) {
 TERARK_DLL_EXPORT
 void  mmap_close(void* base, size_t size, intptr_t fd);
 
-class MmapWholeFile {
+TERARK_DLL_EXPORT
+void parallel_for_lines(byte_t* base, size_t size, size_t num_threads,
+    const function<void(size_t tid, byte_t* beg, byte_t* end)>& func);
+
+class TERARK_DLL_EXPORT MmapWholeFile {
 	MmapWholeFile(const MmapWholeFile&);
 	MmapWholeFile& operator=(const MmapWholeFile&);
 
@@ -66,6 +71,12 @@ public:
 
 	fstring memory() const {
 		return fstring{(const char*)base, (ptrdiff_t)size};
+	}
+
+	void parallel_for_lines(size_t num_threads,
+	                        const function<void(size_t tid, byte_t*beg,byte_t*end)>&func)
+	const {
+	    terark::parallel_for_lines((byte_t*)base, size, num_threads, func);
 	}
 };
 

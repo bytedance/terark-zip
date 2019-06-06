@@ -1,9 +1,11 @@
 #include "mmap.hpp"
 #include "autofree.hpp"
 #include "throw.hpp"
+#include <terark/valvec.hpp>
 #include <stdio.h>
 #include <string.h>
 #include <stdexcept>
+#include <thread>
 
 #ifdef _MSC_VER
 	#define NOMINMAX
@@ -254,6 +256,39 @@ void  mmap_close(void* base, size_t size, intptr_t fd) {
 	::munmap(base, size);
     ::close(int(fd));
 #endif
+}
+
+static byte_t* adjust_bondary(byte_t* ptr, byte_t* end) {
+#define isnewline(c) ('\n' == c || '\r' == c)
+    while (ptr < end && !isnewline(*ptr)) ++ptr;
+    while (ptr < end &&  isnewline(*ptr)) ++ptr;
+    return ptr;
+}
+
+TERARK_DLL_EXPORT
+void parallel_for_lines(byte_t* base, size_t size, size_t num_threads,
+    const function<void(size_t tid, byte_t* beg, byte_t* end)>& func)
+{
+    assert(num_threads > 0);
+    valvec<std::thread> thrVec(num_threads, valvec_reserve());
+    size_t part_len = size / thrVec.capacity();
+    auto finish_ptr = (byte_t*)base + size;
+    auto thread_fun = [&](size_t tid) {
+        byte_t* beg = (byte_t*)base + part_len * tid;
+        byte_t* end = tid+1 < num_threads ? beg + part_len : finish_ptr;
+        if (0 != tid) {
+            beg = adjust_bondary(beg, end);
+        }
+        end = adjust_bondary(end, finish_ptr);
+        func(tid, beg, end);
+    };
+    for (size_t i = 0; i < thrVec.capacity(); ++i) {
+        thrVec.unchecked_emplace_back([=](){thread_fun(i);});
+    }
+    assert(thrVec.size() == thrVec.capacity());
+    for (auto& t : thrVec) {
+        t.join();
+    }
 }
 
 } // namespace terark
