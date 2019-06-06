@@ -14,7 +14,7 @@ void fuck_write(size_t tid, int fd, const void* vbuf, size_t len) {
     const char* pbuf = (const char*)vbuf;
     size_t remain = len;
     while (remain) {
-        intptr_t len1 = std::min(len, size_t(1)<<30);
+        intptr_t len1 = std::min(remain, size_t(1)<<30);
         intptr_t len2 = write(fd, pbuf, len1);
         if (len2 != len1) {
             int err = errno;
