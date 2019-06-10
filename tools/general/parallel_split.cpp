@@ -57,8 +57,8 @@ int main(int argc, char* argv[]) {
         }
     }
 GetoptDone:
-    if (optind + 2 < argc) {
-        return 1;
+    if (argc < optind + 2) {
+        return usage(argv[0]);
     }
     const char* fname = argv[optind];
     try {
