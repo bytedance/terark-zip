@@ -16,9 +16,8 @@ ifeq "$(origin CC)" "default"
 endif
 
 # Makefile is stupid to parsing $(shell echo ')')
-tmpfile := $(shell mktemp compiler-XXXXXX)
+tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe && rm -f ${tmpfile}*)
-#$(warning COMPILER=${COMPILER})
 UNAME_MachineSystem := $(shell uname -m -s | sed 's:[ /]:-:g')
 BUILD_NAME := ${UNAME_MachineSystem}-${COMPILER}-bmi2-${WITH_BMI2}
 BUILD_ROOT := build/${BUILD_NAME}
@@ -224,9 +223,9 @@ core_a_o := $(call objs,core,a)
 core_d := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-d${DLL_SUFFIX}
 core_r := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-r${DLL_SUFFIX}
 core_a := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-a${DLL_SUFFIX}
-static_core_d := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-d.a
-static_core_r := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-r.a
-static_core_a := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-a.a
+static_core_d := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-d.a
+static_core_r := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-r.a
+static_core_a := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-a.a
 
 fsa_d_o := $(call objs,fsa,d)
 fsa_r_o := $(call objs,fsa,r)
@@ -234,9 +233,9 @@ fsa_a_o := $(call objs,fsa,a)
 fsa_d := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-d${DLL_SUFFIX}
 fsa_r := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-r${DLL_SUFFIX}
 fsa_a := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-a${DLL_SUFFIX}
-static_fsa_d := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-d.a
-static_fsa_r := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-r.a
-static_fsa_a := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-a.a
+static_fsa_d := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-d.a
+static_fsa_r := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-r.a
+static_fsa_a := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-a.a
 
 zbs_d_o := $(call objs,zbs,d)
 zbs_r_o := $(call objs,zbs,r)
@@ -244,9 +243,9 @@ zbs_a_o := $(call objs,zbs,a)
 zbs_d := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-d${DLL_SUFFIX}
 zbs_r := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-r${DLL_SUFFIX}
 zbs_a := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-a${DLL_SUFFIX}
-static_zbs_d := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-d.a
-static_zbs_r := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-r.a
-static_zbs_a := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-a.a
+static_zbs_d := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-d.a
+static_zbs_r := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-r.a
+static_zbs_a := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-a.a
 
 rpc_d_o := $(call objs,rpc,d)
 rpc_r_o := $(call objs,rpc,r)
@@ -254,9 +253,9 @@ rpc_a_o := $(call objs,rpc,a)
 rpc_d := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-d${DLL_SUFFIX}
 rpc_r := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-r${DLL_SUFFIX}
 rpc_a := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-a${DLL_SUFFIX}
-static_rpc_d := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-d.a
-static_rpc_r := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-r.a
-static_rpc_a := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-a.a
+static_rpc_d := ${BUILD_ROOT}/lib_static/libterark-rpc-${COMPILER}-d.a
+static_rpc_r := ${BUILD_ROOT}/lib_static/libterark-rpc-${COMPILER}-r.a
+static_rpc_a := ${BUILD_ROOT}/lib_static/libterark-rpc-${COMPILER}-a.a
 
 core := ${core_d} ${core_r} ${core_a} ${static_core_d} ${static_core_r} ${static_core_a}
 fsa  := ${fsa_d}  ${fsa_r}  ${fsa_a}  ${static_fsa_d}  ${static_fsa_r}  ${static_fsa_a}
@@ -421,7 +420,7 @@ endif
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
 	@echo -e "OBJS:" $(addprefix "\n  ",$(sort $(filter %.o,$^) ${EXTRA_OBJECTS}))
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
-	@mkdir -p ${BUILD_ROOT}/lib
+	@mkdir -p $(dir $@)
 	@rm -f $@
 	${AR} rcs $@ $(filter %.o,$^) ${EXTRA_OBJECTS}
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
@@ -509,8 +508,8 @@ ifeq (${PKG_WITH_DBG},1)
 	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*a${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}d.a ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}a.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib_static/libterark-{fsa,zbs,core}-{${COMPILER}-,}d.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib_static/libterark-{fsa,zbs,core}-{${COMPILER}-,}a.a ${TarBall}/lib_static
   endif
 endif
 	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
@@ -518,7 +517,7 @@ endif
 	echo $(shell git log | head -n1) >> ${TarBall}/package.buildtime.txt
 ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-{${COMPILER}-,}r.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib_static/libterark-{fsa,zbs,core}-{${COMPILER}-,}r.a ${TarBall}/lib_static
 endif
 	cp -L tools/*/rls/*.exe ${TarBall}/bin/
 

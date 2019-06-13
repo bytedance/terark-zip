@@ -35,11 +35,10 @@ ifeq ($(shell uname), Linux)
 endif
 override LIBS += -lpthread
 
-tmpfile := $(shell mktemp compiler-XXXXXX)
+tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
 UNAME_MachineSystem := $(shell uname -m -s | sed 's:[ /]:-:g')
 UNAME_System := $(shell uname | sed 's/^\([0-9a-zA-Z]*\).*/\1/')
-COMPILER_LAZY = ${COMPILER}
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
   override CXXFLAGS += -fcolor-diagnostics
@@ -119,7 +118,6 @@ endif
 
 BUILD_NAME := ${UNAME_MachineSystem}-${COMPILER}-bmi2-${WITH_BMI2}
 BUILD_ROOT := build/${BUILD_NAME}
-LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib
 
 DBG_DIR := ${BUILD_ROOT}/dbg
 RLS_DIR := ${BUILD_ROOT}/rls
@@ -155,18 +153,21 @@ link : ${BINS_D} ${BINS_R} ${DLL_BINS_D} ${DLL_BINS_R}
 	done; cd ..
 
 ifeq (${STATIC},1)
+  LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
   ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
 ${BINS_D} : ${LIB_DIR}/libterark-core-${COMPILER}-d.a
 ${BINS_R} : ${LIB_DIR}/libterark-core-${COMPILER}-r.a
   endif
 else
+  LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib
   ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
 ${BINS_D} : ${LIB_DIR}/libterark-core-${COMPILER}-d${DLL_SUFFIX}
 ${BINS_R} : ${LIB_DIR}/libterark-core-${COMPILER}-r${DLL_SUFFIX}
   endif
+endif
+
 ${BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
 ${BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-r,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-r ${LIBS}
-endif
 
 clean :
 	rm -rf ${BUILD_ROOT} dbg rls
