@@ -18,16 +18,18 @@ class TerarkContext;
 
 class ContextBuffer {
 private:
-    friend class TerarkContext;
+    valvec<byte_t> b_;
     TerarkContext *c_;
-    valvec<byte_t> *b_;
+
     ContextBuffer(const ContextBuffer&) = delete;
     ContextBuffer& operator = (const ContextBuffer&) = delete;
 
 public:
-    ContextBuffer() : c_(nullptr), b_(nullptr) {}
-    ContextBuffer(ContextBuffer&& other) : c_(other.c_), b_(other.b_) {
-        other.b_ = nullptr;
+    ContextBuffer() : c_(nullptr) {}
+    ContextBuffer(valvec<byte_t> &&b, TerarkContext* c) : b_(std::move(b)), c_(c) {
+    }
+    ContextBuffer(ContextBuffer&& other) : b_(std::move(other.b_)), c_(other.c_) {
+        other.c_ = nullptr;
     }
     ContextBuffer& operator = (ContextBuffer&& other) {
         this->~ContextBuffer();
@@ -36,48 +38,45 @@ public:
     }
     ~ContextBuffer();
 
-    operator valvec<byte_t>&() noexcept { assert(b_ != nullptr); return *b_; }
-    operator fstring() noexcept { assert(b_ != nullptr); return *b_; }
-    valvec<byte_t>& get() noexcept { assert(b_ != nullptr); return *b_; }
+    TerarkContext* owner() const { return c_; }
 
-    byte_t* data() noexcept { assert(b_ != nullptr); return b_->data(); }
-    size_t size() noexcept { assert(b_ != nullptr); return b_->size(); }
-    size_t capacity() noexcept { assert(b_ != nullptr); return b_->capacity(); }
+    operator valvec<byte_t>&() noexcept { return b_; }
+    operator fstring() const noexcept { return b_; }
+    valvec<byte_t>& get() noexcept { return b_; }
 
-    void resize(size_t s, byte_t v = 0) { assert(b_ != nullptr); b_->resize(s, v); }
-    void resize_no_init(size_t s) { assert(b_ != nullptr); b_->resize_no_init(s); }
-    void ensure_capacity(size_t cap) { assert(b_ != nullptr); b_->ensure_capacity(cap); }
+    byte_t* data() noexcept { return b_.data(); }
+    size_t size() noexcept { return b_.size(); }
+    size_t capacity() noexcept { return b_.capacity(); }
+
+    void resize(size_t s, byte_t v = 0) { b_.resize(s, v); }
+    void resize_no_init(size_t s) { b_.resize_no_init(s); }
+    void ensure_capacity(size_t cap) { b_.ensure_capacity(cap); }
 };
 
 class TerarkContext {
 private:
     friend class ContextBuffer;
-    valvec<byte_t> *list_ = nullptr;
+    struct BufferList {
+        BufferList* next;
+        size_t c;
+    };
+    BufferList *list_ = nullptr;
+
     TerarkContext(const ContextBuffer&) = delete;
     TerarkContext(ContextBuffer&&) = delete;
     TerarkContext& operator = (const ContextBuffer&) = delete;
     TerarkContext& operator = (ContextBuffer&&) = delete;
 public:
     TerarkContext() = default;
-
-    ContextBuffer alloc() {
-        ContextBuffer cb;
-        cb.c_ = this;
-        if (list_ == nullptr) {
-            cb.b_ = new valvec<byte_t>();
-        } else {
-            cb.b_ = list_;
-            list_ = reinterpret_cast<valvec<byte_t>*>(list_->size());
-        }
-        return cb;
-    }
     ~TerarkContext() {
         while (list_ != nullptr) {
-            auto l = list_;
-            list_ = reinterpret_cast<valvec<byte_t>*>(l->size());
-            delete l;
+            auto l = list_->next;
+            valvec<byte_t>().risk_set_data(reinterpret_cast<byte_t*>(list_), list_->c);
+            list_ = l;
         }
     }
+
+    ContextBuffer alloc(size_t size = 0);
 };
 
 class TerarkContext* GetTlsTerarkContext();

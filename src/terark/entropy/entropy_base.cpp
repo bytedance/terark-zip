@@ -8,15 +8,38 @@ namespace terark {
 
 
 ContextBuffer::~ContextBuffer() {
-    if (b_ == nullptr) {
-        return;
+    if (c_ != nullptr && b_.capacity() >= sizeof(TerarkContext::BufferList) && b_.capacity() < (1ull << 20)) {
+        auto node = reinterpret_cast<TerarkContext::BufferList*>(b_.data());
+        node->c = b_.capacity();
+        b_.risk_release_ownership();
+        node->next = c_->list_;
+        c_->list_ = node;
     }
-    if (c_ == nullptr || b_->capacity() > 65536) {
-        delete b_;
-    } else {
-        b_->risk_set_size(reinterpret_cast<size_t>(c_->list_));
-        c_->list_ = b_;
+}
+
+ContextBuffer TerarkContext::alloc(size_t size) {
+    size_t m = std::max(size, sizeof(BufferList));
+    if (list_ == nullptr) {
+        return ContextBuffer(valvec<byte_t>(size > 0 ? m : 0, valvec_reserve()), this);
     }
+    BufferList **node = &list_;
+    size_t c = list_->c;
+    BufferList *n = list_;
+    for (size_t r = size == 0 ? size_t(-1) : size; n->next != nullptr; n = n->next) {
+        size_t nc = n->next->c;
+        if (c >= r ? nc >= r && nc < c : nc > c) {
+            node = &n->next;
+            c = nc;
+        }
+    }
+    n = *node;
+    auto next = n->next;
+    valvec<byte_t> b;
+    b.risk_set_data(reinterpret_cast<byte_t*>(n));
+    b.risk_set_capacity(n->c);
+    b.ensure_capacity(m);
+    *node = next;
+    return ContextBuffer(std::move(b), this);
 }
 
 TerarkContext* GetTlsTerarkContext() {
