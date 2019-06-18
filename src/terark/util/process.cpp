@@ -30,7 +30,7 @@ namespace terark {
         }
         else if (childpid < 0) {
             int err = errno;
-            fprintf(stderr, "ERROR: vfork() = %s\n", cmd, strerror(err));
+            fprintf(stderr, "ERROR: vfork() = %s\n", strerror(err));
             return err;
         }
         int childstatus = 0;
