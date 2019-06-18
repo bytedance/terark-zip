@@ -25,13 +25,18 @@ namespace terark {
         if (0 == childpid) { // child process
             execl("/bin/sh", "-c", cmd, NULL);
             int err = errno;
-            fprintf(stderr, "execl /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
+            fprintf(stderr, "ERROR: execl /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
+            return err;
+        }
+        else if (childpid < 0) {
+            int err = errno;
+            fprintf(stderr, "ERROR: vfork() = %s\n", cmd, strerror(err));
             return err;
         }
         int childstatus = 0;
         int err = waitpid(childpid, &childstatus, 0);
         if (err) {
-            fprintf(stderr, "wait /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
+            fprintf(stderr, "ERROR: wait /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
             return err;
         }
         return childstatus;
