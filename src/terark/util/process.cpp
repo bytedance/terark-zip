@@ -25,7 +25,7 @@ namespace terark {
         if (0 == childpid) { // child process
             execl("/bin/sh", "-c", cmd, NULL);
             int err = errno;
-            fprintf(stderr, "execlp /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
+            fprintf(stderr, "execl /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
             return err;
         }
         int childstatus = 0;
