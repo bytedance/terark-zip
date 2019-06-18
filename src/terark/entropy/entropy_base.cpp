@@ -200,6 +200,7 @@ freq_hist_o1::freq_hist_o1(bool r1, size_t min_len, size_t max_len) {
 
 void freq_hist_o1::clear() {
     memset(&hist_, 0, sizeof hist_);
+    memset(&o1_, 0, sizeof o1_);
 }
 
 void freq_hist_o1::reset1() {
@@ -208,6 +209,7 @@ void freq_hist_o1::reset1() {
     for (size_t i = 0; i < 65536; ++i) {
         ptr[i] = 1;
     }
+    memset(&o1_, 0, sizeof o1_);
     memset(hist_.o1_size, 0, sizeof hist_.o1_size);
     memset(hist_.o0, 0, sizeof hist_.o0);
 }
@@ -232,18 +234,19 @@ size_t freq_hist_o1::estimate_size(const histogram_t& hist) {
     return size_t(entropy * o0_size / 8);
 }
 
-size_t freq_hist_o1::estimate_size_unfinish(const histogram_t& hist) {
+size_t freq_hist_o1::estimate_size_unfinish(const freq_hist_o1& freq) {
+    auto& hist = freq.hist_;
     double entropy = 0;
     double o0_size = hist.o0_size;
     for (size_t i = 0; i < 256; ++i) {
         double o1_size = hist.o1_size[i];
         for (size_t j = 0; j < 256; ++j) {
-            o1_size += hist.o1[i][j];
+            o1_size += hist.o1[i][j] + freq.o1_[i][j];
         }
         double pp = o1_size / o0_size;
         for (size_t j = 0; j < 256; ++j) {
             if (hist.o1[i][j] > 0) {
-                double p = hist.o1[i][j] / o1_size;
+                double p = (hist.o1[i][j] + freq.o1_[i][j]) / o1_size;
                 entropy -= pp * p * log2(p);
             }
         }
@@ -251,17 +254,19 @@ size_t freq_hist_o1::estimate_size_unfinish(const histogram_t& hist) {
     return size_t(entropy * o0_size / 8);
 }
 
-size_t freq_hist_o1::estimate_size_unfinish(const histogram_t& hist0, const histogram_t& hist1) {
+size_t freq_hist_o1::estimate_size_unfinish(const freq_hist_o1& freq0, const freq_hist_o1& freq1) {
+    auto& hist0 = freq0.hist_;
+    auto& hist1 = freq1.hist_;
     double entropy = 0;
     double o0_size = hist0.o0_size + hist1.o0_size;
     for (size_t i = 0; i < 256; ++i) {
         double o1_size = hist0.o1_size[i] + hist1.o1_size[i];
         for (size_t j = 0; j < 256; ++j) {
-            o1_size += hist0.o1[i][j] + hist1.o1[i][j];
+            o1_size += hist0.o1[i][j] + hist1.o1[i][j] + freq0.o1_[i][j] + freq1.o1_[i][j];
         }
         double pp = o1_size / o0_size;
         for (size_t j = 0; j < 256; ++j) {
-            uint64_t o1_ij = hist0.o1[i][j] + hist1.o1[i][j];
+            uint64_t o1_ij = hist0.o1[i][j] + hist1.o1[i][j] + freq0.o1_[i][j] + freq1.o1_[i][j];
             if (o1_ij > 0) {
                 double p = o1_ij / o1_size;
                 entropy -= pp * p * log2(p);
@@ -285,7 +290,7 @@ void freq_hist_o1::add_record(fstring record) {
     const byte_t *in0 = record.udata();
     ++hist_.o0[l0 = *in0++];
     for (size_t i = 0, e = (record.size() - 1) % 8; i < e; ++i) {
-        ++hist_.o1[l0][c0 = *in0++]; l0 = c0;
+        if (o1_[l0][c0 = *in0++]++ == 255) { hist_.o1[l0][c0] += 256; } l0 = c0;
     }
     size_t idiv8 = (record.size() - 1) / 8;
     if (idiv8 == 0) {
@@ -310,36 +315,32 @@ void freq_hist_o1::add_record(fstring record) {
 
     const byte_t *in0_end = in1;
     while (in0 < in0_end) {
-        ++hist_.o1[l0][c0 = *in0++]; l0 = c0;
-        ++hist_.o1[l1][c1 = *in1++]; l1 = c1;
-        ++hist_.o1[l2][c2 = *in2++]; l2 = c2;
-        ++hist_.o1[l3][c3 = *in3++]; l3 = c3;
-        ++hist_.o1[l4][c4 = *in4++]; l4 = c4;
-        ++hist_.o1[l5][c5 = *in5++]; l5 = c5;
-        ++hist_.o1[l6][c6 = *in6++]; l6 = c6;
-        ++hist_.o1[l7][c7 = *in7++]; l7 = c7;
+        if (o1_[l0][c0 = *in0++]++ == 255) { hist_.o1[l0][c0] += 256; } l0 = c0;
+        if (o1_[l1][c1 = *in1++]++ == 255) { hist_.o1[l1][c1] += 256; } l1 = c1;
+        if (o1_[l2][c2 = *in2++]++ == 255) { hist_.o1[l2][c2] += 256; } l2 = c2;
+        if (o1_[l3][c3 = *in3++]++ == 255) { hist_.o1[l3][c3] += 256; } l3 = c3;
+        if (o1_[l4][c4 = *in4++]++ == 255) { hist_.o1[l4][c4] += 256; } l4 = c4;
+        if (o1_[l5][c5 = *in5++]++ == 255) { hist_.o1[l5][c5] += 256; } l5 = c5;
+        if (o1_[l6][c6 = *in6++]++ == 255) { hist_.o1[l6][c6] += 256; } l6 = c6;
+        if (o1_[l7][c7 = *in7++]++ == 255) { hist_.o1[l7][c7] += 256; } l7 = c7;
     }
 }
 
 void freq_hist_o1::add_hist(const freq_hist_o1& other) {
-    const uint64_t* add = (const uint64_t*)&other.hist_;
-    uint64_t* val = (uint64_t*)&hist_;
-    for (size_t i = 0; i < sizeof hist_ / sizeof(uint64_t); ++i) {
-        val[i] += add[i];
+    hist_.o0_size += other.hist_.o0_size;
+    for (size_t i = 0; i < 256; ++i) {
+        hist_.o0[i] += other.hist_.o0[i];
+        hist_.o1_size[i] += other.hist_.o1_size[i];
+        for (size_t j = 0; j < 256; ++j) {
+            hist_.o1[i][j] += other.hist_.o1[i][j] + other.o1_[i][j];
+        }
     }
-    //hist_.o0_size += other.hist_.o0_size;
-    //for (size_t i = 0; i < 256; ++i) {
-    //    hist_.o0[i] += other.hist_.o0[i];
-    //    hist_.o1_size[i] += other.hist_.o1_size[i];
-    //    for (size_t j = 0; j < 256; ++j) {
-    //        hist_.o1[i][j] += other.hist_.o1[i][j];
-    //    }
-    //}
 }
 
 void freq_hist_o1::finish() {
     for (size_t i = 0; i < 256; ++i) {
         for (size_t j = 0; j < 256; ++j) {
+            hist_.o1[i][j] += o1_[i][j];
             hist_.o0[j] += hist_.o1[i][j];
             hist_.o1_size[i] += hist_.o1[i][j];
         }

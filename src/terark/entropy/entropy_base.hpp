@@ -304,6 +304,7 @@ public:
 
 private:
     histogram_t hist_;
+    uint8_t o1_[256][256];
     size_t min_;
     size_t max_;
 
@@ -316,8 +317,8 @@ public:
 
     const histogram_t& histogram() const;
     static size_t estimate_size(const histogram_t& hist);
-    static size_t estimate_size_unfinish(const histogram_t& hist);
-    static size_t estimate_size_unfinish(const histogram_t& hist0, const histogram_t& hist1);
+    static size_t estimate_size_unfinish(const freq_hist_o1& freq);
+    static size_t estimate_size_unfinish(const freq_hist_o1& freq0, const freq_hist_o1& freq1);
     void add_record(fstring sample);
     void add_hist(const freq_hist_o1& other);
     void finish();
