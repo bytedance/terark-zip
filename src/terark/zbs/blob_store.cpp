@@ -77,14 +77,14 @@ size_t BlobStore::lower_bound(size_t lo, size_t hi, fstring target,
   assert(hi <= m_numRecords);
   struct Ptr {
       fstring operator[](ptrdiff_t i) {
-          rec->erase_all();
-          (this_->*call_)(i, rec);
+          rec_->erase_all();
+          (this_->*call_)(i, rec_);
           last_ = i;
-          return *rec;
+          return *rec_;
       }
       const BlobStore* this_;
       get_record_append_func_t call_;
-      valvec<byte_t>* rec;
+      valvec<byte_t>* rec_;
       size_t last_;
   } ptr = {this, m_get_record_append, recData, hi};
   size_t recId = lower_bound_n<Ptr&>(ptr, lo, hi, target);

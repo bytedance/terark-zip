@@ -65,7 +65,7 @@ public:
         (this->*m_get_record_append_CacheOffsets)(recID, co);
     }
     virtual size_t lower_bound(size_t lo, size_t hi, fstring target, CacheOffsets* co) const;
-    virtual size_t q(size_t lo, size_t hi, fstring target, valvec<byte_t>* recData) const;
+    virtual size_t lower_bound(size_t lo, size_t hi, fstring target, valvec<byte_t>* recData) const;
     terark_forceinline
     bool is_offsets_zipped() const {
         return reinterpret_cast<get_record_append_func_t>
