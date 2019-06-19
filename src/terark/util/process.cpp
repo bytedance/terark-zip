@@ -34,8 +34,9 @@ namespace terark {
             return err;
         }
         int childstatus = 0;
-        int err = waitpid(childpid, &childstatus, 0);
-        if (err) {
+        pid_t pid = waitpid(childpid, &childstatus, 0);
+        if (pid != childpid) {
+            int err = errno;
             fprintf(stderr, "ERROR: wait /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
             return err;
         }
