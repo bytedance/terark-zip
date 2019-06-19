@@ -329,8 +329,8 @@ fast_select1_dx(const bm_uint_t* bits, const uint32_t* sel1, const RankCacheMixe
 #undef select1_nth64
 }
 
-typedef rank_select_mixed_dimensions<rank_select_mixed_se_512, 0> rank_select_mixed_se_512_0;
-typedef rank_select_mixed_dimensions<rank_select_mixed_se_512, 1> rank_select_mixed_se_512_1;
+TERARK_NAME_TYPE(rank_select_mixed_se_512_0, rank_select_mixed_dimensions<rank_select_mixed_se_512, 0>);
+TERARK_NAME_TYPE(rank_select_mixed_se_512_1, rank_select_mixed_dimensions<rank_select_mixed_se_512, 1>);
 
 } // namespace terark
 

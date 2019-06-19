@@ -714,6 +714,36 @@ template class NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG>;
 typedef NestLoudsTrieDAWG_SE_256 NestLoudsTrieDAWG_SE;
 typedef NestLoudsTrieDAWG_IL_256 NestLoudsTrieDAWG_IL;
 
+//template<class NestTrie, class DawgType>
+//TERARK_DFA_NO_LOAD_SAVE_TPL(NestTrieDAWG<NestTrie, DawgType>);
+
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_IL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE_512);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE_512_64);
+
+//TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE_256);
+//TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_IL_256);
+
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_SE_512);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_IL_256);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_XL_256);
+
+///@{ FastLabel = true
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE_256_32_FL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_IL_256_32_FL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE_512_32_FL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_SE_512_64_FL);
+
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_SE_512_32_FL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_IL_256_32_FL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_XL_256_32_FL);
+
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL);
+TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL);
+///@}
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_SE)
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_IL)
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_SE_512)

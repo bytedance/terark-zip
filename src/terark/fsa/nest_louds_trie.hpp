@@ -387,27 +387,29 @@ public:
 	// End DAWG functions
 };
 
-typedef NestLoudsTrieTpl<rank_select_se_256> NestLoudsTrie_SE_256, NestLoudsTrie_SE;
-typedef NestLoudsTrieTpl<rank_select_il_256> NestLoudsTrie_IL_256, NestLoudsTrie_IL;
-typedef NestLoudsTrieTpl<rank_select_se_512> NestLoudsTrie_SE_512;
-typedef NestLoudsTrieTpl<rank_select_se_512_64> NestLoudsTrie_SE_512_64;
+TERARK_NAME_TYPE(NestLoudsTrie_SE_256, NestLoudsTrieTpl<rank_select_se_256>);
+TERARK_NAME_TYPE(NestLoudsTrie_IL_256, NestLoudsTrieTpl<rank_select_il_256>);
+TERARK_NAME_TYPE(NestLoudsTrie_SE_512, NestLoudsTrieTpl<rank_select_se_512>);
+TERARK_NAME_TYPE(NestLoudsTrie_SE_512_64, NestLoudsTrieTpl<rank_select_se_512_64>);
+typedef NestLoudsTrie_SE_256 NestLoudsTrie_SE;
+typedef NestLoudsTrie_IL_256 NestLoudsTrie_IL;
 
-typedef NestLoudsTrieTpl<rank_select_se_512, rank_select_mixed_se_512_0> NestLoudsTrie_Mixed_SE_512;
-typedef NestLoudsTrieTpl<rank_select_il_256, rank_select_mixed_il_256_0> NestLoudsTrie_Mixed_IL_256;
-typedef NestLoudsTrieTpl<rank_select_il_256, rank_select_mixed_xl_256_0> NestLoudsTrie_Mixed_XL_256;
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_SE_512, NestLoudsTrieTpl<rank_select_se_512, rank_select_mixed_se_512_0>);
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_IL_256, NestLoudsTrieTpl<rank_select_il_256, rank_select_mixed_il_256_0>);
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_XL_256, NestLoudsTrieTpl<rank_select_il_256, rank_select_mixed_xl_256_0>);
 
 // FastLabel = true
-typedef NestLoudsTrieTpl<rank_select_se_256_32, rank_select_se_256_32, true> NestLoudsTrie_SE_256_32_FL;
-typedef NestLoudsTrieTpl<rank_select_il_256_32, rank_select_il_256_32, true> NestLoudsTrie_IL_256_32_FL;
-typedef NestLoudsTrieTpl<rank_select_se_512_32, rank_select_se_512_32, true> NestLoudsTrie_SE_512_32_FL;
-typedef NestLoudsTrieTpl<rank_select_se_512_64, rank_select_se_512_64, true> NestLoudsTrie_SE_512_64_FL;
+TERARK_NAME_TYPE(NestLoudsTrie_SE_256_32_FL, NestLoudsTrieTpl<rank_select_se_256_32, rank_select_se_256_32, true>);
+TERARK_NAME_TYPE(NestLoudsTrie_IL_256_32_FL, NestLoudsTrieTpl<rank_select_il_256_32, rank_select_il_256_32, true>);
+TERARK_NAME_TYPE(NestLoudsTrie_SE_512_32_FL, NestLoudsTrieTpl<rank_select_se_512_32, rank_select_se_512_32, true>);
+TERARK_NAME_TYPE(NestLoudsTrie_SE_512_64_FL, NestLoudsTrieTpl<rank_select_se_512_64, rank_select_se_512_64, true>);
 
-typedef NestLoudsTrieTpl<rank_select_se_512_32, rank_select_mixed_se_512_0, true> NestLoudsTrie_Mixed_SE_512_32_FL;
-typedef NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_il_256_0, true> NestLoudsTrie_Mixed_IL_256_32_FL;
-typedef NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_xl_256_0, true> NestLoudsTrie_Mixed_XL_256_32_FL;
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_SE_512_32_FL, NestLoudsTrieTpl<rank_select_se_512_32, rank_select_mixed_se_512_0, true>);
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_IL_256_32_FL, NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_il_256_0, true>);
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_XL_256_32_FL, NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_xl_256_0, true>);
 
-typedef NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_il_256_0, true> NestLoudsTrie_Mixed_IL_256_32_41_FL;
-typedef NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_xl_256_0, true> NestLoudsTrie_Mixed_XL_256_32_41_FL;
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_IL_256_32_41_FL, NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_il_256_0, true>);
+TERARK_NAME_TYPE(NestLoudsTrie_Mixed_XL_256_32_41_FL, NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_xl_256_0, true>);
 
 } // namespace terark
 

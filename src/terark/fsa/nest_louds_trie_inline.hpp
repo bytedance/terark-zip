@@ -1225,7 +1225,7 @@ void NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 Iterator<Dawg>::append_lex_min_suffix(size_t root, Entry* ip, byte_t* wp) {
     size_t curr = root;
     auto d = static_cast<const Dawg*>(m_dfa);
-    const NestLoudsTrieTpl* trie = m_trie;
+    auto trie = static_cast<const typename Dawg::trie_type*>(m_trie);
     const byte_t* wlimit = (byte_t*)m_base;
     assert(root < trie->total_states());
     for (;;) {
@@ -1254,7 +1254,7 @@ template<class Dawg>
 void NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 Iterator<Dawg>::append_lex_max_suffix(size_t root, Entry* ip, byte_t* wp) {
     size_t curr = root;
-    const NestLoudsTrieTpl* trie = m_trie;
+    auto trie = static_cast<const typename Dawg::trie_type*>(m_trie);
     const byte_t* wlimit = (byte_t*)m_base;
     assert(root < trie->total_states());
     for (;;) {
@@ -1284,7 +1284,7 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 Iterator<Dawg>::seek_lower_bound(fstring key) {
     auto wp = m_word.data();
     auto ip = m_base;
-    const NestLoudsTrieTpl* trie = m_trie;
+    auto trie = static_cast<const typename Dawg::trie_type*>(m_trie);
     const Dawg* d = static_cast<const Dawg*>(m_dfa);
     const Entry * base = m_base;
     const byte_t* wlimit = (byte_t*)base;
@@ -1463,7 +1463,7 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::Iterator<Dawg>::incr() {
     assert(m_curr == ip[-1].state);
     assert(m_dfa->v_is_term(m_curr));
     auto wp = m_word.end();
-    const NestLoudsTrieTpl* trie = m_trie;
+    auto trie = static_cast<const typename Dawg::trie_type*>(m_trie);
     size_t child;
     if (size_t n_children = ip[-1].n_children) {
         child = ip[-1].child0;
@@ -1548,7 +1548,7 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 Iterator<Dawg>::seek_max_prefix(fstring key) {
     byte_t* wp = m_word.data();
     Entry * ip = m_base;
-    const NestLoudsTrieTpl* trie = m_trie;
+    auto trie = static_cast<const typename Dawg::trie_type*>(m_trie);
     const Dawg* d = static_cast<const Dawg*>(m_dfa);
     const byte_t* wlimit = (byte_t*)m_base;
     size_t curr = initial_state;

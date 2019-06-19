@@ -293,8 +293,8 @@ fast_select1_dx(const bldata_t* m_lines, const uint32_t* sel1, const RankCacheMi
     }
 }
 
-typedef rank_select_mixed_dimensions<rank_select_mixed_il_256, 0> rank_select_mixed_il_256_0;
-typedef rank_select_mixed_dimensions<rank_select_mixed_il_256, 1> rank_select_mixed_il_256_1;
+TERARK_NAME_TYPE(rank_select_mixed_il_256_0, rank_select_mixed_dimensions<rank_select_mixed_il_256, 0>);
+TERARK_NAME_TYPE(rank_select_mixed_il_256_1, rank_select_mixed_dimensions<rank_select_mixed_il_256, 1>);
 
 } // namespace terark
 

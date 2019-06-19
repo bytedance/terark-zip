@@ -27,6 +27,29 @@ public:
 };
 
 template<class DFA>
+class DFA_LoadSave {
+public:
+    template<class DataIO> static void load(DataIO& dio, DFA* dfa) {
+        dio >> *dfa;
+    }
+    template<class DataIO> static void save(DataIO& dio, const DFA* dfa) {
+        dio << *dfa;
+    }
+};
+#define TERARK_DFA_NO_LOAD_SAVE_TPL(...) \
+class DFA_LoadSave<__VA_ARGS__> { \
+public: \
+    template<class DataIO> static void load(DataIO& dio, __VA_ARGS__* dfa) { \
+        THROW_STD(logic_error, "Not Implemented"); \
+    } \
+    template<class DataIO> static void save(DataIO& dio, const __VA_ARGS__* dfa) { \
+        THROW_STD(logic_error, "Not Implemented"); \
+    } \
+}
+#define TERARK_DFA_NO_LOAD_SAVE(DFA) template<> TERARK_DFA_NO_LOAD_SAVE_TPL(DFA)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+template<class DFA>
 class DFA_ClassMetaInfoInst : public DFA_ClassMetaInfo {
 public:
 	DFA_ClassMetaInfoInst(const char* class_name, const char* rtti_class_name) {
@@ -37,11 +60,11 @@ public:
 	}
 	void load(NativeDataInput<InputBuffer>& dio, BaseDFA* dfa) const {
 		assert(NULL != dfa);
-		dio >> *static_cast<DFA*>(dfa);
+		DFA_LoadSave<DFA>::load(dio, static_cast<DFA*>(dfa));
 	}
 	void save(NativeDataOutput<OutputBuffer>& dio, const BaseDFA* dfa) const {
 		assert(NULL != dfa);
-		dio << *static_cast<const DFA*>(dfa);
+		DFA_LoadSave<DFA>::save(dio, static_cast<const DFA*>(dfa));
 	}
 };
 

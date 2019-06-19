@@ -139,6 +139,12 @@
 
 #define TERARK_UNUSED_VAR(x) (void)(x)
 
+#define TERARK_NAME_TYPE(name, ...) \
+    struct name : __VA_ARGS__ { \
+        typedef __VA_ARGS__ super_class; \
+        using super_class::super_class; \
+    }
+
 extern bool g_Terark_hasValgrind;
 
 #endif // __terark_config_h__

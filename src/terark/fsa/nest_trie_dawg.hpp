@@ -109,6 +109,7 @@ protected:
 public:
     using IsTermRep::is_term;
 	using DawgType::null_word;
+	typedef NestTrie trie_type;
 	typedef typename NestTrie::is_link_rs_mixed  is_link_rs_mixed;
 	typedef size_t state_id_t;
 	typedef size_t state_t;
@@ -275,21 +276,6 @@ public:
 	}
 // End DAWG functions
 
-	template<class DataIO>
-	void dio_load(DataIO& dio) {
-		THROW_STD(logic_error, "Not implemented");
-	}
-	template<class DataIO>
-	void dio_save(DataIO& dio) const {
-		THROW_STD(logic_error, "Not implemented");
-	}
-	template<class DataIO>
-	friend void
-	DataIO_loadObject(DataIO& dio, NestTrieDAWG& dfa) { dfa.dio_load(dio); }
-	template<class DataIO>
-	friend void
-	DataIO_saveObject(DataIO& dio, const NestTrieDAWG& dfa) { dfa.dio_save(dio); }
-
 	void finish_load_mmap(const DFA_MmapHeader*) override;
 	long prepare_save_mmap(DFA_MmapHeader*, const void**) const override;
 	void str_stat(std::string* s) const override;
@@ -316,32 +302,32 @@ virtual ADFA_LexIterator16* adfa_make_iter16(size_t root = initial_state) const 
 };
 
 
-typedef NestTrieDAWG<NestLoudsTrie_SE_256, BaseDAWG> NestLoudsTrieDAWG_SE_256;
-typedef NestTrieDAWG<NestLoudsTrie_SE_512, BaseDAWG> NestLoudsTrieDAWG_SE_512;
-typedef NestTrieDAWG<NestLoudsTrie_IL_256, BaseDAWG> NestLoudsTrieDAWG_IL_256;
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_SE_256, NestTrieDAWG<NestLoudsTrie_SE_256, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_SE_512, NestTrieDAWG<NestLoudsTrie_SE_512, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_IL_256, NestTrieDAWG<NestLoudsTrie_IL_256, BaseDAWG>);
 
-typedef NestTrieDAWG<NestLoudsTrie_SE_512_64, BaseDAWG> NestLoudsTrieDAWG_SE_512_64;
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_SE_512_64, NestTrieDAWG<NestLoudsTrie_SE_512_64, BaseDAWG>);
 
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_SE_512, BaseDAWG> NestLoudsTrieDAWG_Mixed_SE_512;
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_IL_256, BaseDAWG> NestLoudsTrieDAWG_Mixed_IL_256;
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_XL_256, BaseDAWG> NestLoudsTrieDAWG_Mixed_XL_256;
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_SE_512, NestTrieDAWG<NestLoudsTrie_Mixed_SE_512, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_IL_256, NestTrieDAWG<NestLoudsTrie_Mixed_IL_256, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_XL_256, NestTrieDAWG<NestLoudsTrie_Mixed_XL_256, BaseDAWG>);
 
 // FastLabel = true
-typedef NestTrieDAWG<NestLoudsTrie_SE_256_32_FL, BaseDAWG> NestLoudsTrieDAWG_SE_256_32_FL;
-typedef NestTrieDAWG<NestLoudsTrie_SE_512_32_FL, BaseDAWG> NestLoudsTrieDAWG_SE_512_32_FL;
-typedef NestTrieDAWG<NestLoudsTrie_IL_256_32_FL, BaseDAWG> NestLoudsTrieDAWG_IL_256_32_FL;
-typedef NestTrieDAWG<NestLoudsTrie_SE_512_64_FL, BaseDAWG> NestLoudsTrieDAWG_SE_512_64_FL;
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_SE_256_32_FL, NestTrieDAWG<NestLoudsTrie_SE_256_32_FL, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_SE_512_32_FL, NestTrieDAWG<NestLoudsTrie_SE_512_32_FL, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_IL_256_32_FL, NestTrieDAWG<NestLoudsTrie_IL_256_32_FL, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_SE_512_64_FL, NestTrieDAWG<NestLoudsTrie_SE_512_64_FL, BaseDAWG>);
 
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_SE_512_32_FL, BaseDAWG> NestLoudsTrieDAWG_Mixed_SE_512_32_FL;
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_FL, BaseDAWG> NestLoudsTrieDAWG_Mixed_IL_256_32_FL;
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_FL, BaseDAWG> NestLoudsTrieDAWG_Mixed_XL_256_32_FL;
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_SE_512_32_FL, NestTrieDAWG<NestLoudsTrie_Mixed_SE_512_32_FL, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_IL_256_32_FL, NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_FL, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_XL_256_32_FL, NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_FL, BaseDAWG>);
 
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_41_FL, BaseDAWG> NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL;
-typedef NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG> NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL;
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL, NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_41_FL, BaseDAWG>);
+TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL, NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG>);
 
 /*
-typedef SuffixCoutableNestTrieDAWG<NestDfudsTrie_SE> DfudsPatriciaTrie_SE;
-typedef SuffixCoutableNestTrieDAWG<NestDfudsTrie_IL> DfudsPatriciaTrie_IL;
+TERARK_NAME_TYPE(DfudsPatriciaTrie_SE, SuffixCoutableNestTrieDAWG<NestDfudsTrie_SE>);
+TERARK_NAME_TYPE(DfudsPatriciaTrie_IL, SuffixCoutableNestTrieDAWG<NestDfudsTrie_IL>);
 */
 
 } // namespace terark

@@ -317,19 +317,20 @@ fast_select1_dx(const bldata_t* m_lines, const uint32_t* sel1, const RankCacheMi
     }
 }
 
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<2>, 0> rank_select_mixed_xl_256_2_0;
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<2>, 1> rank_select_mixed_xl_256_2_1;
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_2_0, rank_select_mixed_dimensions<rank_select_mixed_xl_256<2>, 0>);
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_2_1, rank_select_mixed_dimensions<rank_select_mixed_xl_256<2>, 1>);
+
 typedef rank_select_mixed_xl_256_2_0 rank_select_mixed_xl_256_0; // alias to old name
 typedef rank_select_mixed_xl_256_2_1 rank_select_mixed_xl_256_1; // alias to old name
 
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<3>, 0> rank_select_mixed_xl_256_3_0;
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<3>, 1> rank_select_mixed_xl_256_3_1;
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<3>, 2> rank_select_mixed_xl_256_3_2;
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_3_0, rank_select_mixed_dimensions<rank_select_mixed_xl_256<3>, 0>);
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_3_1, rank_select_mixed_dimensions<rank_select_mixed_xl_256<3>, 1>);
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_3_2, rank_select_mixed_dimensions<rank_select_mixed_xl_256<3>, 2>);
 
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 0> rank_select_mixed_xl_256_4_0;
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 1> rank_select_mixed_xl_256_4_1;
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 2> rank_select_mixed_xl_256_4_2;
-typedef rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 3> rank_select_mixed_xl_256_4_3;
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_4_0, rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 0>);
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_4_1, rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 1>);
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_4_2, rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 2>);
+TERARK_NAME_TYPE(rank_select_mixed_xl_256_4_3, rank_select_mixed_dimensions<rank_select_mixed_xl_256<4>, 3>);
 
 } // namespace terark
 
