@@ -383,7 +383,8 @@ void unit_test() {
         unit_test_run<MainPatricia>(insert);
     }
 }
-
+/*
+// for Automata<State>
 template<class DFA>
 void minimize_and_path_zip(DFA& dfa) {
     printf("dfa.adfa_minimize()...\n");
@@ -391,6 +392,7 @@ void minimize_and_path_zip(DFA& dfa) {
     printf("dfa.path_zip(\"DFS\")...\n");
     dfa.path_zip("DFS");
 }
+*/
 template<class Trie, class DawgType>
 void minimize_and_path_zip(NestTrieDAWG<Trie, DawgType>&) {}
 void minimize_and_path_zip(MainPatricia&) {}
