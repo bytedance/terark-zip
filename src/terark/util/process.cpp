@@ -23,7 +23,7 @@ namespace terark {
     #else
         pid_t childpid = vfork();
         if (0 == childpid) { // child process
-            execl("/bin/sh", "-c", cmd, NULL);
+            execl("/bin/sh", "/bin/sh", "-c", cmd, NULL);
             int err = errno;
             fprintf(stderr, "ERROR: execl /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
             return err;
