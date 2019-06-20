@@ -24,13 +24,17 @@
 
 namespace terark {
 
-static void set_close_on_exec(int fd) {
+TERARK_DLL_EXPORT void set_close_on_exec(int fd) {
 #ifdef FD_CLOEXEC
     int err = fcntl(fd, F_SETFD, FD_CLOEXEC);
     if (err < 0) {
         fprintf(stderr, "FileStream: fcntl(%d, F_SETFD, FD_CLOEXEC) = %s\n", fd, strerror(errno));
     }
 #endif
+}
+
+TERARK_DLL_EXPORT void set_close_on_exec(FILE* fp) {
+    set_close_on_exec(fileno(fp));
 }
 
 FileStream::FileStream(fstring fpath, fstring mode)

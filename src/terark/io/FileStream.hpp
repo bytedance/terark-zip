@@ -21,6 +21,9 @@
 
 namespace terark {
 
+TERARK_DLL_EXPORT void set_close_on_exec(int fd);
+TERARK_DLL_EXPORT void set_close_on_exec(FILE*);
+
 /**
  @brief FileStream encapsulate FILE* as RefCounter, IInputStream, IOutputStream, ISeekable
  @note
@@ -49,7 +52,7 @@ public:
 	FileStream(fstring fpath, fstring mode);
 	FileStream(int fd, fstring mode);
 //	explicit FileStream(FILE* fp = 0) throw() : m_fp(fp) {}
-	FileStream() throw() : m_fp(0) {} // ²»ÊÇÎÒ´ò¿ªµÄÎÄ¼ş£¬ÇëÏÔÊ½ attach/detach
+	FileStream() throw() : m_fp(0) {} // ä¸æ˜¯æˆ‘æ‰“å¼€çš„æ–‡ä»¶ï¼Œè¯·æ˜¾å¼ attach/detach
 	~FileStream();
 
 	bool isOpen() const throw() { return 0 != m_fp; }

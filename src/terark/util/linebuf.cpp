@@ -17,6 +17,7 @@
 
 #include <terark/util/stat.hpp>
 #include <terark/valvec.hpp>
+#include <terark/io/FileStream.hpp>
 
 namespace terark {
 
@@ -246,7 +247,7 @@ LineBuf& LineBuf::read_all(FILE* fp, size_t align) {
 }
 
 LineBuf& LineBuf::read_all(fstring fname, size_t align) {
-	Auto_fclose f(fopen(fname.c_str(), "r"));
+	FileStream f(fname.c_str(), "r");
 	if (!f) {
 		THROW_STD(invalid_argument,
 			"ERROR: fopen(%.*s, r) = %s",
