@@ -24,10 +24,19 @@
 
 namespace terark {
 
+static void set_close_on_exec(int fd) {
+#ifdef FD_CLOEXEC
+    int err = fcntl(fd, F_SETFD, FD_CLOEXEC);
+    if (err < 0) {
+        fprintf(stderr, "FileStream: fcntl(%d, F_SETFD, FD_CLOEXEC) = %s\n", fd, strerror(errno));
+    }
+#endif
+}
+
 FileStream::FileStream(fstring fpath, fstring mode)
 {
 	m_fp = NULL;
-   	open(fpath, mode);
+	open(fpath, mode);
 }
 
 FileStream::FileStream(int fd, fstring mode)
@@ -37,7 +46,7 @@ FileStream::FileStream(int fd, fstring mode)
 
 FileStream::~FileStream() {
 	if (m_fp)
-	   	::fclose(m_fp);
+		::fclose(m_fp);
 }
 
 void FileStream::ThrowOpenFileException(fstring fpath, fstring mode)
@@ -58,6 +67,8 @@ void FileStream::open(fstring fpath, fstring mode)
 	m_fp = fopen(fpath.c_str(), mode.c_str());
 	if (NULL == m_fp)
 		ThrowOpenFileException(fpath, mode);
+
+	set_close_on_exec(fileno(m_fp));
 }
 
 bool FileStream::xopen(fstring fpath, fstring mode)
@@ -67,6 +78,9 @@ bool FileStream::xopen(fstring fpath, fstring mode)
 		throw std::invalid_argument("FileStream::xopen: file is already opened");
 	}
 	m_fp = fopen(fpath.c_str(), mode.c_str());
+	if (m_fp) {
+		set_close_on_exec(fileno(m_fp));
+	}
 	return NULL != m_fp;
 }
 
@@ -87,6 +101,7 @@ void FileStream::dopen(int fd, fstring mode)
 		sprintf(szbuf, "fd=%d", fd);
 		ThrowOpenFileException(szbuf, mode);
 	}
+	set_close_on_exec(fileno(m_fp));
 }
 
 void FileStream::attach(::FILE* fp) throw()

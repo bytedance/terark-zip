@@ -26,7 +26,7 @@ namespace terark {
             execl("/bin/sh", "/bin/sh", "-c", cmd, NULL);
             int err = errno;
             fprintf(stderr, "ERROR: execl /bin/sh -c \"%s\" = %s\n", cmd, strerror(err));
-            return err;
+            _exit(err);
         }
         else if (childpid < 0) {
             int err = errno;
