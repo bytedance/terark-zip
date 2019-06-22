@@ -728,9 +728,6 @@ void FixedLenStrVec::swap(FixedLenStrVec& y) {
 void FixedLenStrVec::push_back(fstring str) {
     assert(m_fixlen * m_size == m_strpool.size());
     assert(str.size() == m_fixlen);
-    if (0 == m_fixlen) {
-        THROW_STD(invalid_argument, "m_fixlen is zero");
-    }
     if (str.size() != m_fixlen) {
         THROW_STD(length_error,
             "expected: %zd, real: %zd", m_fixlen, str.size());
