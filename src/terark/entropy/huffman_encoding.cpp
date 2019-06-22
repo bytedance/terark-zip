@@ -470,7 +470,7 @@ void decoder::init(fstring table, size_t* psize) {
     const byte_t *cp = table.udata();
 
     memset(&ari_, 0, sizeof ari_);
-    memset(&cnt_, 12, sizeof cnt_);
+    memset(&cnt_, 255, sizeof cnt_);
 
     if (*cp == 0) {
         if (psize != nullptr) {
@@ -856,7 +856,7 @@ void decoder_o1::init(fstring table, size_t* psize) {
     const byte_t *end = cp + table.size();
 
     memset(&ari_, 0, sizeof ari_);
-    memset(&cnt_, 12, sizeof cnt_);
+    memset(&cnt_, 255, sizeof cnt_);
 
     valvec<byte_t> table_huf;
     if (*cp == 255) {

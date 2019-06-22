@@ -341,6 +341,7 @@ void freq_hist_o1::finish() {
     for (size_t i = 0; i < 256; ++i) {
         for (size_t j = 0; j < 256; ++j) {
             hist_.o1[i][j] += o1_[i][j];
+            o1_[i][j] = 0;
             hist_.o0[j] += hist_.o1[i][j];
             hist_.o1_size[i] += hist_.o1[i][j];
         }
