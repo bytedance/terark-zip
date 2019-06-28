@@ -568,8 +568,8 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen) {
 	ssize_t rdlen = pread(fd, buf, maxlen, offset);
 	if (rdlen < ssize_t(minlen)) {
 		THROW_STD(logic_error
-			, "pread(offset = %zd, len = %zd) = %zd, err = %s"
-			, offset, maxlen, rdlen, strerror(errno));
+			, "pread(offset = %zd, len = %zd) = %zd (minlen = %zd), err = %s"
+			, offset, maxlen, rdlen, minlen, strerror(errno));
 	}
 #endif
 }
