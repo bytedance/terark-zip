@@ -143,13 +143,12 @@ struct BlobStoreLruCachePosRead {
     LruReadonlyCache::Buffer b;
     LruReadonlyCache* cache;
     intptr_t fi;
-    size_t baseOffset;
 
     BlobStoreLruCachePosRead(valvec<byte_t>* rb) : b(rb) {
     }
     const byte_t*
     operator()(size_t offset, size_t len, valvec<byte_t>* buf) {
-        return cache->pread(fi, baseOffset + offset, len, &b);
+        return cache->pread(fi, offset, len, &b);
     }
 };
 
@@ -166,7 +165,6 @@ const {
         BlobStoreLruCachePosRead fspread(rdbuf);
         fspread.cache = cache;
         fspread.fi    = fd; // fd is really fi for cache
-        fspread.baseOffset = baseOffset;
         (this->*m_fspread_record_append)(c_callback(fspread), &fspread, baseOffset, recID, recData, rdbuf);
     }
     else {
