@@ -1542,9 +1542,9 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
                 m_token_head.m_age++; // crucial!!
                 m_token_mutex.unlock();
             }
-            if (terark_unlikely(n_retry >= 256 && n_retry % 256 == 0)) {
-                std::this_thread::yield();
-            }
+         // if (terark_unlikely(n_retry >= 256 && n_retry % 256 == 0)) {
+         //     std::this_thread::yield();
+         // }
          // auto t2 = std::chrono::steady_clock::now();
          // lzf->m_race_wait += (t2-t1).count();
             auto t2 = g_pf.now();
