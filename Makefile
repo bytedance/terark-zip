@@ -526,6 +526,7 @@ ${TarBall}.tgz: ${TarBall}
 
 .PONY: test
 test: ${zbs_d} ${fsa_d} ${core_d}
+	+$(MAKE) -C tests/core        test
 	+$(MAKE) -C tests/tries       test
 	+$(MAKE) -C tests/succinct    test
 

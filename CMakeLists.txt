@@ -18,6 +18,9 @@ INCLUDE_DIRECTORIES(/usr/local/include)
 
 # CORE LIB
 FILE(GLOB CORE_SRC src/terark/*.cpp
+        tests/core/*.cpp
+        tests/tries/*.cpp
+        tests/succinct/*.cpp
         src/terark/io/*.cpp
         src/terark/util/*.cpp
         src/terark/thread/*.cpp
