@@ -90,6 +90,20 @@ inline size_t terark_fstrlen(const uint16_t* s) {
 	return n;
 }
 
+inline const char*
+terark_fstrchr(const char* str, size_t len, unsigned char ch) {
+	return (char*)memchr(str, ch, len);
+}
+
+inline const uint16_t*
+terark_fstrchr(const uint16_t* str, size_t len, uint16_t ch) {
+	for (; len; --len, ++str) {
+		if (ch == *str)
+			return str;
+	}
+	return NULL;
+}
+
 #ifdef _MSC_VER
 TERARK_DLL_EXPORT
 char*
@@ -249,6 +263,7 @@ struct basic_fstring {
 		return memcmp(p + pos, needle.p, sizeof(Char) * needle.size()) == 0;
 	}
 
+	const Char* strchr(uc_t ch) const { return terark_fstrchr(p, n, ch); }
 	const Char* strstr(basic_fstring needle) const {
 		assert(needle.n > 0);
 		return this->strstr(0, needle);
