@@ -11,30 +11,19 @@ INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 INCLUDE_DIRECTORIES(/usr/local/include)
-#INCLUDE_DIRECTORIES(/Users/levisonchen/Documents/Git/boost_1_69_0)
-
-# Kuankuan Guo
-#LINK_DIRECTORIES(/Users/guokuankuan/Programs/boost_1_70_0/stage/lib)
 
 # CORE LIB
 FILE(GLOB CORE_SRC src/terark/*.cpp
-        tests/core/*.cpp
-        tests/tries/*.cpp
-        tests/succinct/*.cpp
         src/terark/io/*.cpp
         src/terark/util/*.cpp
         src/terark/thread/*.cpp
         src/terark/succinct/*.cpp
         src/terark/c/*.c)
-#LIST(REMOVE_ITEM CORE_SRC ${CMAKE_CURRENT_SOURCE_DIR}/src/terark/io/BzipStream.cpp
-#        ${CMAKE_CURRENT_SOURCE_DIR}/src/terark/io/GzipStream.cpp)
 ADD_LIBRARY(terark-core SHARED ${CORE_SRC})
-#ADD_LIBRARY(terark-core STATIC ${CORE_SRC})
 
 
 # FSA LIB
 FILE(GLOB FSA_SRC src/terark/fsa/*.cpp)
-#MESSAGE(${FSA_SRC})
 ADD_LIBRARY(terark-fsa SHARED ${FSA_SRC})
 TARGET_LINK_LIBRARIES(terark-fsa terark-core)
 
@@ -79,34 +68,16 @@ ADD_LIBRARY(tests-tries SHARED ${TESTS_TRIES})
 # FILE(GLOB C_SRC src/terark/c/*.c src/terark/c/*.cpp)
 
 ############## Tests ##############
-# core test
+
+# test target sample
 ADD_EXECUTABLE(terark-core-test tests/terark-core-test.cpp)
 TARGET_LINK_LIBRARIES(terark-core-test terark-core terark-fsa terark-zbs)
 
 
-install(
-        TARGETS terark-core
-        EXPORT RocksDBTargets
-        COMPONENT runtime
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
-
-install(
-        TARGETS terark-fsa
-        EXPORT RocksDBTargets
-        COMPONENT runtime
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
-
-install(
-        TARGETS terark-zbs
-        EXPORT RocksDBTargets
-        COMPONENT runtime
-        RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}"
-        LIBRARY DESTINATION "${CMAKE_INSTALL_LIBDIR}"
-        INCLUDES DESTINATION "${CMAKE_INSTALL_INCLUDEDIR}"
-)
+# tests
+FILE(GLOB TESTS_SRC
+        tests/core/*.cpp
+        tests/tries/*.cpp
+        tests/succinct/*.cpp)
+ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
+TARGET_LINK_LIBRARIES(terark-tests terark-zbs terark-fsa terark-core)
