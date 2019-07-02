@@ -137,6 +137,13 @@
   #define no_break_fallthrough  /* fall through */
 #endif
 
+#if defined(__gnu_linux__) || defined(__gnu_hurd__) || defined(__FreeBSD__)
+    #define TERARK_HAS_WEAK_SYMBOL 1
+    #define TERARK_WEAK_SYMBOL __attribute__((weak))
+#else
+    #define TERARK_WEAK_SYMBOL
+#endif
+
 #define TERARK_UNUSED_VAR(x) (void)(x)
 
 #define TERARK_NAME_TYPE(name, ...) \
