@@ -22,6 +22,18 @@
 #include <terark/util/autofree.hpp>
 #include "config.hpp"
 
+#if defined(TERARK_HAS_WEAK_SYMBOL)
+extern "C" {
+    // jemalloc specific
+    size_t TERARK_WEAK_SYMBOL xallocx(void*, size_t, size_t, int flags);
+  #if defined(__GLIBC__) && defined(__THROW)
+    size_t TERARK_WEAK_SYMBOL malloc_usable_size(void*) __THROW;
+  #else
+    size_t TERARK_WEAK_SYMBOL malloc_usable_size(void*);
+  #endif
+};
+#endif
+
 namespace terark {
 
     template<class T>
@@ -433,6 +445,24 @@ public:
     void ensure_capacity_slow(size_t min_cap) {
         assert(min_cap > c);
         size_t new_cap = std::max(larger_capacity(c), min_cap);
+#if defined(TERARK_HAS_WEAK_SYMBOL)
+        if (xallocx) {
+            size_t extra = sizeof(T) * (new_cap - min_cap);
+            size_t minsz = sizeof(T) * min_cap;
+            size_t usesz = xallocx(p, minsz, extra, 0);
+            if (usesz >= minsz) {
+                c = usesz / sizeof(T); // done
+                return;
+            }
+        }
+        else if (malloc_usable_size) {
+            size_t usesz = malloc_usable_size(p);
+            if (usesz >= sizeof(T) * min_cap) {
+                c = usesz / sizeof(T); // done
+                return;
+            }
+        }
+#endif
         T* q = (T*)realloc(p, sizeof(T) * new_cap);
         if (NULL == q) throw std::bad_alloc();
         p = q;
@@ -498,6 +528,16 @@ public:
             p = NULL;
             c = n = 0;
         }
+    }
+
+    // may do nothing
+    void shrink_to_fit_inplace() {
+#if defined(TERARK_HAS_WEAK_SYMBOL)
+        if (xallocx) {
+            size_t usesz = xallocx(p, sizeof(T) * n, 0, 0);
+            c = usesz / sizeof(T); // done
+        }
+#endif
     }
 
 	// expect this function will reduce memory fragment

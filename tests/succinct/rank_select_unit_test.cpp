@@ -460,7 +460,7 @@ int main(int argc, char* argv[]) {
 //          "check_sum\n");
 //  fprintf(stderr, "\n");
 
-  size_t count = 100000;
+  size_t count = 10000;
   if (argc > 1)
     count = (size_t)strtoull(argv[1], NULL, 10);
 

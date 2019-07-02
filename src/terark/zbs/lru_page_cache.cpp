@@ -227,7 +227,6 @@ public:
 		size_t mask = m_cap - 1;
 		size_t loca_id = id & mask;
 #if !defined(NDEBUG)
-		size_t head = m_min_id & mask;
 		size_t virt_tail = (m_tail - m_min_id) & mask;
 		assert(id >= m_min_id);
 		assert(id <  m_min_id + virt_tail);
