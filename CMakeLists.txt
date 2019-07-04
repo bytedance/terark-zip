@@ -69,11 +69,6 @@ ADD_LIBRARY(tests-tries SHARED ${TESTS_TRIES})
 
 ############## Tests ##############
 
-# test target sample
-ADD_EXECUTABLE(terark-core-test tests/terark-core-test.cpp)
-TARGET_LINK_LIBRARIES(terark-core-test terark-core terark-fsa terark-zbs)
-
-
 # tests
 FILE(GLOB TESTS_SRC
         tests/core/*.cpp
@@ -81,3 +76,11 @@ FILE(GLOB TESTS_SRC
         tests/succinct/*.cpp)
 ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
 TARGET_LINK_LIBRARIES(terark-tests terark-zbs terark-fsa terark-core)
+
+# tools
+FILE(GLOB TOOLS_SRC
+        tools/general/*.cpp
+        tools/fsa/*.cpp
+        tools/zbs/*.cpp)
+ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
+TARGET_LINK_LIBRARIES(terark-tools terark-zbs terark-fsa terark-core)
