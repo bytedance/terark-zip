@@ -188,16 +188,13 @@ core_src := \
    ${obsoleted_src}
 
 core_src := $(filter-out ${zip_src}, ${core_src})
-core_src += ${BUILD_ROOT}/git-version-core.cpp
 
 
 fsa_src := $(wildcard src/terark/fsa/*.cpp)
 fsa_src += $(wildcard src/terark/zsrch/*.cpp)
-fsa_src += ${BUILD_ROOT}/git-version-fsa.cpp
 
 zbs_src := $(wildcard src/terark/entropy/*.cpp)
 zbs_src += $(wildcard src/terark/zbs/*.cpp)
-zbs_src += ${BUILD_ROOT}/git-version-zbs.cpp
 
 zstd_src := $(wildcard 3rdparty/zstd/zstd/common/*.c)
 zstd_src += $(wildcard 3rdparty/zstd/zstd/compress/*.c)
@@ -209,9 +206,10 @@ zstd_src += $(wildcard 3rdparty/zstd/zstd/legacy/*.c)
 zbs_src += ${zstd_src}
 
 #function definition
-#@param:${1} -- targets var prefix, such as bdb_util | core
-#@param:${2} -- build type: d | r
-objs = $(addprefix ${${2}dir}/, $(addsuffix .o, $(basename ${${1}_src})))
+#@param:${1} -- targets var prefix, such as core | fsa | zbs
+#@param:${2} -- build type: d | r | a
+objs = $(addprefix ${${2}dir}/, $(addsuffix .o, $(basename ${${1}_src}))) \
+       ${${2}dir}/${${2}dir}/git-version-${1}.o
 
 zstd_d_o := $(call objs,zstd,d)
 zstd_r_o := $(call objs,zstd,r)
@@ -276,15 +274,6 @@ zbs: ${zbs}
 rpc: ${rpc_d} ${rpc_r} ${rpc_a} ${static_rpc_d} ${static_rpc_r} ${static_rpc_a}
 
 OpenSources := $(shell find -H src 3rdparty -name '*.h' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cpp' -o -name '*.c')
-ObfuseFiles := \
-	src/terark/fsa/fsa_cache_detail.hpp \
-	src/terark/fsa/nest_louds_trie.cpp \
-	src/terark/fsa/nest_louds_trie.hpp \
-	src/terark/fsa/nest_louds_trie_inline.hpp \
-	src/terark/zbs/dict_zip_blob_store.cpp \
-	src/terark/zbs/suffix_array_dict.cpp
-
-NotObfuseFiles := $(filter-out ${ObfuseFiles}, ${OpenSources})
 
 allsrc = ${core_src} ${fsa_src} ${zbs_src}
 alldep = $(addprefix ${rdir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
@@ -295,27 +284,6 @@ alldep = $(addprefix ${rdir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
 dbg: ${DBG_TARGETS}
 rls: ${RLS_TARGETS}
 afr: ${AFR_TARGETS}
-
-.PHONY: obfuscate
-obfuscate: $(addprefix ../obfuscated-terark/, ${ObfuseFiles})
-	mkdir -p               ../obfuscated-terark/tools
-	cp -rf tools/configure ../obfuscated-terark/tools
-	cp -rf *.sh ../obfuscated-terark
-	@for f in `find 3rdparty -name 'Makefile*'` \
-				Makefile ${NotObfuseFiles}; \
-	do \
-		dir=`dirname ../obfuscated-terark/$$f`; \
-		mkdir -p $$dir; \
-		echo cp -a $$f $$dir; \
-		cp -a $$f $$dir; \
-	done
-
-../obfuscated-terark/%: % tools/codegen/fuck_bom_out.exe
-	@mkdir -p $(dir $@)
-	tools/codegen/fuck_bom_out.exe < $< | perl ./obfuscate.pl > $@
-
-tools/codegen/fuck_bom_out.exe: tools/codegen/fuck_bom_out.cpp
-	g++ -o $@ $<
 
 ifneq (${UNAME_System},Darwin)
 ${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread
@@ -334,11 +302,6 @@ ${zbs_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-
 
 ${zstd_d_o} ${zstd_r_o} ${zstd_a_o} : override CFLAGS += -Wno-sign-compare -Wno-implicit-fallthrough
 
-${rpc_d} ${rpc_r} {rpc_a} : LIBS += ${LIBBOOST} -lpthread
-${rpc_d} : LIBS += -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-d
-${rpc_r} : LIBS += -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-r
-${rpc_a} : LIBS += -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-a
-
 ${fsa_d} : $(call objs,fsa,d) ${core_d}
 ${fsa_r} : $(call objs,fsa,r) ${core_r}
 ${fsa_a} : $(call objs,fsa,a) ${core_a}
@@ -353,13 +316,6 @@ ${static_zbs_d} : $(call objs,zbs,d)
 ${static_zbs_r} : $(call objs,zbs,r)
 ${static_zbs_a} : $(call objs,zbs,a)
 
-${rpc_d} : $(call objs,rpc,d) ${core_d}
-${rpc_r} : $(call objs,rpc,r) ${core_r}
-${rpc_a} : $(call objs,rpc,a) ${core_a}
-${static_rpc_d} : $(call objs,rpc,d)
-${static_rpc_r} : $(call objs,rpc,r)
-${static_rpc_a} : $(call objs,rpc,a)
-
 ${core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o
 ${core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o
 ${core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o
@@ -369,30 +325,40 @@ ${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o
 
 
 .PHONY: git-version.phony
-${BUILD_ROOT}/git-version-%.cpp: git-version.phony
-	@mkdir -p $(dir $@)
-	@rm -f $@.tmp
+define GenGitVersionSRC
+${1}/git-version-core.cpp: ${core_src}
+${1}/git-version-fsa.cpp: ${fsa_src}
+${1}/git-version-zbs.cpp: ${zbs_src}
+${1}/git-version-%.cpp: git-version.phony Makefile
+	@mkdir -p $$(dir $$@)
+	@rm -f $$@.tmp
 	@echo '__attribute__ ((visibility ("default"))) const char*' \
-		  'git_version_hash_info_'$(patsubst git-version-%.cpp,%,$(notdir $@))\
-		  '() { return R"StrLiteral(git_version_hash_info_is:' > $@.tmp
-	@env LC_ALL=C git log -n1 >> $@.tmp
-	@env LC_ALL=C git diff >> $@.tmp
-	@env LC_ALL=C $(CXX) --version >> $@.tmp
-	@echo INCS = ${INCS}           >> $@.tmp
-	@echo CXXFLAGS  = ${CXXFLAGS}  >> $@.tmp
-	@echo WITH_BMI2 = ${WITH_BMI2} >> $@.tmp
-	@echo WITH_TBB  = ${WITH_TBB}  >> $@.tmp
-	@echo compile_cpu_flag: $(CPU) >> $@.tmp
-	@#echo machine_cpu_flag: Begin  >> $@.tmp
-	@#bash ./cpu_features.sh        >> $@.tmp
-	@#echo machine_cpu_flag: End    >> $@.tmp
-	@echo ')''StrLiteral";}' >> $@.tmp
+		  'git_version_hash_info_'$$(patsubst git-version-%.cpp,%,$$(notdir $$@))\
+		  '() { return R"StrLiteral(git_version_hash_info_is:' > $$@.tmp
+	@env LC_ALL=C git log -n1 >> $$@.tmp
+	@env LC_ALL=C git diff >> $$@.tmp
+	@env LC_ALL=C $(CXX) --version >> $$@.tmp
+	@echo INCS = ${INCS}           >> $$@.tmp
+	@echo CXXFLAGS  = ${CXXFLAGS}  >> $$@.tmp
+	@echo ${2} = ${${2}} >> $$@.tmp
+	@echo WITH_BMI2 = ${WITH_BMI2} >> $$@.tmp
+	@echo WITH_TBB  = ${WITH_TBB}  >> $$@.tmp
+	@echo compile_cpu_flag: $(CPU) >> $$@.tmp
+	@#echo machine_cpu_flag: Begin  >> $$@.tmp
+	@#bash ./cpu_features.sh        >> $$@.tmp
+	@#echo machine_cpu_flag: End    >> $$@.tmp
+	@echo ')''StrLiteral";}' >> $$@.tmp
 	@#      ^^----- To prevent diff causing git-version compile fail
-	@if test -f "$@" && cmp "$@" $@.tmp; then \
-		rm $@.tmp; \
+	@if test -f "$$@" && cmp "$$@" $$@.tmp; then \
+		rm $$@.tmp; \
 	else \
-		mv $@.tmp $@; \
+		mv $$@.tmp $$@; \
 	fi
+endef
+
+$(eval $(call GenGitVersionSRC, ${ddir}, DBG_FLAGS))
+$(eval $(call GenGitVersionSRC, ${rdir}, RLS_FLAGS))
+$(eval $(call GenGitVersionSRC, ${adir}, AFR_FLAGS))
 
 3rdparty/base64/lib/libbase64.o:
 	$(MAKE) -C 3rdparty/base64 clean; \
@@ -455,9 +421,9 @@ pkg : ${TarBall}
 tgz : ${TarBall}.tgz
 
 ${TarBall}: ${core} ${fsa} ${zbs}
-	+make -C tools/fsa
-	+make -C tools/zbs
-	+make -C tools/general
+	+make CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/fsa
+	+make CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/zbs
+	+make CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/general
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
@@ -526,9 +492,9 @@ ${TarBall}.tgz: ${TarBall}
 
 .PONY: test
 test: ${zbs_d} ${fsa_d} ${core_d}
-	+$(MAKE) -C tests/core        test
-	+$(MAKE) -C tests/tries       test
-	+$(MAKE) -C tests/succinct    test
+	+$(MAKE) -C tests/core        test  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test  CHECK_TERARK_FSA_LIB_UPDATE=0
 
 ifneq ($(MAKECMDGOALS),cleanall)
 ifneq ($(MAKECMDGOALS),clean)
@@ -536,120 +502,52 @@ ifneq ($(MAKECMDGOALS),clean)
 endif
 endif
 
-${ddir}/%.o: %.cpp
-	@echo file: $< "->" $@
-	@echo TERARK_INC=${TERARK_INC}
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} ${CPU} -c ${DBG_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${rdir}/%.o: %.cpp
-	@echo file: $< "->" $@
-	@echo TERARK_INC=${TERARK_INC}
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} ${CPU} -c ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${adir}/%.o: %.cpp
-	@echo file: $< "->" $@
-	@echo TERARK_INC=${TERARK_INC}
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} ${CPU} -c ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${ddir}/%.o: %.cc
-	@echo file: $< "->" $@
-	@echo TERARK_INC=${TERARK_INC}
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} ${CPU} -c ${DBG_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${rdir}/%.o: %.cc
-	@echo file: $< "->" $@
-	@echo TERARK_INC=${TERARK_INC}
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} ${CPU} -c ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${adir}/%.o: %.cc
-	@echo file: $< "->" $@
-	@echo TERARK_INC=${TERARK_INC}
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	mkdir -p $(dir $@)
-	${CXX} ${CXX_STD} ${CPU} -c ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${ddir}/%.o : %.c
-	@echo file: $< "->" $@
-	mkdir -p $(dir $@)
-	${CC} -c ${CPU} ${DBG_FLAGS} ${CFLAGS} ${INCS} $< -o $@
-
-${rdir}/%.o : %.c
-	@echo file: $< "->" $@
-	mkdir -p $(dir $@)
-	${CC} -c ${CPU} ${RLS_FLAGS} ${CFLAGS} ${INCS} $< -o $@
-
-${adir}/%.o : %.c
-	@echo file: $< "->" $@
-	mkdir -p $(dir $@)
-	${CC} -c ${CPU} ${AFR_FLAGS} ${CFLAGS} ${INCS} $< -o $@
-
-${ddir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
-	@echo file: $< "->" $@
-	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${DBG_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${rdir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
-	@echo file: $< "->" $@
-	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${adir}/%.s : %.cpp ${PRECOMPILED_HEADER_GCH}
-	@echo file: $< "->" $@
-	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${ddir}/%.s : %.c ${PRECOMPILED_HEADER_GCH}
-	@echo file: $< "->" $@
-	${CC} -S -fverbose-asm ${CPU} ${DBG_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${rdir}/%.s : %.c ${PRECOMPILED_HEADER_GCH}
-	@echo file: $< "->" $@
-	${CC} -S -fverbose-asm ${CPU} ${RLS_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${adir}/%.s : %.c ${PRECOMPILED_HEADER_GCH}
-	@echo file: $< "->" $@
-	${CC} -S -fverbose-asm ${CPU} ${AFR_FLAGS} ${CXXFLAGS} ${INCS} $< -o $@
-
-${rdir}/%.dep : %.c
-	@echo file: $< "->" $@
+#@param ${1} file name suffix: cpp | cxx | cc
+#@PARAM ${2} build dir       : ddir | rdir | adir
+#@param ${3} debug flag      : DBG_FLAGS | RLS_FLAGS | AFR_FLAGS
+define COMPILE_CXX
+${2}/%.o: %.${1}
+	@echo file: $$< "->" $$@
+	@echo TERARK_INC=${TERARK_INC} BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	@mkdir -p $$(dir $$@)
+	${CXX} ${CXX_STD} ${CPU} -c ${3} ${CXXFLAGS} ${INCS} $$< -o $$@
+${2}/%.s : %.${1}
+	@echo file: $$< "->" $$@
+	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} $$< -o $$@
+${2}/%.dep : %.${1}
+	@echo file: $$< "->" $$@
 	@echo INCS = ${INCS}
-	mkdir -p $(dir $@)
-	-${CC} ${RLS_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
+	mkdir -p $$(dir $$@)
+	-${CXX} ${CXX_STD} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+endef
 
-${ddir}/%.dep : %.c
-	@echo file: $< "->" $@
+define COMPILE_C
+${2}/%.o : %.${1}
+	@echo file: $$< "->" $$@
+	mkdir -p $$(dir $$@)
+	${CC} -c ${CPU} ${3} ${CFLAGS} ${INCS} $$< -o $$@
+${2}/%.s : %.${1}
+	@echo file: $$< "->" $$@
+	${CC} -S -fverbose-asm ${CPU} ${3} ${CFLAGS} ${INCS} $$< -o $$@
+${2}/%.dep : %.${1}
+	@echo file: $$< "->" $$@
 	@echo INCS = ${INCS}
-	mkdir -p $(dir $@)
-	-${CC} ${DBG_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
+	mkdir -p $$(dir $$@)
+	-${CC} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+endef
 
-${adir}/%.dep : %.c
-	@echo file: $< "->" $@
-	@echo INCS = ${INCS}
-	mkdir -p $(dir $@)
-	-${CC} ${AFR_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
+$(eval $(call COMPILE_CXX,cpp,${ddir},${DBG_FLAGS}))
+$(eval $(call COMPILE_CXX,cxx,${ddir},${DBG_FLAGS}))
+$(eval $(call COMPILE_CXX,cc ,${ddir},${DBG_FLAGS}))
+$(eval $(call COMPILE_CXX,cpp,${rdir},${RLS_FLAGS}))
+$(eval $(call COMPILE_CXX,cxx,${rdir},${RLS_FLAGS}))
+$(eval $(call COMPILE_CXX,cc ,${rdir},${RLS_FLAGS}))
+$(eval $(call COMPILE_CXX,cpp,${adir},${AFR_FLAGS}))
+$(eval $(call COMPILE_CXX,cxx,${adir},${AFR_FLAGS}))
+$(eval $(call COMPILE_CXX,cc ,${adir},${AFR_FLAGS}))
+$(eval $(call COMPILE_C  ,c  ,${ddir},${DBG_FLAGS}))
+$(eval $(call COMPILE_C  ,c  ,${rdir},${RLS_FLAGS}))
+$(eval $(call COMPILE_C  ,c  ,${adir},${AFR_FLAGS}))
 
-${rdir}/%.dep : %.cpp
-	@echo file: $< "->" $@
-	@echo INCS = ${INCS}
-	mkdir -p $(dir $@)
-	-${CXX} ${CXX_STD} ${RLS_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
-
-${ddir}/%.dep : %.cpp
-	@echo file: $< "->" $@
-	@echo INCS = ${INCS}
-	mkdir -p $(dir $@)
-	-${CXX} ${CXX_STD} ${DBG_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
-
-${adir}/%.dep : %.cpp
-	@echo file: $< "->" $@
-	@echo INCS = ${INCS}
-	mkdir -p $(dir $@)
-	-${CXX} ${CXX_STD} ${AFR_FLAGS} -M -MT $(basename $@).o ${INCS} $< > $@
-
+# disable buildin suffix-rules
+.SUFFIXES:

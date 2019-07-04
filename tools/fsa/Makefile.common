@@ -1,7 +1,9 @@
 export SHELL=bash
 CHECK_TERARK_FSA_LIB_UPDATE ?= 1
 TERARK_HOME ?= ../..
+BOOST_INC ?= -I../../boost-include
 WITH_BMI2 ?= $(shell ${TERARK_HOME}/cpu_has_bmi2.sh)
+CURRENT_MAKEFILE := $(lastword $(MAKEFILE_LIST))
 
 ifeq "$(origin CXX)" "default"
   ifeq "$(shell test -e /opt/bin/g++ && echo 1)" "1"
@@ -17,8 +19,6 @@ ifeq "$(origin LD)" "default"
   LD := ${CXX}
 endif
 
-#TERARK_EXT_LIBS :=
-BOOST_INC := -I../../boost-include
 override INCS := -I${TERARK_HOME}/src ${INCS} ${BOOST_INC}
 #override CXXFLAGS += -pipe
 override CXXFLAGS += -Wall -Wextra
@@ -154,16 +154,34 @@ link : ${BINS_D} ${BINS_R} ${DLL_BINS_D} ${DLL_BINS_R}
 
 ifeq (${STATIC},1)
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
-  ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
-${BINS_D} : ${LIB_DIR}/libterark-core-${COMPILER}-d.a
-${BINS_R} : ${LIB_DIR}/libterark-core-${COMPILER}-r.a
-  endif
+  LIB_SUF := .a
 else
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib
-  ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
-${BINS_D} : ${LIB_DIR}/libterark-core-${COMPILER}-d${DLL_SUFFIX}
-${BINS_R} : ${LIB_DIR}/libterark-core-${COMPILER}-r${DLL_SUFFIX}
-  endif
+  LIB_SUF := ${DLL_SUFFIX}
+endif
+LIB_LIBS_D := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-d${LIB_SUF})
+LIB_LIBS_R := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-r${LIB_SUF})
+
+ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
+LIB_SRCS := $(shell find ${TERARK_HOME}/src -type f -name '*pp') \
+            ${CURRENT_MAKEFILE} ${TERARK_HOME}/Makefile
+#$(warning $(shell ( echo LIB_SRCS:  ; ls -l ${LIB_SRCS}   ) >&2))
+#$(warning $(shell ( echo LIB_LIBS_D:; ls -l ${LIB_LIBS_D} ) >&2))
+#$(warning $(shell ( echo LIB_LIBS_R:; ls -l ${LIB_LIBS_R} ) >&2))
+#$(warning LIB_LIBS_D: $(subst ${TERARK_HOME}/,,${LIB_LIBS_D}))
+#$(warning LIB_LIBS_R: $(subst ${TERARK_HOME}/,,${LIB_LIBS_R}))
+
+${LIB_LIBS_D}: ${LIB_SRCS}
+${LIB_LIBS_R}: ${LIB_SRCS}
+
+%zbs-${COMPILER}-d${LIB_SUF}:
+	+$(MAKE) -C ${TERARK_HOME} $(subst ${TERARK_HOME}/,,${LIB_LIBS_D})
+
+%zbs-${COMPILER}-r${LIB_SUF}:
+	+$(MAKE) -C ${TERARK_HOME} $(subst ${TERARK_HOME}/,,${LIB_LIBS_R})
+
+${BINS_D}: ${LIB_LIBS_D}
+${BINS_R}: ${LIB_LIBS_R}
 endif
 
 ${BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
