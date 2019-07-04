@@ -175,10 +175,6 @@ zip_src := \
     src/terark/io/BzipStream.cpp \
 	src/terark/io/GzipStream.cpp
 
-rpc_src := \
-   $(wildcard src/terark/inet/*.cpp) \
-   $(wildcard src/terark/rpc/*.cpp)
-
 core_src := \
    $(wildcard src/terark/*.cpp) \
    $(wildcard src/terark/io/*.cpp) \
@@ -245,24 +241,14 @@ static_zbs_d := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-d.a
 static_zbs_r := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-r.a
 static_zbs_a := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-a.a
 
-rpc_d_o := $(call objs,rpc,d)
-rpc_r_o := $(call objs,rpc,r)
-rpc_a_o := $(call objs,rpc,a)
-rpc_d := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-d${DLL_SUFFIX}
-rpc_r := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-r${DLL_SUFFIX}
-rpc_a := ${BUILD_ROOT}/lib/libterark-rpc-${COMPILER}-a${DLL_SUFFIX}
-static_rpc_d := ${BUILD_ROOT}/lib_static/libterark-rpc-${COMPILER}-d.a
-static_rpc_r := ${BUILD_ROOT}/lib_static/libterark-rpc-${COMPILER}-r.a
-static_rpc_a := ${BUILD_ROOT}/lib_static/libterark-rpc-${COMPILER}-a.a
-
 core := ${core_d} ${core_r} ${core_a} ${static_core_d} ${static_core_r} ${static_core_a}
 fsa  := ${fsa_d}  ${fsa_r}  ${fsa_a}  ${static_fsa_d}  ${static_fsa_r}  ${static_fsa_a}
 zbs  := ${zbs_d}  ${zbs_r}  ${zbs_a}  ${static_zbs_d}  ${static_zbs_r}  ${static_zbs_a}
 
-ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa rpc zbs
-DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d} ${rpc_d}
-RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r} ${rpc_r}
-AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a} ${rpc_a}
+ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs
+DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d}
+RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r}
+AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a}
 
 .PHONY : default all core fsa zbs
 
@@ -271,7 +257,6 @@ all : ${ALL_TARGETS}
 core: ${core}
 fsa: ${fsa}
 zbs: ${zbs}
-rpc: ${rpc_d} ${rpc_r} ${rpc_a} ${static_rpc_d} ${static_rpc_r} ${static_rpc_a}
 
 OpenSources := $(shell find -H src 3rdparty -name '*.h' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cpp' -o -name '*.c')
 
@@ -340,7 +325,7 @@ ${1}/git-version-%.cpp: git-version.phony Makefile
 	@env LC_ALL=C $(CXX) --version >> $$@.tmp
 	@echo INCS = ${INCS}           >> $$@.tmp
 	@echo CXXFLAGS  = ${CXXFLAGS}  >> $$@.tmp
-	@echo ${2} = ${${2}} >> $$@.tmp
+	@echo ${2} >> $$@.tmp # DBG_FLAGS | RLS_FLAGS | AFR_FLAGS
 	@echo WITH_BMI2 = ${WITH_BMI2} >> $$@.tmp
 	@echo WITH_TBB  = ${WITH_TBB}  >> $$@.tmp
 	@echo compile_cpu_flag: $(CPU) >> $$@.tmp
@@ -356,9 +341,9 @@ ${1}/git-version-%.cpp: git-version.phony Makefile
 	fi
 endef
 
-$(eval $(call GenGitVersionSRC, ${ddir}, DBG_FLAGS))
-$(eval $(call GenGitVersionSRC, ${rdir}, RLS_FLAGS))
-$(eval $(call GenGitVersionSRC, ${adir}, AFR_FLAGS))
+$(eval $(call GenGitVersionSRC, ${ddir}, "DBG_FLAGS = ${DBG_FLAGS}"))
+$(eval $(call GenGitVersionSRC, ${rdir}, "RLS_FLAGS = ${RLS_FLAGS}"))
+$(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 
 3rdparty/base64/lib/libbase64.o:
 	$(MAKE) -C 3rdparty/base64 clean; \
