@@ -46,6 +46,11 @@ public:
 		offsets.push_back(OffsetOp::make(0));
 	}
 
+	/// do not alloc memory
+	explicit basic_fstrvec(valvec_no_init, const OffsetOp& oop = OffsetOp())
+	  : OffsetOp(oop) {
+	}
+
 	void reserve(size_t capacity) {
 		offsets.reserve(capacity+1);
 	}

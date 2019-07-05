@@ -22,12 +22,12 @@
 namespace terark {
 
 LineBuf::LineBuf()
-   	: capacity(0), n(0), p(NULL)
+	: p(NULL), n(0), capacity(0)
 {}
 
 LineBuf::~LineBuf() {
-   	if (p)
-	   	free(p);
+	if (p)
+		free(p);
 }
 
 void LineBuf::clear() {

@@ -472,7 +472,7 @@ public:
 	ptrdiff_t real_index(ptrdiff_t virtual_index) const throw()
 	{
 		assert(virtual_index >= 0);
-		assert(virtual_index < size());
+		assert(virtual_index < (ptrdiff_t)size());
 		ptrdiff_t i = virtual_index + m_head;
 		return i < m_nlen ? i : i - m_nlen;
 	//	return (virtual_index + m_head) % m_vec.size();
@@ -494,7 +494,7 @@ public:
 	ElemT& operator[](ptrdiff_t virtual_index)
 	{
 		assert(virtual_index >= 0);
-		assert(virtual_index < size());
+		assert(virtual_index < (ptrdiff_t)size());
 		ptrdiff_t c = m_nlen;
 		ptrdiff_t i = m_head + virtual_index;
 		ptrdiff_t j = i < c ? i : i - c;
@@ -504,7 +504,7 @@ public:
 	const ElemT& operator[](ptrdiff_t virtual_index) const
 	{
 		assert(virtual_index >= 0);
-		assert(virtual_index < size());
+		assert(virtual_index < (ptrdiff_t)size());
 		ptrdiff_t c = m_nlen;
 		ptrdiff_t i = m_head + virtual_index;
 		ptrdiff_t j = i < c ? i : i - c;
