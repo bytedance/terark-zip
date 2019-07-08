@@ -19,11 +19,16 @@
 
 void usage(const char* prog) {
     fprintf(stderr, R"EOS(usage: %s
+-d input-delim
+   field delim of stdin
 
--j field1,field2,...:[QuoteBeg]:[QuoteEnd]:[OFdelim]:command
+-D output-delim
+
+-j field1,field2,...:[QuoteBeg]:[QuoteEnd]:[KFdelim]:[OFdelim]:command
    join key(field1,field2,...) to command, send "QuoteBeg$key$QuoteEnd" to command and read
    the command output, append the command output on input fields.
 
+   KFdelim is key field delim.
    the command output fields delim is OFdelim.
 
    for example: for redis, QuoteBeg is 'GET ', QuoteEnd is '\r\n'
@@ -42,37 +47,49 @@ using namespace terark;
 struct OneRecord : fstrvec {
     OneRecord() : fstrvec(valvec_no_init()) {}
 
-    valvec<valvec<byte_t> > jresp;
-    bool is_completed = false;
+    valvec<fstrvec> jresp;
 };
 
 struct OneJoin {
     valvec<size_t> keyfields; // key is multiple fields of input record/line
     valvec<byte_t> keybuf;
     valvec<byte_t> resp;
-    std::string cmd;
-    int pipe;
+    const char* cmd;
+    fstring quote_beg;
+    fstring quote_end;
+    unsigned char odelim;
+    unsigned char kdelim;
+    pid_t childpid;
+    int rfd;
+    int wfd;
     bool is_eof = false; // for pipe read
-    intptr_t rqpos;
-    intptr_t sendqpos;
+    intptr_t rqpos = 0;
+    intptr_t sendqpos = 0;
 
-    void decode_key(const OneRecord& record, unsigned char delim) {
+    void extract_key(const OneRecord& record) {
         keybuf.erase_all();
+        keybuf.append(quote_beg);
         for (size_t kf : keyfields) {
             if (kf >= record.size()) {
                 fprintf(stderr, "ERROR: input fields=%zd is less than keyfield=%zd\n", record.size(), kf);
                 exit(255);
             }
             keybuf.append(record[kf]);
-            keybuf.append(delim);
+            keybuf.append(kdelim);
         }
-        keybuf.back() = '\0';
         keybuf.pop_back();
+        keybuf.append(quote_end);
     }
 
-    void send_req(const OneRecord& record, unsigned char delim) {
-        decode_key(record, delim);
-        ::write(pipe, keybuf.data(), keybuf.size());
+    void send_req(const OneRecord& record) {
+        extract_key(record);
+        intptr_t wlen = ::write(wfd, keybuf.data(), keybuf.size());
+        if (intptr_t(keybuf.size()) != wlen) {
+            int err = errno;
+            fprintf(stderr, "ERROR: write(%zd) = %zd, cmd(%s) = %s\n",
+                    keybuf.size(), wlen, cmd, strerror(err));
+            exit(err);
+        }
     }
 
     void read_fully() {
@@ -84,14 +101,17 @@ struct OneJoin {
                 len1 = resp.free_mem_size();
             }
             byte_t* buf1 = resp.end();
-            intptr_t len2 = read(pipe, buf1, len1);
+            intptr_t len2 = read(rfd, buf1, len1);
             if (len2 < 0) { // error
                 int err = errno;
-                fprintf(stderr, "ERROR: read cmd(%s) = %s\n", cmd.c_str(), strerror(err));
+                fprintf(stderr, "ERROR: read cmd(%s) = %s\n", cmd, strerror(err));
                 exit(err);
             } else if (0 == len2) {
                 if (EAGAIN == errno) {
                     break;
+                }
+                if (resp.size() && '\n' != resp.back()) {
+                    resp.push_back('\n'); // add missing trailing '\n'
                 }
                 is_eof = true;
             } else {
@@ -110,11 +130,17 @@ struct OneJoin {
             size_t vi = queue.virtual_index(rqpos);
             if (vi < queue.size()) {
                 auto& record = queue[vi];
-                record.jresp[jidx].assign(line, scan);
+                auto& jr = record.jresp.ensure_get(jidx);
+                jr.strpool.assign(line, scan);
+                fstring(jr.strpool).split_f2(odelim,
+                        [&](const char* col, const char*) {
+                    jr.offsets.push_back(col - jr.strpool.data());
+                });
+                jr.offsets.push_back(jr.strpool.size());
                 rqpos = queue.real_index(vi + 1);
                 line = scan = scan + 1;
             } else { // response lines is more than request
-                fprintf(stderr, "ERROR: cmd(%s) response lines is more than request\n", cmd.c_str());
+                fprintf(stderr, "ERROR: cmd(%s) response lines is more than request\n", cmd);
                 exit(255);
             }
         }
@@ -126,8 +152,9 @@ struct OneJoin {
 struct Main {
 
 unsigned char delim = '\t';
+unsigned char odelim = '\t';
 valvec<OneJoin> joins;
-valvec<size_t> outputFields;
+valvec<std::pair<int, int> > fofields;
 circular_queue<OneRecord> queue;
 fd_set rfdset, wfdset, efdset;
 int fdnum;
@@ -154,11 +181,11 @@ void read_one_line() {
 void send_req() {
     for (size_t i = 0; i < joins.size(); i++) {
         auto& j = joins[i];
-        if (FD_ISSET(j.pipe, &wfdset)) {
+        if (FD_ISSET(j.rfd, &wfdset)) {
             size_t vi = queue.virtual_index(j.sendqpos);
             if (vi < queue.size()) {
                 auto& record = queue[vi];
-                j.send_req(record, delim);
+                j.send_req(record);
                 j.sendqpos = queue.real_index(vi + 1);
             } else {
                 fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
@@ -171,7 +198,7 @@ void read_response_and_write() {
     intptr_t min_qvhead = queue.size();
     for (size_t i = 0; i < joins.size(); ++i) {
         auto& j = joins[i];
-        int fd = j.pipe;
+        int fd = j.rfd;
         if (FD_ISSET(fd, &rfdset)) {
             intptr_t cur_qvhead = j.recv_vhead(queue, i);
             min_qvhead = std::min(min_qvhead, cur_qvhead);
@@ -183,9 +210,39 @@ void read_response_and_write() {
     }
 }
 
+valvec<byte_t> rowbuf;
 void write_row(const OneRecord& row) {
-    intptr_t len1 = row.strpool.size();
-    intptr_t len2 = ::write(STDOUT_FILENO, row.strpool.data(), len1);
+    rowbuf.erase_all();
+    for (auto fj: fofields) {
+        if (0 == fj.first) { // ref 'row'
+            if (0 == fj.second) { // ref all fields
+                for (size_t i = 0; i < row.size(); ++i) {
+                    rowbuf.append(row[i]);
+                    rowbuf.back() = odelim;
+                }
+            }
+            else {
+                rowbuf.append(row[fj.second-1]);
+                rowbuf.back() = odelim;
+            }
+        }
+        else { // ref joins[]
+            auto& jr = row.jresp[fj.first-1];
+            if (0 == fj.second) {
+                for (size_t i = 0; i < jr.size(); ++i) {
+                    rowbuf.append(jr[i]);
+                    rowbuf.back() = odelim;
+                }
+            }
+            else {
+                rowbuf.append(jr[fj.second]);
+                rowbuf.back() = odelim;
+            }
+        }
+    }
+    rowbuf.back() = '\n';
+    intptr_t len1 = rowbuf.size();
+    intptr_t len2 = ::write(STDOUT_FILENO, rowbuf.data(), len1);
     if (len2 != len1) {
         int err = errno;
         fprintf(stderr, "ERROR: write(stdout, %zd) = %zd: %s\n",
@@ -199,9 +256,8 @@ int my_select_rw() {
     FD_ZERO(&wfdset);
     FD_ZERO(&efdset);
     for (auto& j : joins) {
-        FD_SET(j.pipe, &rfdset);
-        FD_SET(j.pipe, &wfdset);
-        FD_SET(j.pipe, &efdset);
+        FD_SET(j.rfd, &rfdset);  FD_SET(j.rfd, &efdset);
+        FD_SET(j.wfd, &wfdset);  FD_SET(j.wfd, &efdset);
     }
     timeval timeout = {0, 10000}; // 10ms
     int err = select(fdnum, &rfdset, NULL, &efdset, &timeout);
@@ -213,19 +269,175 @@ int my_select_rw() {
     return err;
 }
 
+// :[content]:
+// return content, if content is empty, use szDefault
+fstring parse_bracket(const char*& cur, const char* szDefault) {
+    if (':' != cur[0]) {
+        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        exit(EINVAL);
+    }
+    if ('[' != cur[1]) {
+        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        exit(EINVAL);
+    }
+    const char* closep = strchr(cur+2, ']');
+    if (NULL == closep) {
+        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        exit(EINVAL);
+    }
+    if (':' != closep[1]) {
+        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        exit(EINVAL);
+    }
+    const char* content = cur + 2;
+    cur = closep + 1; // cur point to tail ':'
+    return content == closep ? szDefault : fstring(content, closep);
+}
+
+void add_join(const char* js) {
+    joins.emplace_back(); OneJoin& j = joins.back();
+    const char* cur = js;
+    while (true) {
+        char* endp = NULL;
+        long fidx = strtol(cur, &endp, 10);
+        if (fidx < 0) {
+            fprintf(stderr, "ERROR: bad key fields = %s\n", js);
+            exit(EINVAL);
+        }
+        if (',' == *endp) {
+            j.keyfields.push_back(fidx);
+        }
+        else if (':' == *endp) {
+            break; // :[QuoteBeg]:[QuoteEnd]:[Odelim]:
+        }
+        else {
+            fprintf(stderr, "ERROR: bad key fields = %s\n", js);
+            exit(EINVAL);
+        }
+        cur = endp + 1;
+    }
+
+    // parse :[QuoteBeg]:[QuoteEnd]:[Odelim]:
+    j.quote_beg = parse_bracket(cur, "");
+    j.quote_end = parse_bracket(cur, "\n");
+    j.kdelim = parse_bracket(cur, "\t")[0];
+    j.odelim = parse_bracket(cur, "\t")[0];
+
+    const char* cmd = cur + 1;
+
+    int rfds[2], wfds[2];
+    int err = pipe(rfds);
+    if (err < 0) {
+        fprintf(stderr, "ERROR: pipe() = %s\n", strerror(err));
+        exit(err);
+    }
+    err = pipe(wfds);
+    if (err < 0) {
+        fprintf(stderr, "ERROR: pipe() = %s\n", strerror(err));
+        exit(err);
+    }
+    pid_t pid = fork();
+    if (pid < 0) {
+        err = errno;
+        fprintf(stderr, "ERROR: fork() = %s\n", strerror(err));
+        exit(err);
+    }
+    if (0 == pid) { // child
+        ::close(wfds[0]);
+        ::close(rfds[1]);
+        err = dup2(wfds[0], 0); // parent write -> child read
+        if (err < 0) {
+            err = errno;
+            fprintf(stderr, "ERROR: dup2(%d, %d) = %s\n", rfds[0], 0, strerror(err));
+            exit(err);
+        }
+        err = dup2(rfds[1], 1); // child write -> parent read
+        if (err < 0) {
+            err = errno;
+            fprintf(stderr, "ERROR: dup2(%d, %d) = %s\n", wfds[1], 1, strerror(err));
+            exit(err);
+        }
+        err = execl("/bin/sh", "/bin/sh", "-c", cmd);
+        if (err) {
+            err = errno;
+            fprintf(stderr, "ERROR: execl(%s) = %s\n", cmd, strerror(err));
+            exit(err);
+        }
+        return; // should not goes here...
+    }
+    // parent
+    ::close(rfds[1]); j.rfd = rfds[0];
+    ::close(wfds[0]); j.wfd = wfds[1];
+
+    if (fcntl(j.rfd, F_SETFD, fcntl(j.rfd, F_GETFD) | O_NONBLOCK) < 0) {
+        err = errno;
+        fprintf(stderr, "ERROR: fcntl(%d, F_SETFD, O_NONBLOCK) = %s\n", j.rfd, strerror(err));
+        exit(err);
+    }
+    // do not set wfd as O_NONBLOCK
+
+    j.childpid = pid;
+}
+
+void parse_output_fileds(const char* outputFieldsSpec) {
+    if (NULL == outputFieldsSpec) {
+        fofields.push_back({0,0});
+        for (size_t i = 0; i < joins.size(); ++i) {
+            fofields.push_back({int(i+1), 0});
+        }
+        return;
+    }
+    const char* cur = outputFieldsSpec;
+    while (true) {
+        char* endp = NULL;
+        int fidx = (int)strtol(cur, &endp, 10);
+        if (fidx < 0) {
+            fprintf(stderr, "ERROR: bad outputFieldsSpec = %s\n", outputFieldsSpec);
+            exit(EINVAL);
+        }
+        if ('.' == *endp) {
+            // now fidx indicate i'th join cmd
+            if ('*' == endp[1]) {
+                endp += 1;
+                fofields.push_back({fidx, 0});
+            }
+            else {
+                long jfidx = strtol(endp+1, &endp, 10);
+                fofields.push_back({fidx, jfidx});
+            }
+        }
+        if (',' == *endp) {
+            fofields.push_back({0, fidx});
+        }
+        else if ('\0' == *endp) {
+            break;
+        }
+        else {
+            fprintf(stderr, "ERROR: bad outputFieldsSpec = %s\n", outputFieldsSpec);
+            exit(EINVAL);
+        }
+        cur = endp + 1;
+    }
+}
+
 int main(int argc, char* argv[]) {
+    const char* outputFieldsSpec = NULL;
     for (;;) {
-        int opt = getopt(argc, argv, "hd:j:o:");
+        int opt = getopt(argc, argv, "hd:D:j:o:v");
         switch (opt) {
             case -1:
                 goto GetoptDone;
             case 'd':
-
                 delim = optarg[0];
                 break;
+            case 'D':
+                odelim = optarg[0];
+                break;
             case 'j':
+                add_join(optarg);
                 break;
             case 'o':
+                outputFieldsSpec = optarg;
                 break;
             case 'v':
                 //	verbose = true;
@@ -237,9 +449,10 @@ int main(int argc, char* argv[]) {
         }
     }
 GetoptDone:
+    parse_output_fileds(outputFieldsSpec);
     fdnum = 0;
     for (size_t i = 0; i < joins.size(); ++i) {
-        fdnum = std::max(fdnum, joins[i].pipe);
+        fdnum = std::max(fdnum, joins[i].rfd);
     }
     fdnum += 1;
     while (!(is_input_eof && queue.empty())) {
@@ -255,6 +468,22 @@ GetoptDone:
         }
         send_req();
         read_response_and_write();
+    }
+    for (size_t i = 0; i < joins.size(); ++i) {
+        auto& j = joins[i];
+        int status = 0;
+        int err = wait3(&status, j.childpid, NULL);
+        if (err) {
+            err = errno;
+            fprintf(stderr, "ERROR: wait %s = %s\n", j.cmd, strerror(err));
+            return err;
+        }
+        else if (0 == status) {
+            fprintf(stderr, "INFO: %s completed successful\n", j.cmd);
+        }
+        else {
+            fprintf(stderr, "ERROR: %s exit = %d : %s\n", j.cmd, status, strerror(status));
+        }
     }
     return 0;
 }
