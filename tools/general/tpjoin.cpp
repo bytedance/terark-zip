@@ -136,6 +136,7 @@ struct OneJoin {
         while (NULL != (scan = (byte_t*)memchr(scan, '\n', endp - scan))) {
             if (queue.tail_real_index() != rqpos) {
                 size_t vi = queue.virtual_index(rqpos);
+                assert(vi < queue.size());
                 auto& record = queue[vi];
                 auto& jr = record.jresp.ensure_get(jidx);
                 assert(jr.strpool.empty());
