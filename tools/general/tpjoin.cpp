@@ -207,7 +207,7 @@ void read_response_and_write() {
         }
     }
     if (INT_MAX != min_qvhead) {
-        assert(min_qvhead <= queue.size());
+        assert(min_qvhead <= (intptr_t)queue.size());
         for (intptr_t i = 0; i < min_qvhead; ++i) {
             write_row(queue.front());
             queue.pop_front();
