@@ -137,12 +137,14 @@ struct OneJoin {
                 size_t vi = queue.virtual_index(rqpos);
                 auto& record = queue[vi];
                 auto& jr = record.jresp.ensure_get(jidx);
-                jr.strpool.assign(line, scan);
+                jr.strpool.assign(line, scan+1); // include '\n'
+		jr.offsets.erase_all();
                 fstring(jr.strpool).split_f2(odelim,
                         [&](const char* col, const char*) {
                     jr.offsets.push_back(col - jr.strpool.data());
                 });
                 jr.offsets.push_back(jr.strpool.size());
+		//fprintf(stderr, "DEBUG: join_id=%zd: line=%zd:%.*s, jr.size()=%zd\n", jidx+1, scan-line, int(scan-line), line, jr.size());
                 rqpos = queue.real_index(vi + 1);
                 line = scan = scan + 1;
             } else { // response lines is more than request
@@ -150,6 +152,7 @@ struct OneJoin {
                 exit(255);
             }
         }
+	//fprintf(stderr, "DEBUG: join_id=%zd: line_pos=%zd: resp.size()=%zd\n", jidx+1, line-resp.data(), resp.size());
         resp.erase_i(0, line - resp.data());
         return queue.virtual_index(rqpos);
     }
@@ -242,7 +245,7 @@ void write_row(const OneRecord& row) {
         else { // ref joins[]
             auto& jr = row.jresp[fj.first-1];
             if (jr.strpool.size() <= 1) {
-                fprintf(stderr, "WARN: empty respond: join_id = %d\n", fj.first);
+                fprintf(stderr, "WARN: empty respond: join_id = %d, jresp[fields = %zd, bytes=%zd]\n", fj.first, jr.size(), jr.strpool.size());
             }
             if (0 == fj.second) {
                 for (size_t i = 0; i < jr.size(); ++i) {
