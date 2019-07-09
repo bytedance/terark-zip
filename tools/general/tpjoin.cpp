@@ -196,7 +196,7 @@ void send_req() {
 }
 
 void read_response_and_write() {
-    intptr_t min_qvhead = queue.size();
+    intptr_t min_qvhead = INT_MAX;
     for (size_t i = 0; i < joins.size(); ++i) {
         auto& j = joins[i];
         int fd = j.rfd;
@@ -205,9 +205,12 @@ void read_response_and_write() {
             min_qvhead = std::min(min_qvhead, cur_qvhead);
         }
     }
-    for (intptr_t i = 0; i < min_qvhead; ++i) {
-        write_row(queue.front());
-        queue.pop_front();
+    if (INT_MAX != min_qvhead) {
+        assert(min_qvhead <= queue.size());
+        for (intptr_t i = 0; i < min_qvhead; ++i) {
+            write_row(queue.front());
+            queue.pop_front();
+        }
     }
 }
 
