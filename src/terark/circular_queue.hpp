@@ -475,11 +475,12 @@ public:
 
 	/**
 	 @brief 通过virtual_index取得元素的序列号
+	        virtual_index can equal to size()
 	 */
 	ptrdiff_t real_index(ptrdiff_t virtual_index) const throw()
 	{
 		assert(virtual_index >= 0);
-		assert(virtual_index < (ptrdiff_t)size());
+		assert(virtual_index <= (ptrdiff_t)size());
 		ptrdiff_t i = virtual_index + m_head;
 		return i < m_nlen ? i : i - m_nlen;
 	//	return (virtual_index + m_head) % m_vec.size();
