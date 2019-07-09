@@ -166,6 +166,7 @@ void read_one_line() {
     LineBuf line;
     if (line.getline(stdin) >= 0) {
         line.chomp();
+        line.push_back('\n');
         queue.push_back(OneRecord());
         auto& record = queue.back();
         record.offsets.reserve(input_fields + 1);
@@ -182,7 +183,7 @@ void read_one_line() {
 void send_req() {
     for (size_t i = 0; i < joins.size(); i++) {
         auto& j = joins[i];
-        if (FD_ISSET(j.rfd, &wfdset)) {
+        if (FD_ISSET(j.wfd, &wfdset)) {
             size_t vi = queue.virtual_index(j.sendqpos);
             if (vi < queue.size()) {
                 auto& record = queue[vi];
