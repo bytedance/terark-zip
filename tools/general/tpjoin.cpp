@@ -398,7 +398,7 @@ void add_join(const char* js) {
     ::close(rfds[1]); j.rfd = rfds[0];
     ::close(wfds[0]); j.wfd = wfds[1];
 
-    if (fcntl(j.rfd, F_SETFD, fcntl(j.rfd, F_GETFD) | O_NONBLOCK) < 0) {
+    if (fcntl(j.rfd, F_SETFL, fcntl(j.rfd, F_GETFL) | O_NONBLOCK) < 0) {
         err = errno;
         fprintf(stderr, "ERROR: fcntl(%d, F_SETFD, O_NONBLOCK) = %s\n", j.rfd, strerror(err));
         exit(err);
