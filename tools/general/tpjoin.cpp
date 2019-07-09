@@ -76,7 +76,7 @@ struct OneJoin {
                 exit(255);
             }
             keybuf.append(record[kf-1]);
-            keybuf.append(kdelim);
+            keybuf.back() = kdelim;
         }
         keybuf.pop_back();
         keybuf.append(quote_end);

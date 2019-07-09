@@ -463,10 +463,13 @@ public:
 	 */
 	ptrdiff_t virtual_index(ptrdiff_t real_index) const throw()
 	{
-		assert(real_index >= 0);
-		assert(real_index < (ptrdiff_t)size());
 		ptrdiff_t i = real_index - m_head;
-		return i >= 0 ? i : i + m_nlen;
+		if (i < 0) {
+			i += m_nlen;
+		}
+		assert(i >= 0);
+		assert(i <= (intptr_t)size());
+		return i;
 	//	return (m_vec.size() + real_index - m_head) % m_vec.size();
 	}
 
