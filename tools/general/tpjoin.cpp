@@ -521,14 +521,15 @@ GetoptDone:
     };
     while (true) {
         int status = 0;
-        pid_t childpid = wait(&status);
+	//fprintf(stderr, "DEBUG: wait(&status)...\n");
+        pid_t childpid = waitpid(-1, &status, WNOHANG);
         if (childpid < 0) {
             int err = errno;
             if (ECHILD == err) {
                 break;
             }
         }
-        else {
+        else if (childpid > 0) {
             size_t jidx = find_child(childpid);
             if (size_t(-1) == jidx) {
                 fprintf(stderr, "ERROR: unexpected waited childpid = %zd\n", size_t(childpid));
@@ -536,11 +537,14 @@ GetoptDone:
             }
             auto& j = joins[jidx];
             if (WEXITSTATUS(status) == 0) {
-                fprintf(stderr, "INFO: %s completed successful\n",);
+                fprintf(stderr, "INFO: %s completed successful\n", j.cmd);
             } else {
                 fprintf(stderr, "ERROR: %s exit = %d : %s\n", j.cmd, status, strerror(status));
             }
         }
+	else {
+		break;
+	}
     }
     return 0;
 }
