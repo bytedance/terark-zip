@@ -313,6 +313,7 @@ void add_join(const char* js) {
             j.keyfields.push_back(fidx);
         }
         else if (':' == *endp) {
+            j.keyfields.push_back(fidx);
             cur = endp;
             break; // :[QuoteBeg]:[QuoteEnd]:[Odelim]:
         }
