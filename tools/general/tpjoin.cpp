@@ -253,7 +253,7 @@ void write_row(const OneRecord& row) {
             }
         }
         else { // ref joins[]
-            assert(fj.first < row.jresp.size());
+            assert(fj.first <= (intptr_t)row.jresp.size());
             auto& jr = row.jresp[fj.first-1];
             if (jr.strpool.size() <= 1) {
                 fprintf(stderr, "WARN: empty respond: join_id = %d, jresp[fields = %zd, bytes=%zd]\n", fj.first, jr.size(), jr.strpool.size());
