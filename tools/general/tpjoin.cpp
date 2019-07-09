@@ -68,8 +68,8 @@ struct OneJoin {
     int rfd;
     int wfd;
     bool is_eof = false; // for pipe read
-    intptr_t rqpos = 0;
-    intptr_t sendqpos = 0;
+    intptr_t recv_qpos = 0;
+    intptr_t send_qpos = 0;
 
     ~OneJoin() {
         if (rfd > 0) ::close(rfd);
@@ -131,15 +131,15 @@ struct OneJoin {
         }
     }
 
-    void recv_vhead(circular_queue<OneRecord>& queue, size_t jidx) {
+    void recv_resp_and_join(circular_queue<OneRecord>& queue, size_t jidx) {
         size_t  oldsize = resp.size();
         read_fully();
         byte_t* endp = resp.end();
         byte_t* line = resp.data();
         byte_t* scan = resp.data() + oldsize;
         while (NULL != (scan = (byte_t*)memchr(scan, '\n', endp - scan))) {
-            if (queue.tail_real_index() != rqpos) {
-                size_t vi = queue.virtual_index(rqpos);
+            if (queue.tail_real_index() != recv_qpos) {
+                size_t vi = queue.virtual_index(recv_qpos);
                 assert(vi < queue.size());
                 auto& record = queue[vi];
                 auto& jr = record.jresp[jidx];
@@ -152,7 +152,7 @@ struct OneJoin {
                 });
                 jr.offsets.push_back(jr.strpool.size());
                 //fprintf(stderr, "DEBUG: join_id=%zd: line=%zd:%.*s, jr.size()=%zd\n", jidx+1, scan-line, int(scan-line), line, jr.size());
-                rqpos = queue.real_index(vi + 1);
+                recv_qpos = queue.real_index(vi + 1);
                 line = scan = scan + 1;
             } else { // response lines is more than request
                 fprintf(stderr, "ERROR: cmd(%s) response lines is more than request\n", cmd);
@@ -200,7 +200,7 @@ void send_req() {
         auto& j = joins[i];
         if (j.wfd < 0)
             continue;
-        size_t vi = queue.virtual_index(j.sendqpos);
+        size_t vi = queue.virtual_index(j.send_qpos);
         if (vi < queue.size()) {
             if (j.is_eof) {
                 fprintf(stderr, "ERROR: join_id=%zd: cmd = (%s) is terminated earlier(eof=1)\n", i, j.cmd);
@@ -209,27 +209,27 @@ void send_req() {
             if (FD_ISSET(j.wfd, &wfdset)) {
                 auto& r = queue[vi];
                 j.send_req(r);
-                j.sendqpos = queue.real_index(vi + 1);
-                if (is_input_eof && queue.tail_real_index() == j.sendqpos) {
+                j.send_qpos = queue.real_index(vi + 1);
+                if (is_input_eof && queue.tail_real_index() == j.send_qpos) {
                     // close wfd, so cmd peer knows it reaches stdin eof
                     ::close(j.wfd); j.wfd = -1;
                 }
             }
         } else {
-            // fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
+            // fprintf(stderr, "ERROR: ith_joinkey = %zd, send_qpos = %zd reaches queue.size()\n", i, j.send_qpos);
         }
     }
 }
 
-void read_response_and_write() {
+void recv_resp_and_write() {
     intptr_t min_qvhead = INT_MAX;
-    for (size_t i = 0; i < joins.size(); ++i) {
-        auto& j = joins[i];
+    for (size_t jidx = 0; jidx < joins.size(); ++jidx) {
+        auto& j = joins[jidx];
         int fd = j.rfd;
         if (FD_ISSET(fd, &rfdset)) {
-            j.recv_vhead(queue, i);
+            j.recv_resp_and_join(queue, jidx);
         }
-        minimize(min_qvhead, queue.virtual_index(j.rqpos));
+        minimize(min_qvhead, queue.virtual_index(j.recv_qpos));
     }
     assert(min_qvhead <= (intptr_t)queue.size());
     for (intptr_t i = 0; i < min_qvhead; ++i) {
@@ -524,7 +524,7 @@ GetoptDone:
             }
         }
         send_req();
-        read_response_and_write();
+        recv_resp_and_write();
     }
     auto find_child = [&](pid_t childpid) {
         for (size_t i = 0; i < joins.size(); ++i) {
