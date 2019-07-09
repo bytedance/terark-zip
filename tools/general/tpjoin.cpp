@@ -111,18 +111,18 @@ struct OneJoin {
             intptr_t len2 = read(rfd, buf1, len1);
             if (len2 < 0) { // error
                 int err = errno;
+                if (EAGAIN == err) {
+                    break;
+                }
                 fprintf(stderr, "ERROR: read cmd(%s) = %s\n", cmd, strerror(err));
                 exit(err);
             } else if (len2 > 0) {
                 resp.risk_set_size(resp.size() + len2);
-                if (len2 < (intptr_t)len1) {
-                    break; // have read'ed fully
-                }
-                assert(len2 == (intptr_t)len1); // continue read more...
+            //    if (len2 < (intptr_t)len1) {
+            //        break; // have read'ed fully
+            //    }
+            //    assert(len2 == (intptr_t)len1); // continue read more...
             } else { // 0 == len2
-                if (EAGAIN == errno) {
-                    break;
-                }
                 if (resp.size() && '\n' != resp.back()) {
                     resp.push_back('\n'); // add missing trailing '\n'
                 }
