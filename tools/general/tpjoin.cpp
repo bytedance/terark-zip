@@ -133,8 +133,8 @@ struct OneJoin {
         byte_t* line = resp.data();
         byte_t* scan = resp.data() + oldsize;
         while (NULL != (scan = (byte_t*)memchr(scan, '\n', endp - scan))) {
-            size_t vi = queue.virtual_index(rqpos);
-            if (vi < queue.size()) {
+            if (queue.tail_real_index() != rqpos) {
+                size_t vi = queue.virtual_index(rqpos);
                 auto& record = queue[vi];
                 auto& jr = record.jresp.ensure_get(jidx);
                 jr.strpool.assign(line, scan);
