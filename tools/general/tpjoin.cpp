@@ -71,11 +71,11 @@ struct OneJoin {
         keybuf.erase_all();
         keybuf.append(quote_beg);
         for (size_t kf : keyfields) {
-            if (kf >= record.size()) {
+            if (kf-1 >= record.size()) {
                 fprintf(stderr, "ERROR: input fields=%zd is less than keyfield=%zd\n", record.size(), kf);
                 exit(255);
             }
-            keybuf.append(record[kf]);
+            keybuf.append(record[kf-1]);
             keybuf.append(kdelim);
         }
         keybuf.pop_back();
