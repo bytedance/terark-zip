@@ -131,7 +131,7 @@ struct OneJoin {
         }
     }
 
-    int recv_vhead(circular_queue<OneRecord>& queue, size_t jidx) {
+    void recv_vhead(circular_queue<OneRecord>& queue, size_t jidx) {
         size_t  oldsize = resp.size();
         read_fully();
         byte_t* endp = resp.end();
@@ -159,7 +159,6 @@ struct OneJoin {
         }
         //fprintf(stderr, "DEBUG: join_id=%zd: line_pos=%zd: resp.size()=%zd\n", jidx+1, line-resp.data(), resp.size());
         resp.erase_i(0, line - resp.data());
-        return queue.virtual_index(rqpos);
     }
 };
 
@@ -218,16 +217,14 @@ void read_response_and_write() {
         auto& j = joins[i];
         int fd = j.rfd;
         if (FD_ISSET(fd, &rfdset)) {
-            intptr_t cur_qvhead = j.recv_vhead(queue, i);
-            min_qvhead = std::min(min_qvhead, cur_qvhead);
+            j.recv_vhead(queue, i);
         }
+        minimize(min_qvhead, queue.virtual_index(j.rqpos));
     }
-    if (INT_MAX != min_qvhead) {
-        assert(min_qvhead <= (intptr_t)queue.size());
-        for (intptr_t i = 0; i < min_qvhead; ++i) {
-            write_row(queue.front());
-            queue.pop_front();
-        }
+    assert(min_qvhead <= (intptr_t)queue.size());
+    for (intptr_t i = 0; i < min_qvhead; ++i) {
+        write_row(queue.front());
+        queue.pop_front();
     }
 }
 
