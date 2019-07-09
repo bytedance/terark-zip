@@ -178,7 +178,7 @@ void read_one_line() {
         queue.push_back(OneRecord());
         auto& record = queue.back();
         record.offsets.reserve(input_fields + 1);
-        line.split_f(delim, [&](char* col, char* endc) {
+        line.split_f(delim, [&](char* col, char*) {
             record.offsets.push_back(col - line.p);
         });
         record.offsets.push_back(line.size());
@@ -232,6 +232,12 @@ void read_response_and_write() {
 
 valvec<byte_t> rowbuf;
 void write_row(const OneRecord& row) {
+#if !defined(NDEBUG)
+    assert(row.jresp.size() == joins.size());
+    for (size_t jidx = 0; jidx < joins.size(); ++jidx) {
+        assert(row.jresp[jidx].strpool.size() > 0);
+    }
+#endif
     rowbuf.erase_all();
     for (auto fj: fofields) {
         if (0 == fj.first) { // ref 'row'
@@ -247,6 +253,7 @@ void write_row(const OneRecord& row) {
             }
         }
         else { // ref joins[]
+            assert(fj.first < row.jresp.size());
             auto& jr = row.jresp[fj.first-1];
             if (jr.strpool.size() <= 1) {
                 fprintf(stderr, "WARN: empty respond: join_id = %d, jresp[fields = %zd, bytes=%zd]\n", fj.first, jr.size(), jr.strpool.size());
