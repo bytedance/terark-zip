@@ -118,10 +118,6 @@ struct OneJoin {
                 exit(err);
             } else if (len2 > 0) {
                 resp.risk_set_size(resp.size() + len2);
-            //    if (len2 < (intptr_t)len1) {
-            //        break; // have read'ed fully
-            //    }
-            //    assert(len2 == (intptr_t)len1); // continue read more...
             } else { // 0 == len2
                 if (resp.size() && '\n' != resp.back()) {
                     resp.push_back('\n'); // add missing trailing '\n'
@@ -195,18 +191,24 @@ void read_one_line() {
 void send_req() {
     for (size_t i = 0; i < joins.size(); i++) {
         auto& j = joins[i];
-        if (j.wfd > 0 && FD_ISSET(j.wfd, &wfdset)) {
-            size_t vi = queue.virtual_index(j.sendqpos);
-            if (vi < queue.size()) {
+        if (j.wfd < 0)
+            continue;
+        size_t vi = queue.virtual_index(j.sendqpos);
+        if (vi < queue.size()) {
+            if (j.is_eof) {
+                fprintf(stderr, "ERROR: join_id=%zd: cmd = (%zd) is terminated earlier(eof=1)\n", i, j.cmd);
+                exit(255);
+            }
+            if (FD_ISSET(j.wfd, &wfdset)) {
                 auto& record = queue[vi];
                 j.send_req(record);
                 j.sendqpos = queue.real_index(vi + 1);
                 if (is_input_eof && queue.tail_real_index() == j.sendqpos) {
                     ::close(j.wfd); j.wfd = -1;
                 }
-            } else {
-                // fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
             }
+        } else {
+            // fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
         }
     }
 }
