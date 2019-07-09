@@ -108,7 +108,13 @@ struct OneJoin {
                 int err = errno;
                 fprintf(stderr, "ERROR: read cmd(%s) = %s\n", cmd, strerror(err));
                 exit(err);
-            } else if (0 == len2) {
+            } else if (len2 > 0) {
+                resp.risk_set_size(resp.size() + len2);
+                if (len2 < len1) {
+                    break; // have read'ed fully
+                }
+                assert(len2 == len1); // continue read more...
+            } else { // 0 == len2
                 if (EAGAIN == errno) {
                     break;
                 }
@@ -116,8 +122,6 @@ struct OneJoin {
                     resp.push_back('\n'); // add missing trailing '\n'
                 }
                 is_eof = true;
-            } else {
-                resp.risk_set_size(resp.size() + len2);
             }
         }
     }
