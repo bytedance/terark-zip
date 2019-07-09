@@ -47,7 +47,8 @@ EOF
 fi
 fi # if false, comment out BDB
 
-cat > is_cygwin.cpp << "EOF"
+fname=is_cygwin_$$
+cat > ${fname}.cpp << "EOF"
 #include <stdio.h>
 int main() {
   #ifdef __CYGWIN__
@@ -58,14 +59,15 @@ int main() {
     return 0;
 }
 EOF
-if $CXX is_cygwin.cpp -o is_cygwin.exe; then
-	IS_CYGWIN=`./is_cygwin.exe`
+if $CXX ${fname}.cpp -o ${fname}.exe; then
+	IS_CYGWIN=`./${fname}.exe`
 	echo IS_CYGWIN=$IS_CYGWIN >> $EnvConf
 fi
-rm -f is_cygwin.*
+rm -f ${fname}.*
 
 if false; then
-cat > has_inheriting_cons.cpp << "EOF"
+fname=has_inheriting_cons_$$
+cat > ${fname}.cpp << "EOF"
 struct A {
 	A(int) {}
 	A(int,int){}
@@ -81,10 +83,10 @@ int main() {
 EOF
 rm -f src/terark/my_auto_config.hpp
 touch src/terark/my_auto_config.hpp
-if $CXX -std=c++11 has_inheriting_cons.cpp > /dev/null 2>&1; then
+if $CXX -std=c++11 ${fname}.cpp > /dev/null 2>&1; then
 	echo '#define TERARK_HAS_INHERITING_CONSTRUCTORS' >> src/terark/my_auto_config.hpp
 fi
-rm -f has_inheriting_cons.cpp
+rm -f ${fname}.cpp
 
 if [ "$IS_CYGWIN" -eq 1 ]; then
 	rm -f a.exe
