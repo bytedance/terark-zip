@@ -152,7 +152,7 @@ link : ${BINS_D} ${BINS_R} ${DLL_BINS_D} ${DLL_BINS_R}
 		ln -sf $$f .; \
 	done; cd ..
 
-ifeq (${STATIC},1)
+ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
   LIB_SUF := .a
 else
