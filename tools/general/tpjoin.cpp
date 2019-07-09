@@ -67,6 +67,11 @@ struct OneJoin {
     intptr_t rqpos = 0;
     intptr_t sendqpos = 0;
 
+    ~OneJoin() {
+        if (rfd > 0) ::close(rfd);
+        if (wfd > 0) ::close(wfd);
+    }
+
     void extract_key(const OneRecord& record) {
         keybuf.erase_all();
         keybuf.append(quote_beg);
@@ -138,13 +143,13 @@ struct OneJoin {
                 auto& record = queue[vi];
                 auto& jr = record.jresp.ensure_get(jidx);
                 jr.strpool.assign(line, scan+1); // include '\n'
-		jr.offsets.erase_all();
+                jr.offsets.erase_all();
                 fstring(jr.strpool).split_f2(odelim,
                         [&](const char* col, const char*) {
                     jr.offsets.push_back(col - jr.strpool.data());
                 });
                 jr.offsets.push_back(jr.strpool.size());
-		//fprintf(stderr, "DEBUG: join_id=%zd: line=%zd:%.*s, jr.size()=%zd\n", jidx+1, scan-line, int(scan-line), line, jr.size());
+                //fprintf(stderr, "DEBUG: join_id=%zd: line=%zd:%.*s, jr.size()=%zd\n", jidx+1, scan-line, int(scan-line), line, jr.size());
                 rqpos = queue.real_index(vi + 1);
                 line = scan = scan + 1;
             } else { // response lines is more than request
@@ -152,7 +157,7 @@ struct OneJoin {
                 exit(255);
             }
         }
-	//fprintf(stderr, "DEBUG: join_id=%zd: line_pos=%zd: resp.size()=%zd\n", jidx+1, line-resp.data(), resp.size());
+        //fprintf(stderr, "DEBUG: join_id=%zd: line_pos=%zd: resp.size()=%zd\n", jidx+1, line-resp.data(), resp.size());
         resp.erase_i(0, line - resp.data());
         return queue.virtual_index(rqpos);
     }
@@ -507,20 +512,34 @@ GetoptDone:
         send_req();
         read_response_and_write();
     }
-    for (size_t i = 0; i < joins.size(); ++i) {
-        auto& j = joins[i];
-        int status = 0;
-        int err = wait3(&status, j.childpid, NULL);
-        if (err) {
-            err = errno;
-            fprintf(stderr, "ERROR: wait %s = %s\n", j.cmd, strerror(err));
-            return err;
+    auto find_child = [&](pid_t childpid) {
+        for (size_t i = 0; i < joins.size(); ++i) {
+            if (joins[i].childpid == childpid)
+                return i;
         }
-        else if (0 == status) {
-            fprintf(stderr, "INFO: %s completed successful\n", j.cmd);
+        return size_t(-1);
+    };
+    while (true) {
+        int status = 0;
+        pid_t childpid = wait(&status);
+        if (childpid < 0) {
+            int err = errno;
+            if (ECHILD == err) {
+                break;
+            }
         }
         else {
-            fprintf(stderr, "ERROR: %s exit = %d : %s\n", j.cmd, status, strerror(status));
+            size_t jidx = find_child(childpid);
+            if (size_t(-1) == jidx) {
+                fprintf(stderr, "ERROR: unexpected waited childpid = %zd\n", size_t(childpid));
+                return 255;
+            }
+            auto& j = joins[jidx];
+            if (WEXITSTATUS(status) == 0) {
+                fprintf(stderr, "INFO: %s completed successful\n",);
+            } else {
+                fprintf(stderr, "ERROR: %s exit = %d : %s\n", j.cmd, status, strerror(status));
+            }
         }
     }
     return 0;
