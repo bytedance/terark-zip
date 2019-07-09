@@ -110,10 +110,10 @@ struct OneJoin {
                 exit(err);
             } else if (len2 > 0) {
                 resp.risk_set_size(resp.size() + len2);
-                if (len2 < len1) {
+                if (len2 < (intptr_t)len1) {
                     break; // have read'ed fully
                 }
-                assert(len2 == len1); // continue read more...
+                assert(len2 == (intptr_t)len1); // continue read more...
             } else { // 0 == len2
                 if (EAGAIN == errno) {
                     break;
@@ -198,7 +198,7 @@ void send_req() {
                     ::close(j.wfd); j.wfd = -1;
                 }
             } else {
-                fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
+                // fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
             }
         }
     }
