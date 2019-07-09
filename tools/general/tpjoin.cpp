@@ -343,8 +343,6 @@ void add_join(const char* js) {
         exit(err);
     }
     if (0 == pid) { // child
-        ::close(wfds[0]);
-        ::close(rfds[1]);
         err = dup2(wfds[0], 0); // parent write -> child read
         if (err < 0) {
             err = errno;
@@ -357,6 +355,8 @@ void add_join(const char* js) {
             fprintf(stderr, "ERROR: dup2(%d, %d) = %s\n", wfds[1], 1, strerror(err));
             exit(err);
         }
+        ::close(wfds[0]); ::close(wfds[1]);
+        ::close(rfds[0]); ::close(rfds[1]);
         err = execl("/bin/sh", "/bin/sh", "-c", cmd);
         if (err) {
             err = errno;
