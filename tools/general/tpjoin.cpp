@@ -196,7 +196,7 @@ void send_req() {
         size_t vi = queue.virtual_index(j.sendqpos);
         if (vi < queue.size()) {
             if (j.is_eof) {
-                fprintf(stderr, "ERROR: join_id=%zd: cmd = (%zd) is terminated earlier(eof=1)\n", i, j.cmd);
+                fprintf(stderr, "ERROR: join_id=%zd: cmd = (%s) is terminated earlier(eof=1)\n", i, j.cmd);
                 exit(255);
             }
             if (FD_ISSET(j.wfd, &wfdset)) {
