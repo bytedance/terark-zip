@@ -45,10 +45,14 @@ void usage(const char* prog) {
 
 using namespace terark;
 
-struct OneRecord : fstrvec {
-    OneRecord() : fstrvec(valvec_no_init()) {}
+struct colvec : fstrvec {
+    colvec() : fstrvec(valvec_no_init()) {}
+};
 
-    valvec<fstrvec> jresp;
+struct OneRecord {
+    colvec  left; // left join
+    valvec<colvec> jresp;
+//  explicit OneRecord(size_t njoin) : jresp(njoin) {}
 };
 
 struct OneJoin {
@@ -76,11 +80,11 @@ struct OneJoin {
         keybuf.erase_all();
         keybuf.append(quote_beg);
         for (size_t kf : keyfields) {
-            if (kf-1 >= record.size()) {
-                fprintf(stderr, "ERROR: input fields=%zd is less than keyfield=%zd\n", record.size(), kf);
+            if (kf-1 >= record.left.size()) {
+                fprintf(stderr, "ERROR: input fields=%zd is less than keyfield=%zd\n", record.left.size(), kf);
                 exit(255);
             }
-            keybuf.append(record[kf-1]);
+            keybuf.append(record.left[kf-1]);
             keybuf.back() = kdelim;
         }
         keybuf.pop_back();
@@ -178,13 +182,14 @@ void read_one_line() {
         line.chomp();
         line.push_back('\n');
         queue.push_back(OneRecord());
-        auto& record = queue.back();
-        record.offsets.reserve(input_fields + 1);
+        auto& r = queue.back();
+        r.jresp.resize(joins.size());
+        r.left.offsets.reserve(input_fields + 1);
         line.split_f(delim, [&](char* col, char*) {
-            record.offsets.push_back(col - line.p);
+            r.left.offsets.push_back(col - line.p);
         });
-        record.offsets.push_back(line.size());
-        line.risk_swap_valvec(record.strpool);
+        r.left.offsets.push_back(line.size());
+        line.risk_swap_valvec(r.left.strpool);
     } else {
         is_input_eof = true;
     }
@@ -202,10 +207,11 @@ void send_req() {
                 exit(255);
             }
             if (FD_ISSET(j.wfd, &wfdset)) {
-                auto& record = queue[vi];
-                j.send_req(record);
+                auto& r = queue[vi];
+                j.send_req(r);
                 j.sendqpos = queue.real_index(vi + 1);
                 if (is_input_eof && queue.tail_real_index() == j.sendqpos) {
+                    // close wfd, so cmd peer knows it reaches stdin eof
                     ::close(j.wfd); j.wfd = -1;
                 }
             }
@@ -244,13 +250,13 @@ void write_row(const OneRecord& row) {
     for (auto fj: fofields) {
         if (0 == fj.first) { // ref 'row'
             if (0 == fj.second) { // ref all fields
-                for (size_t i = 0; i < row.size(); ++i) {
-                    rowbuf.append(row[i]);
+                for (size_t i = 0; i < row.left.size(); ++i) {
+                    rowbuf.append(row.left[i]);
                     rowbuf.back() = odelim;
                 }
             }
             else {
-                rowbuf.append(row[fj.second-1]);
+                rowbuf.append(row.left[fj.second-1]);
                 rowbuf.back() = odelim;
             }
         }
