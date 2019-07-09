@@ -411,7 +411,7 @@ ${TarBall}: $(wildcard tools/general/*.cpp) \
 			${core} ${fsa} ${zbs}
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/fsa
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/zbs
-	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/general TERARK_BIN_USE_STATIC_LIB=1
+	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/general
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib

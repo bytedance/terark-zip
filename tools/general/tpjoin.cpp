@@ -260,7 +260,7 @@ int my_select_rw() {
         FD_SET(j.wfd, &wfdset);  FD_SET(j.wfd, &efdset);
     }
     timeval timeout = {0, 10000}; // 10ms
-    int err = select(fdnum, &rfdset, NULL, &efdset, &timeout);
+    int err = select(fdnum, &rfdset, &wfdset, &efdset, &timeout);
     if (err < 0) { // error
         err = errno;
         fprintf(stderr, "ERROR: select(readwrite fdset) = %s\n", strerror(err));
@@ -273,20 +273,20 @@ int my_select_rw() {
 // return content, if content is empty, use szDefault
 fstring parse_bracket(const char*& cur, const char* szDefault) {
     if (':' != cur[0]) {
-        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        fprintf(stderr, "ERROR: bad bracket 1 = %s\n", cur);
         exit(EINVAL);
     }
     if ('[' != cur[1]) {
-        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        fprintf(stderr, "ERROR: bad bracket 2 = %s\n", cur);
         exit(EINVAL);
     }
     const char* closep = strchr(cur+2, ']');
     if (NULL == closep) {
-        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        fprintf(stderr, "ERROR: bad bracket 3 = %s\n", cur);
         exit(EINVAL);
     }
     if (':' != closep[1]) {
-        fprintf(stderr, "ERROR: bad bracket = %s\n", cur);
+        fprintf(stderr, "ERROR: bad bracket 4 = %s\n", cur);
         exit(EINVAL);
     }
     const char* content = cur + 2;
@@ -308,6 +308,7 @@ void add_join(const char* js) {
             j.keyfields.push_back(fidx);
         }
         else if (':' == *endp) {
+            cur = endp;
             break; // :[QuoteBeg]:[QuoteEnd]:[Odelim]:
         }
         else {
@@ -357,7 +358,7 @@ void add_join(const char* js) {
         }
         ::close(wfds[0]); ::close(wfds[1]);
         ::close(rfds[0]); ::close(rfds[1]);
-        err = execl("/bin/sh", "/bin/sh", "-c", cmd);
+        err = execl("/bin/sh", "/bin/sh", "-c", cmd, NULL);
         if (err) {
             err = errno;
             fprintf(stderr, "ERROR: execl(%s) = %s\n", cmd, strerror(err));
@@ -423,7 +424,7 @@ void parse_output_fileds(const char* outputFieldsSpec) {
 int main(int argc, char* argv[]) {
     const char* outputFieldsSpec = NULL;
     for (;;) {
-        int opt = getopt(argc, argv, "hd:D:j:o:v");
+        int opt = getopt(argc, argv, "hd:D:j:o:q:v");
         switch (opt) {
             case -1:
                 goto GetoptDone;
@@ -439,6 +440,16 @@ int main(int argc, char* argv[]) {
             case 'o':
                 outputFieldsSpec = optarg;
                 break;
+            case 'q':
+            {
+                long cap = strtol(optarg, NULL, 10);
+                if (cap < 0) {
+                    fprintf(stderr, "ERROR: bad argument -q %s\n", optarg);
+                    exit(EINVAL);
+                }
+                queue.init(cap);
+                break;
+            }
             case 'v':
                 //	verbose = true;
                 break;
@@ -449,10 +460,14 @@ int main(int argc, char* argv[]) {
         }
     }
 GetoptDone:
+    if (queue.capacity() == 0) {
+        queue.init(256);
+    }
     parse_output_fileds(outputFieldsSpec);
     fdnum = 0;
     for (size_t i = 0; i < joins.size(); ++i) {
-        fdnum = std::max(fdnum, joins[i].rfd);
+        maximize(fdnum, joins[i].rfd);
+        maximize(fdnum, joins[i].wfd);
     }
     fdnum += 1;
     while (!(is_input_eof && queue.empty())) {

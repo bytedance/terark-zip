@@ -54,6 +54,9 @@ struct TERARK_DLL_EXPORT LineBuf : boost::noncopyable {
 		size_t n1 = n; n = vv.size(); vv.risk_set_size(n1);
 		size_t c1 = capacity; capacity = vv.capacity(); vv.risk_set_capacity(c1);
 	}
+	const fstring& risk_to_fstring_ref() const {
+	    return *reinterpret_cast<const fstring*>(this);
+	}
 
 	///@{
 	///@return removed bytes
