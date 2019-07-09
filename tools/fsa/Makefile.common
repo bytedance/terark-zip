@@ -143,11 +143,11 @@ all : ${BINS_D} ${BINS_R} ${OBJS_D} ${OBJS_R} link \
 	${DLL_OBJS_D} ${DLL_OBJS_R} ${DLL_BINS_D} ${DLL_BINS_R}
 
 link : ${BINS_D} ${BINS_R} ${DLL_BINS_D} ${DLL_BINS_R}
-	mkdir -p dbg; cd dbg; \
+	@mkdir -p dbg; cd dbg; \
 	for f in `find ../${DBG_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
 		ln -sf $$f .; \
 	done; cd ..
-	mkdir -p rls; cd rls; \
+	@mkdir -p rls; cd rls; \
 	for f in `find ../${RLS_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
 		ln -sf $$f .; \
 	done; cd ..
