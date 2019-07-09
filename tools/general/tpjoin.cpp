@@ -241,6 +241,9 @@ void write_row(const OneRecord& row) {
         }
         else { // ref joins[]
             auto& jr = row.jresp[fj.first-1];
+            if (jr.strpool.size() <= 1) {
+                fprintf(stderr, "WARN: empty respond: join_id = %d\n", fj.first);
+            }
             if (0 == fj.second) {
                 for (size_t i = 0; i < jr.size(); ++i) {
                     rowbuf.append(jr[i]);
