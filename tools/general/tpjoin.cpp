@@ -142,7 +142,7 @@ struct OneJoin {
                 size_t vi = queue.virtual_index(rqpos);
                 assert(vi < queue.size());
                 auto& record = queue[vi];
-                auto& jr = record.jresp.ensure_get(jidx);
+                auto& jr = record.jresp[jidx];
                 assert(jr.strpool.empty());
                 jr.strpool.assign(line, scan+1); // include '\n'
                 jr.offsets.erase_all();
