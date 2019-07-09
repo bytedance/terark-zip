@@ -520,7 +520,7 @@ GetoptDone:
     };
     while (true) {
         int status = 0;
-	//fprintf(stderr, "DEBUG: wait(&status)...\n");
+        //fprintf(stderr, "DEBUG: wait(&status)...\n");
         pid_t childpid = waitpid(-1, &status, WNOHANG);
         if (childpid < 0) {
             int err = errno;
@@ -541,9 +541,9 @@ GetoptDone:
                 fprintf(stderr, "ERROR: %s exit = %d : %s\n", j.cmd, status, strerror(status));
             }
         }
-	else {
-		break;
-	}
+        else {
+            break;
+        }
     }
     return 0;
 }
