@@ -83,6 +83,7 @@ struct OneJoin {
     }
 
     void send_req(const OneRecord& record) {
+        assert(wfd > 0);
         extract_key(record);
         intptr_t wlen = ::write(wfd, keybuf.data(), keybuf.size());
         if (intptr_t(keybuf.size()) != wlen) {
@@ -183,12 +184,15 @@ void read_one_line() {
 void send_req() {
     for (size_t i = 0; i < joins.size(); i++) {
         auto& j = joins[i];
-        if (FD_ISSET(j.wfd, &wfdset)) {
+        if (j.wfd > 0 && FD_ISSET(j.wfd, &wfdset)) {
             size_t vi = queue.virtual_index(j.sendqpos);
             if (vi < queue.size()) {
                 auto& record = queue[vi];
                 j.send_req(record);
                 j.sendqpos = queue.real_index(vi + 1);
+                if (is_input_eof && queue.tail_real_index() == j.sendqpos) {
+                    ::close(j.wfd); j.wfd = -1;
+                }
             } else {
                 fprintf(stderr, "ERROR: ith_joinkey = %zd, sendqpos = %zd reaches queue.size()\n", i, j.sendqpos);
             }
@@ -262,7 +266,10 @@ int my_select_rw() {
     FD_ZERO(&efdset);
     for (auto& j : joins) {
         FD_SET(j.rfd, &rfdset);  FD_SET(j.rfd, &efdset);
-        FD_SET(j.wfd, &wfdset);  FD_SET(j.wfd, &efdset);
+        if (j.wfd > 0) {
+            FD_SET(j.wfd, &wfdset);
+            FD_SET(j.wfd, &efdset);
+        }
     }
     timeval timeout = {0, 10000}; // 10ms
     int err = select(fdnum, &rfdset, &wfdset, &efdset, &timeout);
