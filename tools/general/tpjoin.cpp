@@ -26,19 +26,22 @@ void usage(const char* prog) {
 -D output-delim
 
 -j field1,field2,...:[QuoteBeg]:[QuoteEnd]:[KFdelim]:[OFdelim]:command
-   join key(field1,field2,...) to command, send "QuoteBeg$key$QuoteEnd" to command and read
-   the command output, append the command output on input fields.
+   Join key(field1,field2,...) to command, send "QuoteBeg$key$QuoteEnd" to command and read
+   The command output, append the command output on input fields.
 
-   KFdelim is key field delim.
-   the command output fields delim is OFdelim.
+   KFdelim is the command input key field delim, default is '\t'.
+   OFdelim is the command output    field delim, default is '\t'.
 
-   for example: for redis, QuoteBeg is 'GET ', QuoteEnd is '\r\n'
-   default QuoteBeg is empty
-   default QuoteEnd is '\r\n'
+   For each input key, the command output exactly one line(ending by '\n')
+
+   For example: for redis, QuoteBeg is "GET ", QuoteEnd is "\n".
+   Default QuoteBeg is "" -- EMPTY String
+   Default QuoteEnd is "\n", if provided is empty, fallback to "\n"
 
 -o field1,field2,...
-   output such fields, default output all input fields and joined field
-   joined fields are appended on input fields vector
+   Output such fields, default output all input fields and joined field,
+   Joined fields are appended on input fields vector.
+   If this option is omitted, output all input fields and joined fields.
 
 )EOS", prog);
 }
@@ -79,7 +82,8 @@ struct OneJoin {
     void extract_key(const OneRecord& record) {
         keybuf.erase_all();
         keybuf.append(quote_beg);
-        for (size_t kf : keyfields) {
+        for(size_t kf : keyfields) {
+            assert(kf >= 1);
             if (kf-1 >= record.left.size()) {
                 fprintf(stderr, "ERROR: input fields=%zd is less than keyfield=%zd\n", record.left.size(), kf);
                 exit(255);
@@ -111,8 +115,7 @@ struct OneJoin {
                 resp.grow_capacity(4096);
                 len1 = resp.free_mem_size();
             }
-            byte_t* buf1 = resp.end();
-            intptr_t len2 = read(rfd, buf1, len1);
+            intptr_t len2 = read(rfd, resp.end(), len1);
             if (len2 < 0) { // error
                 int err = errno;
                 if (EAGAIN == err) {
