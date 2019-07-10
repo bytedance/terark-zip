@@ -69,18 +69,22 @@ ADD_LIBRARY(tests-tries SHARED ${TESTS_TRIES})
 
 ############## Tests ##############
 
-# tests
-FILE(GLOB TESTS_SRC
-        tests/core/*.cpp
-        tests/tries/*.cpp
-        tests/succinct/*.cpp)
-ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
-TARGET_LINK_LIBRARIES(terark-tests terark-zbs terark-fsa terark-core)
 
-# tools
-FILE(GLOB TOOLS_SRC
-        tools/general/*.cpp
-        tools/fsa/*.cpp
-        tools/zbs/*.cpp)
-ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
-TARGET_LINK_LIBRARIES(terark-tools terark-zbs terark-fsa terark-core)
+# CMake library under Linux won't accept multiple `main` functions, don't know how to fix it yet.
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    # tests
+    FILE(GLOB TESTS_SRC
+            tests/core/*.cpp
+            tests/tries/*.cpp
+            tests/succinct/*.cpp)
+    ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
+    TARGET_LINK_LIBRARIES(terark-tests terark-zbs terark-fsa terark-core)
+
+    # tools
+    FILE(GLOB TOOLS_SRC
+            tools/general/*.cpp
+            tools/fsa/*.cpp
+            tools/zbs/*.cpp)
+    ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
+    TARGET_LINK_LIBRARIES(terark-tools terark-zbs terark-fsa terark-core)
+ENDIF ()
