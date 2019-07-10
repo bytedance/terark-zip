@@ -3,8 +3,6 @@ PROJECT(terark-core)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++1y")
 SET(CMAKE_CXX_STANDARD 14)
-SET(CMAKE_CXX_COMPILER clang++)
-SET(CMAKE_C_COMPILER clang++)
 
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -43,22 +41,10 @@ FILE(GLOB ZBS_SRC src/terark/entropy/*.cpp
 ADD_LIBRARY(terark-zbs SHARED ${ZBS_SRC})
 TARGET_LINK_LIBRARIES(terark-zbs terark-core terark-fsa)
 
-FILE(GLOB TOOLS_FSA tools/fsa/*.cpp)
-ADD_LIBRARY(tools-fsa SHARED ${TOOLS_FSA})
-
-FILE(GLOB TOOLS_ZBS tools/zbs/*.cpp)
-ADD_LIBRARY(tools-zbs SHARED ${TOOLS_ZBS})
-
-FILE(GLOB TESTS_SUCCINCT tests/succinct/*.cpp)
-ADD_LIBRARY(tests-succinct SHARED ${TESTS_SUCCINCT})
-
-FILE(GLOB TESTS_TRIES tests/tries/*.cpp)
-ADD_LIBRARY(tests-tries SHARED ${TESTS_TRIES})
 
 # RPC LIB
 # FILE(GLOB RPC_SRC src/terark/inet/*.cpp src/terark/rpc/*.cpp)
 # ADD_LIBRARY(terarkdb-rpc SHARED ${RPC_SRC})
-
 
 # ZIP
 # SET(ZIP_SRC src/terark/io/BzipStream.cpp src/terark/io/GzipStream.cpp)
