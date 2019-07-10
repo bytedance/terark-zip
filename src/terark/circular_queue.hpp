@@ -194,13 +194,17 @@ public:
 	friend class       iterator;
 
 	/**
-	 @brief 构造最多能容纳 capacity 个有效元素的循环队列
+	 @brief 构造最多能容纳 cap-1 个有效元素的循环队列
 	 */
-	explicit circular_queue(ptrdiff_t capacity) : m_nlen(capacity + 1)
+	explicit circular_queue(ptrdiff_t cap) : m_nlen(cap)
 	{
-		assert(capacity != 0);
-		m_vec = (ElemT*)malloc(sizeof(ElemT) * m_nlen);
-		if (NULL == m_vec) throw std::bad_alloc();
+		if (cap) {
+            m_vec = (ElemT*)malloc(sizeof(ElemT) * m_nlen);
+            if (NULL == m_vec) throw std::bad_alloc();
+		}
+		else {
+		    m_vec = NULL;
+		}
 		m_head = m_tail = 0;
 	}
 	circular_queue() {
@@ -208,9 +212,9 @@ public:
 		m_nlen = m_head = m_tail = 0;
 	}
 
-	void init(ptrdiff_t capacity) {
+	void init(ptrdiff_t cap) {
 		assert(0 == m_nlen);
-		new(this)circular_queue(capacity);
+		new(this)circular_queue(cap);
 	}
 
 	~circular_queue() {
@@ -262,7 +266,7 @@ public:
 	 - 前条件：无
 	 @return 即构造该对象时传入的参数，或者 resize 后的新容量
 	 */
-	size_type capacity() const throw() { return m_nlen - 1; }
+	size_type capacity() const throw() { return m_nlen; }
 
 	/**
 	 @brief 在队列尾部加入一个新元素
@@ -459,20 +463,24 @@ public:
 	 */
 	ptrdiff_t virtual_index(ptrdiff_t real_index) const throw()
 	{
-		assert(real_index >= 0);
-		assert(real_index < (ptrdiff_t)size());
 		ptrdiff_t i = real_index - m_head;
-		return i >= 0 ? i : i + m_nlen;
+		if (i < 0) {
+			i += m_nlen;
+		}
+		assert(i >= 0);
+		assert(i <= (intptr_t)size());
+		return i;
 	//	return (m_vec.size() + real_index - m_head) % m_vec.size();
 	}
 
 	/**
 	 @brief 通过virtual_index取得元素的序列号
+	        virtual_index can equal to size()
 	 */
 	ptrdiff_t real_index(ptrdiff_t virtual_index) const throw()
 	{
 		assert(virtual_index >= 0);
-		assert(virtual_index < (ptrdiff_t)size());
+		assert(virtual_index <= (ptrdiff_t)size());
 		ptrdiff_t i = virtual_index + m_head;
 		return i < m_nlen ? i : i - m_nlen;
 	//	return (virtual_index + m_head) % m_vec.size();

@@ -129,7 +129,7 @@ size_t LineBuf::trim() {
 size_t LineBuf::chomp() {
 	assert(NULL != p);
 	size_t n0 = n;
-	while (n > 0 && strchr("\r\n", p[n-1])) p[--n] = 0;
+	while (n > 0 && ('\n' == p[n-1] || '\r' == p[n-1])) p[--n] = 0;
 	return n0 - n;
 }
 

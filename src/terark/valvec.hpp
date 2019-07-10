@@ -501,18 +501,32 @@ public:
 		if (i < n)
 			return p[i];
 		else
-			return *grow(1);
+			return ensure_get_slow(i);
     }
-
 	T& ensure_set(size_t i, param_type x) {
-		if (i >= n) {
-			resize(i+1);
-		}
+		if (i < n)
+			return p[i] = x;
+		else
+			return ensure_set_slow(i, x);
+	}
+private:
+	terark_no_inline
+	T& ensure_get_slow(size_t i) {
+		assert(n <= i);
+		resize_slow(i+1);
+		return p[i];
+	}
+	terark_no_inline
+	T& ensure_set_slow(size_t i, param_type x) {
+		assert(n <= i);
+		resize_slow(i+1);
 		T* beg = p; // load p into register
 		beg[i] = x;
 		return beg[i];
 	}
+public:
 
+    terark_no_inline
     void shrink_to_fit() {
         assert(n <= c);
         if (n == c)
@@ -541,6 +555,7 @@ public:
     }
 
 	// expect this function will reduce memory fragment
+	terark_no_inline
 	void shrink_to_fit_malloc_free() {
 		if (0 == c) return;
 		assert(NULL != p);
@@ -567,45 +582,74 @@ public:
 
     void resize(size_t newsize, param_type val) {
         size_t oldsize = n;
-        if (newsize == oldsize)
-            return; // nothing to do
-        if (newsize < oldsize) {
-			STDEXT_destroy_range(p + newsize, p + oldsize);
-            n = newsize;
+        if (boost::has_trivial_destructor<T>::value) {
+            if (newsize <= oldsize) {
+                n = newsize;
+                return;
+            }
         }
         else {
-            resize_slow(newsize, val);
+            if (newsize == oldsize)
+                return;
         }
+        resize_slow(newsize, val);
     }
     terark_no_inline
     void resize_slow(size_t newsize, param_type val) {
-        assert(newsize > n);
-        ensure_capacity(newsize);
-        std::uninitialized_fill_n(p+n, newsize-n, val);
+        size_t oldsize = n;
+        assert(oldsize != newsize);
+        if (!boost::has_trivial_destructor<T>::value && newsize <= oldsize) {
+			STDEXT_destroy_range(p + newsize, p + oldsize);
+        }
+        else {
+            assert(oldsize < newsize);
+            ensure_capacity(newsize);
+            std::uninitialized_fill_n(p+oldsize, newsize-oldsize, val);
+        }
         n = newsize;
     }
 
     void resize(size_t newsize) {
         size_t oldsize = n;
-        if (newsize == oldsize)
-            return; // nothing to do
-        if (newsize < oldsize) {
-			STDEXT_destroy_range(p + newsize, p + oldsize);
-            n = newsize;
+        if (boost::has_trivial_destructor<T>::value) {
+            if (newsize <= oldsize) {
+                n = newsize;
+                return;
+            }
         }
         else {
-            resize_slow(newsize);
+            if (newsize == oldsize)
+                return;
         }
+        resize_slow(newsize);
     }
     terark_no_inline
     void resize_slow(size_t newsize) {
-        assert(newsize > n);
-        ensure_capacity(newsize);
-        always_uninitialized_default_construct_n(p+n, newsize-n);
+        size_t oldsize = n;
+        assert(oldsize != newsize);
+        if (!boost::has_trivial_destructor<T>::value && newsize <= oldsize) {
+            STDEXT_destroy_range(p + newsize, p + oldsize);
+        }
+        else {
+            assert(oldsize < newsize);
+            ensure_capacity(newsize);
+            always_uninitialized_default_construct_n(p + oldsize, newsize - oldsize);
+        }
         n = newsize;
     }
 
-	void resize_fill(size_t newsize, param_type val = T()) {
+    terark_no_inline
+	void resize_fill(size_t newsize) {
+        if (n < newsize) {
+			ensure_capacity(newsize);
+        }
+		STDEXT_destroy_range(p, p + n);
+		always_uninitialized_default_construct_n(p, newsize);
+        n = newsize;
+	}
+
+	terark_no_inline
+	void resize_fill(size_t newsize, param_type val) {
         if (newsize <= n) {
 			STDEXT_destroy_range(p + newsize, p + n);
 			std::fill_n(p, newsize, val);
@@ -663,6 +707,7 @@ public:
 		insert(pos-p, x);
 	}
 
+	terark_no_inline
 	void insert(size_t pos, param_type x) {
 		assert(pos <= n);
 		if (pos > n) {
@@ -676,6 +721,7 @@ public:
 	}
 
 	template<class InputIter>
+	terark_no_inline
 	void insert(size_t pos, InputIter iter, size_t count) {
 		assert(pos <= n);
 		if (pos > n) {
@@ -1070,6 +1116,7 @@ public:
 
 #endif
 
+	terark_no_inline
 	size_t erase_i(size_t pos, size_t cnt) {
 		assert(cnt <= this->n);
 		assert(pos <= this->n);

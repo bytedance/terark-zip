@@ -43,6 +43,7 @@ public:
 
 	explicit basic_fstrvec(const OffsetOp& oop = OffsetOp())
 	  : OffsetOp(oop) {
+	    offsets.reserve(4);
 		offsets.push_back(OffsetOp::make(0));
 	}
 
