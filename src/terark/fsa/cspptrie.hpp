@@ -1,14 +1,19 @@
 #pragma once
 #include "fsa.hpp"
+#include <mutex>
 
 namespace terark {
 
+template<size_t Align> class PatriciaMem;
 class MainPatricia;
+
+#define TERARK_friend_class_Patricia \
+    friend class MainPatricia;   \
+    friend class PatriciaMem<4>; \
+    friend class PatriciaMem<8>
+
 class TERARK_DLL_EXPORT Patricia : public MatchingDFA, public boost::noncopyable {
 public:
-    static const size_t AlignSize = 4;
-    static const size_t max_state = UINT32_MAX - 1;
-    static const size_t nil_state = UINT32_MAX;
     enum ConcurrentLevel {
         NoWriteReadOnly,     // 0
         SingleThreadStrict,  // 1
@@ -27,39 +32,37 @@ protected:
         uint64_t      m_age;
     };
     class TERARK_DLL_EXPORT TokenBase : protected TokenLink {
-        friend class MainPatricia;
+        TERARK_friend_class_Patricia;
     protected:
-        MainPatricia* m_trie;
+        Patricia*     m_trie;
         void*         m_value;
     public:
         virtual ~TokenBase();
         virtual bool update(TokenUpdatePolicy) = 0;
         inline  bool update_lazy() { return update(UpdateLazy); }
         inline  bool update_now() { return update(UpdateNow); }
-        Patricia* trie() const { return reinterpret_cast<Patricia*>(m_trie); }
+        Patricia* trie() const { return m_trie; }
         const void* value() const { return m_value; }
         template<class T>
         T value_of() const {
-            assert(sizeof(T) == trie()->get_valsize());
+            assert(sizeof(T) == m_trie->m_valsize);
             assert(NULL != m_value);
-            assert(size_t(m_value) % AlignSize == 0);
-            if (sizeof(T) == AlignSize)
-                return   aligned_load<T>(m_value);
-            else
-                return unaligned_load<T>(m_value);
+            assert(size_t(m_value) % m_trie->mem_align_size() == 0);
+            return unaligned_load<T>(m_value);
         }
         template<class T>
         T& mutable_value_of() const {
-            assert(sizeof(T) == trie()->get_valsize());
+            assert(sizeof(T) == m_trie->m_valsize);
             assert(NULL != m_value);
-            assert(size_t(m_value) % AlignSize == 0);
+            assert(size_t(m_value) % m_trie->mem_align_size() == 0);
             return *reinterpret_cast<T*>(m_value);
         }
     };
 public:
     class TERARK_DLL_EXPORT ReaderToken : public TokenBase {
+        TERARK_friend_class_Patricia;
     protected:
-        void update_list(ConcurrentLevel, MainPatricia*);
+        void update_list(ConcurrentLevel, Patricia*);
     public:
         ReaderToken();
         explicit ReaderToken(Patricia*);
@@ -71,8 +74,8 @@ public:
     };
     class TERARK_DLL_EXPORT WriterToken : public TokenBase {
         void* m_tls;
-        friend class MainPatricia;
-        void update_list(MainPatricia*);
+        TERARK_friend_class_Patricia;
+        void update_list(Patricia*);
     protected:
         virtual bool init_value(void* valptr, size_t valsize) noexcept;
         virtual void destroy_value(void* valptr, size_t valsize) noexcept;
@@ -85,34 +88,17 @@ public:
         bool update(TokenUpdatePolicy) override;
         bool insert(fstring key, void* value);
     };
-    class TERARK_DLL_EXPORT Iterator :
-                     public ReaderToken, public ADFA_LexIterator {
+    class TERARK_DLL_EXPORT Iterator : public ReaderToken, public ADFA_LexIterator {
     protected:
-        class MyImpl;
-        // valvec::param_type requires Entry to be complete
-        struct Entry {
-            uint32_t state;
-            uint16_t n_children;
-            uint08_t nth_child;
-            uint08_t zpath_len;
-            bool has_next() const { return nth_child + 1 < n_children; }
-        };
-        valvec<Entry> m_iter;
-        size_t        m_flag;
+        Iterator(Patricia* sub) : ReaderToken(sub), ADFA_LexIterator(valvec_no_init()) {}
     public:
-        Iterator();
-        explicit Iterator(const Patricia*);
-        ~Iterator();
-        void token_detach_iter();
-        bool update(TokenUpdatePolicy) override final;
-        void reset(const BaseDFA*, size_t root = 0) override final;
-        bool seek_begin() override final;
-        bool seek_end() override final;
-        bool seek_lower_bound(fstring key) override final;
-        bool incr() override final;
-        bool decr() override final;
-        size_t seek_max_prefix(fstring) override final;
+        virtual void token_detach_iter() = 0;
     };
+    static const size_t ITER_SIZE = sizeof(Iterator) + sizeof(valvec<byte_t>) + sizeof(size_t);
+
+    /// ptr size must be allocated ITER_SIZE
+    virtual void construct_iter(void* ptr) const = 0;
+
     struct MemStat {
         valvec<size_t> fastbin;
         size_t used_size;
@@ -127,6 +113,7 @@ public:
                             size_t maxMem = 512<<10,
                             ConcurrentLevel = OneWriteMultiRead);
     MemStat mem_get_stat() const;
+    virtual size_t mem_align_size() const = 0;
     virtual size_t mem_frag_size() const = 0;
     virtual void mem_get_stat(MemStat*) const = 0;
 
@@ -161,11 +148,21 @@ public:
     ~Patricia();
 protected:
     Patricia();
+    virtual bool update_reader_token(ReaderToken*, TokenUpdatePolicy) = 0;
+    virtual bool update_writer_token(WriterToken*, TokenUpdatePolicy) = 0;
+    void update_min_age_inlock(TokenLink* token);
+    bool insert_readonly_throw(fstring key, void* value, WriterToken*);
     typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*);
     insert_func_t m_insert;
+    ConcurrentLevel     m_writing_concurrent_level;
+    ConcurrentLevel     m_mempool_concurrent_level;
+    bool                m_is_virtual_alloc;
     size_t    m_valsize;
     size_t    m_n_words;
     Stat      m_stat;
+    std::mutex    m_token_mutex;
+    TokenLink     m_token_head;
+    size_t        m_min_age;
 };
 
 } // namespace terark
