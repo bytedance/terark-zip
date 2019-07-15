@@ -357,12 +357,15 @@ GetoptDone:
         }
     };
     auto patricia_lb = [&](int tid, size_t Beg, size_t End) {
-        Patricia::Iterator iter(&trie);
+        char iter_mem[Patricia::ITER_SIZE];
+        trie.construct_iter(iter_mem);
+        auto& iter = *reinterpret_cast<Patricia::Iterator*>(iter_mem);
         for (size_t i = Beg; i < End; ++i) {
             fstring s = fstrVec[i];
             if (!iter.seek_lower_bound(s))
                 fprintf(stderr, "pttrie lower_bound failed: %.*s\n", s.ilen(), s.data());
         }
+        iter.~Iterator();
     };
     auto stdmap_find = [&](int tid, size_t Beg, size_t End) {
         std::string strkey;

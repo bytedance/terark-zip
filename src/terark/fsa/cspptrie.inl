@@ -63,17 +63,20 @@ BOOST_STATIC_ASSERT(sizeof(PatriciaNode) == 4);
 
 #define PatriciaNode_IsValid(x) (x.meta.n_cnt_type <= 8 || x.meta.n_cnt_type == 15)
 
-// Patricia is an interface
-class TERARK_DLL_EXPORT MainPatricia : public Patricia {
+template<size_t Align>
+class TERARK_DLL_EXPORT PatriciaMem : public Patricia {
+public:
+    static_assert(Align==4 || Align==8, "Align must be 4 or 8");
+    typedef typename std::conditional<Align==4,uint32_t,uint64_t>::type pos_type;
+    typedef size_t   state_id_t;
+    typedef pos_type transition_t;
     friend class ReaderToken;
     friend class WriterToken;
     friend class Iterator;
-public:
-    typedef size_t state_id_t;
-    typedef uint32_t transition_t;
-    typedef PatriciaNode State, state_t;
+    static const size_t AlignSize = Align;
+    static const size_t max_state = pos_type(-1) - 1;
+    static const size_t nil_state = pos_type(-1);
     static const size_t sigma = 256;
-    static const uint32_t s_skip_slots[16];
 
     size_t v_gnode_states() const override final { return m_n_nodes; }
     bool has_freelist() const override final { return false; }
@@ -87,24 +90,21 @@ public:
 protected:
     struct LazyFreeItem {
         uint64_t age;
-        uint32_t node;
-        uint32_t size;
+        pos_type node;
+        pos_type size;
     };
     size_t        m_max_word_len;
     size_t        m_n_nodes;
-    size_t        m_min_age;
-    spin_mutex    m_token_mutex;
-    TokenLink     m_token_head;
 
     byte_t        m_padding2[64-sizeof(size_t)];
     // following fields are nearly readonly
 
-//  using  LazyFreeListBase = AutoGrowCircularQueue<LazyFreeItem>;
+    //  using  LazyFreeListBase = AutoGrowCircularQueue<LazyFreeItem>;
     using  LazyFreeListBase = std::deque<LazyFreeItem>;
     struct LazyFreeList : LazyFreeListBase {
         size_t m_mem_size = 0;
     };
-	struct LazyFreeListTLS;
+    struct LazyFreeListTLS;
     union {
         LazyFreeList    m_lazy_free_list_sgl; // single
     };
@@ -113,30 +113,72 @@ protected:
     struct ReaderTokenTLS_Object : ReaderToken {
         ReaderTokenTLS_Object* m_next_free = nullptr;
         ReaderTokenTLS_Holder* tls_owner() const;
-        ReaderTokenTLS_Object(MainPatricia* trie) : ReaderToken(trie) {}
+        ReaderTokenTLS_Object(PatriciaMem* trie) : ReaderToken(trie) {}
     };
     struct ReaderTokenTLS_Holder
-         : instance_tls_owner<ReaderTokenTLS_Holder, ReaderTokenTLS_Object> {
+        : instance_tls_owner<ReaderTokenTLS_Holder, ReaderTokenTLS_Object> {
     };
     union {
         ReaderTokenTLS_Holder m_reader_token_tls;
     };
     LazyFreeList& lazy_free_list(ConcurrentLevel conLevel);
-    void update_min_age_inlock(TokenLink* token);
 
     void init(ConcurrentLevel conLevel);
     void mempool_lock_free_cons(size_t valsize);
 
+    union {
+        MemPool_CompileX<AlignSize> m_mempool;
+        MemPool_LockNone<AlignSize> m_mempool_lock_none;
+        MemPool_FixedCap<AlignSize> m_mempool_fixed_cap;
+        //  MemPool_LockFree<AlignSize> m_mempool_lock_free;
+        //  ThreadCacheMemPool<AlignSize> m_mempool_thread_cache;
+        ThreadCacheMemPool<AlignSize> m_mempool_lock_free;
+    };
+    intptr_t            m_fd;
+    size_t              m_appdata_offset;
+    size_t              m_appdata_length;
+
+    void alloc_mempool_space(intptr_t maxMem);
+
+    template<ConcurrentLevel>
+    void revoke_expired_nodes();
+    template<ConcurrentLevel, class LazyList>
+    void revoke_expired_nodes(LazyList&);
+    void check_valsize(size_t valsize) const;
+    void SingleThreadShared_sync_token_list(byte_t* oldmembase);
+
+    void finish_load_mmap(const DFA_MmapHeader*) override final;
+    long prepare_save_mmap(DFA_MmapHeader*, const void**) const override final;
+
+    void destroy();
+
+    template<ConcurrentLevel>
+    void free_node(size_t nodeId, size_t nodeSize, LazyFreeListTLS*);
+
+    template<ConcurrentLevel>
+    size_t alloc_node(size_t nodeSize, LazyFreeListTLS*);
+
+    template<ConcurrentLevel>
+    void free_raw(size_t pos, size_t len, LazyFreeListTLS*);
+
+    template<ConcurrentLevel>
+    size_t alloc_raw(size_t len, LazyFreeListTLS*);
+
+    void free_aux(size_t pos, size_t len);
+    size_t alloc_aux(size_t len);
+
+    bool update_reader_token(ReaderToken*, TokenUpdatePolicy) final;
+    bool update_writer_token(WriterToken*, TokenUpdatePolicy) final;
+
 public:
-    MainPatricia();
+    PatriciaMem();
 
     explicit
-    MainPatricia(size_t valsize,
-                 intptr_t maxMem = 512<<10,
-                 ConcurrentLevel = OneWriteMultiRead,
-                 fstring fpath = "");
-    ~MainPatricia();
-
+    PatriciaMem(size_t valsize,
+                intptr_t maxMem = 512<<10,
+                ConcurrentLevel = OneWriteMultiRead,
+                fstring fpath = "");
+    ~PatriciaMem();
     void set_readonly() override final;
     bool  is_readonly() const final {
         return NoWriteReadOnly == m_writing_concurrent_level;
@@ -147,6 +189,55 @@ public:
     size_t total_states() const { return m_mempool.size() / AlignSize; }
 
     size_t total_transitions() const { return m_n_nodes - 1; }
+
+    size_t mem_capacity() const { return m_mempool.capacity(); }
+    size_t mem_size_inline() const { return m_mempool.size(); }
+    size_t mem_size() const override final { return m_mempool.size(); }
+    void shrink_to_fit();
+
+    static const size_t mem_alloc_fail = size_t(-1) / AlignSize;
+
+    size_t new_root(size_t valsize);
+    size_t mem_alloc(size_t size);
+    void mem_free(size_t loc, size_t size);
+    void* mem_get(size_t loc) {
+        assert(loc < total_states());
+        auto a = reinterpret_cast<byte_t*>(m_mempool.data());
+        return a + loc * AlignSize;
+    }
+
+    size_t mem_align_size() const final { return AlignSize; }
+    size_t mem_frag_size() const final { return m_mempool.frag_size(); }
+    using Patricia::mem_get_stat;
+    void mem_get_stat(MemStat*) const override final;
+
+    void* alloc_appdata(size_t len);
+    void* appdata_ptr() const {
+        assert(size_t(-1) != m_appdata_offset);
+        assert(size_t(00) != m_appdata_length);
+        return (byte_t*)m_mempool.data() + m_appdata_offset;
+    }
+    size_t appdata_len() const {
+        assert(size_t(-1) != m_appdata_offset);
+        assert(size_t(00) != m_appdata_length);
+        return m_appdata_length;
+    }
+};
+
+// Patricia is an interface
+class TERARK_DLL_EXPORT MainPatricia : public PatriciaMem<4> {
+public:
+    typedef PatriciaNode State, state_t;
+    static const uint32_t s_skip_slots[16];
+
+    class IterImpl; friend class IterImpl;
+    MainPatricia();
+
+    explicit
+    MainPatricia(size_t valsize,
+                 intptr_t maxMem = 512<<10,
+                 ConcurrentLevel = OneWriteMultiRead,
+                 fstring fpath = "");
 
     bool is_pzip(size_t s) const {
         auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
@@ -217,10 +308,6 @@ public:
         assert(1 == a[s].meta.n_cnt_type);
         return a[s+1].child;
     }
-    size_t mem_capacity() const { return m_mempool.capacity(); }
-    size_t mem_size_inline() const { return m_mempool.size(); }
-    size_t mem_size() const override final { return m_mempool.size(); }
-    void shrink_to_fit();
     void compact();
 
     fstring get_zpath_data(size_t state, MatchContext* = NULL) const {
@@ -504,80 +591,20 @@ public:
     }
 
     bool lookup(fstring key, ReaderToken* token) const override final;
+    void construct_iter(void* ptr) const final;
 
-    static const size_t mem_alloc_fail = size_t(-1) / AlignSize;
-
-    size_t new_root(size_t valsize);
-    size_t mem_alloc(size_t size);
-    void mem_free(size_t loc, size_t size);
-    void* mem_get(size_t loc) {
-        assert(loc < total_states());
-        auto a = reinterpret_cast<byte_t*>(m_mempool.data());
-        return a + loc * AlignSize;
-    }
-
-    size_t mem_frag_size() const final { return m_mempool.frag_size(); }
-    using Patricia::mem_get_stat;
-    void mem_get_stat(MemStat*) const override final;
-
-    void* alloc_appdata(size_t len);
-    void* appdata_ptr() const {
-        assert(size_t(-1) != m_appdata_offset);
-        assert(size_t(00) != m_appdata_length);
-        return (byte_t*)m_mempool.data() + m_appdata_offset;
-    }
-    size_t appdata_len() const {
-        assert(size_t(-1) != m_appdata_offset);
-        assert(size_t(00) != m_appdata_length);
-        return m_appdata_length;
-    }
-
-protected:
-    union {
-        MemPool_CompileX<AlignSize> m_mempool;
-        MemPool_LockNone<AlignSize> m_mempool_lock_none;
-        MemPool_FixedCap<AlignSize> m_mempool_fixed_cap;
-    //  MemPool_LockFree<AlignSize> m_mempool_lock_free;
-    //  ThreadCacheMemPool<AlignSize> m_mempool_thread_cache;
-        ThreadCacheMemPool<AlignSize> m_mempool_lock_free;
-    };
-    struct RootEntry {
-        uint32_t root;
-        uint32_t valsize;
-    };
-    ConcurrentLevel     m_writing_concurrent_level;
-    ConcurrentLevel     m_mempool_concurrent_level;
-    bool                m_is_virtual_alloc;
-    intptr_t            m_fd;
-    size_t              m_appdata_offset;
-    size_t              m_appdata_length;
     void set_insert_func(ConcurrentLevel conLevel);
-
-    void alloc_mempool_space(intptr_t maxMem);
 
     size_t state_move_impl(const PatriciaNode* a, size_t curr,
                            auchar_t ch, size_t* child_slot) const;
     template<ConcurrentLevel>
     bool insert_one_writer(fstring key, void* value, WriterToken* token);
     bool insert_multi_writer(fstring key, void* value, WriterToken* token);
-    bool insert_readonly_throw(fstring key, void* value, WriterToken* token);
 
     struct NodeInfo;
 
-    template<MainPatricia::ConcurrentLevel>
-    void free_node(size_t nodeId, size_t nodeSize, LazyFreeListTLS*);
-
-    template<MainPatricia::ConcurrentLevel>
-    size_t alloc_node(size_t nodeSize, LazyFreeListTLS*);
-
-    template<MainPatricia::ConcurrentLevel>
-    void free_raw(size_t pos, size_t len, LazyFreeListTLS*);
-
-    template<MainPatricia::ConcurrentLevel>
-    size_t alloc_raw(size_t len, LazyFreeListTLS*);
-
-    void free_aux(size_t pos, size_t len);
-    size_t alloc_aux(size_t len);
+    template<ConcurrentLevel>
+    void revoke_list(PatriciaNode* a, size_t state, size_t valsize, LazyFreeListTLS*);
 
     template<MainPatricia::ConcurrentLevel>
     size_t new_suffix_chain(fstring tail, size_t* pValpos, size_t* chainLen, size_t valsize, LazyFreeListTLS*);
@@ -607,20 +634,6 @@ protected:
         size_t zlen = p->meta.n_zpath_len;
         return AlignSize * (skip + n_children) + pow2_align_up(zlen, AlignSize);
     }
-
-    template<MainPatricia::ConcurrentLevel>
-    void revoke_expired_nodes();
-    template<MainPatricia::ConcurrentLevel, class LazyList>
-    void revoke_expired_nodes(LazyList&);
-    template<ConcurrentLevel>
-    void revoke_list(PatriciaNode* a, size_t state, size_t valsize, LazyFreeListTLS*);
-    void check_valsize(size_t valsize) const;
-    void SingleThreadShared_sync_token_list(byte_t* oldmembase);
-
-	void finish_load_mmap(const DFA_MmapHeader*) override final;
-	long prepare_save_mmap(DFA_MmapHeader*, const void**) const override final;
-
-    void destroy();
 
 	typedef MainPatricia MyType;
 
@@ -655,10 +668,13 @@ protected:
 #endif // TerarkFSA_HighPrivate
 };
 
+template<size_t Align>
 inline
-MainPatricia::ReaderTokenTLS_Holder*
-MainPatricia::ReaderTokenTLS_Object::tls_owner() const {
-    return &m_trie->m_reader_token_tls;
+typename
+PatriciaMem<Align>::ReaderTokenTLS_Holder*
+PatriciaMem<Align>::ReaderTokenTLS_Object::tls_owner() const {
+    auto trie = static_cast<PatriciaMem<Align>*>(m_trie);
+    return &trie->m_reader_token_tls;
 }
 
 } // namespace terark
@@ -666,3 +682,4 @@ MainPatricia::ReaderTokenTLS_Object::tls_owner() const {
 #if __clang__
 # pragma clang diagnostic pop
 #endif
+

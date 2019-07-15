@@ -156,7 +156,9 @@ void run_benchmark() {
     t1 = pf.now();
     printf("shuf  index: time = %10.3f\n", pf.sf(t0,t1));
 
-    Patricia::Iterator iter(&trie);
+    char iter_mem[Patricia::ITER_SIZE];
+    trie.construct_iter(iter_mem);
+    Patricia::Iterator& iter = *reinterpret_cast<Patricia::Iterator*>(&iter_mem);
     t0 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = strVec.key(i);
@@ -185,7 +187,9 @@ void run_benchmark() {
   if (bench_iter_create) {
     t2 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
-        Patricia::Iterator iter2(&trie);
+        char iter_mem2[Patricia::ITER_SIZE];
+        trie.construct_iter(iter_mem2);
+        Patricia::Iterator& iter2 = *reinterpret_cast<Patricia::Iterator*>(&iter_mem2);
         fstring key = strVec.key(i);
         bool ok = iter2.seek_lower_bound(key);
         Unused(ok);
@@ -195,6 +199,7 @@ void run_benchmark() {
         auto va2 = iter2.value_of<uint32_t>();
         assert(va1 == va2);
 #endif
+        iter2.~Iterator();
     }
     t3 = pf.now();
     printf("NewIter low: time = %10.3f, QPS = %10.3f M, TP = %10.3f MB/sec, %8.3f X speed of lower_bound\n"
@@ -269,7 +274,9 @@ void run_benchmark() {
   if (bench_iter_create) {
     t2 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
-        Patricia::Iterator iter2(&trie);
+        char iter_mem2[Patricia::ITER_SIZE];
+        trie.construct_iter(iter_mem2);
+        Patricia::Iterator& iter2 = *reinterpret_cast<Patricia::Iterator*>(&iter_mem2);
         fstring key = fstrVec[i];
         bool ok = iter2.seek_lower_bound(key);
         assert(ok);
@@ -279,7 +286,8 @@ void run_benchmark() {
     printf("NewIter low: time = %10.3f, QPS = %10.3f M, TP = %10.3f MB/sec, %8.3f X speed of lower_bound\n"
         , pf.sf(t2,t3), strVec.end_i()/pf.uf(t2,t3), bytes/pf.uf(t2,t3)
         , pf.nf(t0,t1)/pf.nf(t2,t3));
- }
+  }
+    iter.~Iterator();
 }
 
 template<class NLT>
@@ -339,7 +347,9 @@ void unit_test() {
                 uint32_t val = UINT32_MAX;
                 token.insert(fstring(""), &val);
             }
-            MainPatricia::Iterator iter(&trie);
+            char iter_mem[Patricia::ITER_SIZE];
+            trie.construct_iter(iter_mem);
+            Patricia::Iterator& iter = *reinterpret_cast<Patricia::Iterator*>(&iter_mem);
             printf("MainPatricia iter incr basic...\n");
             {
                 bool ok = iter.seek_begin();
@@ -370,6 +380,7 @@ void unit_test() {
                 ok = iter.decr();
                 assert(!ok);
             }
+            iter.~Iterator();
             printf("MainPatricia iter decr basic... passed\n");
         }
         auto insert = [](MainPatricia& trie, const hash_strmap<>& strVec) {

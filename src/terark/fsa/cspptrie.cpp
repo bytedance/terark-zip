@@ -74,7 +74,8 @@ const uint32_t MainPatricia::s_skip_slots[16] = {
 
 static profiling g_pf;
 
-struct MainPatricia::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, LazyFreeList {
+template<size_t Align>
+struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, LazyFreeList {
     size_t m_n_nodes = 0;
     size_t m_n_words = 0;
     size_t m_max_word_len = 0;
@@ -83,15 +84,15 @@ struct MainPatricia::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, LazyFreeLi
     size_t m_zpath_states = 0;
     size_t m_n_retry = 0;
     Stat   m_stat = {0,0,0,0};
-    MainPatricia* m_trie;
+    PatriciaMem<Align>* m_trie;
     std::unique_ptr<WriterToken> m_writer_token;
     ReaderToken m_reader_token;
     std::map<size_t, size_t>     m_retry_histgram;
     long long m_race_wait = 0;
-    void sync_atomic(MainPatricia*);
-    void sync_no_atomic(MainPatricia*);
+    void sync_atomic(PatriciaMem<Align>*);
+    void sync_no_atomic(PatriciaMem<Align>*);
     void reset_zero();
-    LazyFreeListTLS(MainPatricia* trie);
+    LazyFreeListTLS(PatriciaMem<Align>* trie);
     ~LazyFreeListTLS();
 };
 
@@ -105,7 +106,8 @@ Patricia::Patricia() {
 }
 Patricia::~Patricia() {}
 
-void MainPatricia::init(ConcurrentLevel conLevel) {
+template<size_t Align>
+void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     if (conLevel >= MultiWriteMultiRead) {
     }
     else {
@@ -124,12 +126,12 @@ void MainPatricia::init(ConcurrentLevel conLevel) {
     m_appdata_length = 0;
     m_writing_concurrent_level = conLevel;
     m_mempool_concurrent_level = conLevel;
-    set_insert_func(conLevel);
 }
 
-inline
-MainPatricia::LazyFreeList&
-MainPatricia::lazy_free_list(ConcurrentLevel conLevel) {
+template<size_t Align>
+inline typename
+PatriciaMem<Align>::LazyFreeList&
+PatriciaMem<Align>::lazy_free_list(ConcurrentLevel conLevel) {
     assert(conLevel == m_mempool_concurrent_level);
     if (MultiWriteMultiRead == conLevel) {
         auto tc = m_mempool_lock_free.tls();
@@ -139,8 +141,9 @@ MainPatricia::lazy_free_list(ConcurrentLevel conLevel) {
     }
 }
 
+template<size_t Align>
 std::unique_ptr<Patricia::WriterToken>&
-MainPatricia::tls_writer_token() {
+PatriciaMem<Align>::tls_writer_token() {
     if (MultiWriteMultiRead == m_mempool_concurrent_level) {
         auto tc = m_mempool_lock_free.tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
@@ -152,7 +155,8 @@ MainPatricia::tls_writer_token() {
     }
 }
 
-Patricia::ReaderToken* MainPatricia::acquire_tls_reader_token() {
+template<size_t Align>
+Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
     if (MultiWriteMultiRead == m_mempool_concurrent_level) {
         auto tc = m_mempool_lock_free.tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
@@ -167,7 +171,8 @@ Patricia::ReaderToken* MainPatricia::acquire_tls_reader_token() {
     }
 }
 
-void MainPatricia::LazyFreeListTLS::sync_atomic(MainPatricia* trie) {
+template<size_t Align>
+void PatriciaMem<Align>::LazyFreeListTLS::sync_atomic(PatriciaMem<Align>* trie) {
     atomic_maximize(trie->m_max_word_len, m_max_word_len, std::memory_order_relaxed);
     as_atomic(trie->m_n_words).fetch_add(m_n_words, std::memory_order_relaxed);
     as_atomic(trie->m_n_nodes).fetch_add(m_n_nodes, std::memory_order_relaxed);
@@ -180,7 +185,8 @@ void MainPatricia::LazyFreeListTLS::sync_atomic(MainPatricia* trie) {
     as_atomic(trie->m_stat.n_add_state_move).fetch_add(m_stat.n_add_state_move, std::memory_order_relaxed);
 }
 
-inline void MainPatricia::LazyFreeListTLS::reset_zero() {
+template<size_t Align>
+inline void PatriciaMem<Align>::LazyFreeListTLS::reset_zero() {
     m_n_nodes = 0;
     m_n_words = 0;
     m_adfa_total_words_len = 0;
@@ -192,7 +198,8 @@ inline void MainPatricia::LazyFreeListTLS::reset_zero() {
     m_stat.n_add_state_move = 0;
 }
 
-inline void MainPatricia::LazyFreeListTLS::sync_no_atomic(MainPatricia* trie) {
+template<size_t Align>
+inline void PatriciaMem<Align>::LazyFreeListTLS::sync_no_atomic(PatriciaMem<Align>* trie) {
     maximize(trie->m_max_word_len, m_max_word_len);
     trie->m_n_words += m_n_words;
     trie->m_n_nodes += m_n_nodes;
@@ -205,7 +212,8 @@ inline void MainPatricia::LazyFreeListTLS::sync_no_atomic(MainPatricia* trie) {
     trie->m_stat.n_add_state_move += m_stat.n_add_state_move;
 }
 
-MainPatricia::LazyFreeListTLS::LazyFreeListTLS(MainPatricia* trie)
+template<size_t Align>
+PatriciaMem<Align>::LazyFreeListTLS::LazyFreeListTLS(PatriciaMem<Align>* trie)
     : TCMemPoolOneThread<AlignSize>(&trie->m_mempool_lock_free)
     , m_trie(trie)
 {
@@ -213,7 +221,8 @@ MainPatricia::LazyFreeListTLS::LazyFreeListTLS(MainPatricia* trie)
 
 static const long debugConcurrent = getEnvLong("PatriciaMultiWriteDebug", 0);
 
-MainPatricia::LazyFreeListTLS::~LazyFreeListTLS() {
+template<size_t Align>
+PatriciaMem<Align>::LazyFreeListTLS::~LazyFreeListTLS() {
     if (m_n_words) {
         auto trie = m_trie;
         trie->m_token_mutex.lock();
@@ -222,7 +231,8 @@ MainPatricia::LazyFreeListTLS::~LazyFreeListTLS() {
     }
 }
 
-void MainPatricia::set_readonly() {
+template<size_t Align>
+void PatriciaMem<Align>::set_readonly() {
     assert(m_mempool_concurrent_level > NoWriteReadOnly);
     if (NoWriteReadOnly == m_writing_concurrent_level) {
         return; // fail over on release
@@ -290,11 +300,11 @@ void MainPatricia::set_readonly() {
         m_mempool.risk_set_capacity(m_mempool.size());
 #endif
     }
-    m_insert = (insert_func_t)&MainPatricia::insert_readonly_throw;
+    m_insert = (insert_func_t)&PatriciaMem::insert_readonly_throw;
     m_writing_concurrent_level = NoWriteReadOnly;
 }
 
-inline void MainPatricia::update_min_age_inlock(TokenLink* token) {
+inline void Patricia::update_min_age_inlock(TokenLink* token) {
     // we keep m_min_age updated, to minimize lock
     // if there is no m_min_age, m_token_head.m_next->m_age is the
     // minimum age,
@@ -335,11 +345,23 @@ static const size_t MAX_STATE_SIZE = 4 * (10 + 256) + 256 + MAX_VALUE_SIZE;
 static const size_t MAX_STATE_SIZE = 256;
 #endif
 
+MainPatricia::MainPatricia() : PatriciaMem<4>()
+{
+    set_insert_func(m_writing_concurrent_level);
+}
+MainPatricia::MainPatricia(size_t valsize, intptr_t maxMem,
+                           ConcurrentLevel concurrentLevel, fstring fpath)
+  : PatriciaMem<4>(valsize, maxMem, concurrentLevel, fpath)
+{
+    set_insert_func(m_writing_concurrent_level);
+}
+
 // default constructor, may be used for load_mmap
 // concurrent level is SingleThread
 // can also be used for single thread write as a set(valsize=0)
 // when valsize != 0, it is a map
-MainPatricia::MainPatricia()
+template<size_t Align>
+PatriciaMem<Align>::PatriciaMem()
 {
     init(SingleThreadShared);
     new(&m_mempool_lock_none)MemPool_LockNone<AlignSize>(MAX_STATE_SIZE);
@@ -347,7 +369,8 @@ MainPatricia::MainPatricia()
     new_root(0); // m_valsize == 0
 }
 
-void MainPatricia::check_valsize(size_t valsize) const {
+template<size_t Align>
+void PatriciaMem<Align>::check_valsize(size_t valsize) const {
     if (m_writing_concurrent_level >= MultiWriteMultiRead) {
         assert(valsize <= MAX_VALUE_SIZE);
         if (valsize > MAX_VALUE_SIZE) {
@@ -361,14 +384,16 @@ void MainPatricia::check_valsize(size_t valsize) const {
         THROW_STD(logic_error, "valsize = %zd, must align to 4", valsize);
     }
 }
-void MainPatricia::mempool_lock_free_cons(size_t valsize) {
+template<size_t Align>
+void PatriciaMem<Align>::mempool_lock_free_cons(size_t valsize) {
     new(&m_mempool_lock_free)ThreadCacheMemPool<AlignSize>(MAX_STATE_SIZE + valsize);
     m_mempool_lock_free.m_new_tc =
     [this](ThreadCacheMemPool<AlignSize>*) -> TCMemPoolOneThread<AlignSize>*
     { return new LazyFreeListTLS(this); };
 }
 
-MainPatricia::MainPatricia(size_t valsize, intptr_t maxMem,
+template<size_t Align>
+PatriciaMem<Align>::PatriciaMem(size_t valsize, intptr_t maxMem,
                            ConcurrentLevel concurrentLevel, fstring fpath)
 {
 try
@@ -390,7 +415,7 @@ try
         }
         MmapWholeFile mmap(fpath);
         std::unique_ptr<BaseDFA> dfa(load_mmap_user_mem(mmap.base, mmap.size));
-        if (auto pt = dynamic_cast<MainPatricia*>(dfa.get())) {
+        if (auto pt = dynamic_cast<PatriciaMem*>(dfa.get())) {
             finish_load_mmap((DFA_MmapHeader*)mmap.base);
             mmap_base = (DFA_MmapHeader*)mmap.base;
             m_kv_delim = pt->m_kv_delim;
@@ -435,7 +460,8 @@ catch (const std::exception&) {
 }
 }
 
-void MainPatricia::alloc_mempool_space(intptr_t maxMem) {
+template<size_t Align>
+void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
     if (NoWriteReadOnly == m_mempool_concurrent_level) {
         // just for load_mmap later
         return;
@@ -489,7 +515,8 @@ void MainPatricia::alloc_mempool_space(intptr_t maxMem) {
     }
 }
 
-size_t MainPatricia::new_root(size_t valsize) {
+template<size_t Align>
+size_t PatriciaMem<Align>::new_root(size_t valsize) {
     assert(valsize % AlignSize == 0);
     check_valsize(valsize);
     size_t root_size = AlignSize * (2 + 256) + valsize;
@@ -512,14 +539,16 @@ size_t MainPatricia::new_root(size_t valsize) {
     return root;
 }
 
-MainPatricia::~MainPatricia() {
+template<size_t Align>
+PatriciaMem<Align>::~PatriciaMem() {
     destroy();
 }
 
 template<class T>
 static void destroy_obj(T* p) { p->~T(); }
 
-void MainPatricia::destroy() {
+template<size_t Align>
+void PatriciaMem<Align>::destroy() {
     auto conLevel = m_mempool_concurrent_level;
     if (NoWriteReadOnly != m_writing_concurrent_level) {
         set_readonly();
@@ -577,7 +606,8 @@ void MainPatricia::destroy() {
     assert(&m_token_head == m_token_head.m_next);
 }
 
-void MainPatricia::mem_get_stat(MemStat* ms) const {
+template<size_t Align>
+void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
     ms->fastbin.erase_all();
     ms->used_size = m_mempool.size();
     ms->capacity  = m_mempool.capacity();
@@ -625,7 +655,8 @@ void MainPatricia::mem_get_stat(MemStat* ms) const {
     }
 }
 
-void MainPatricia::shrink_to_fit() {}
+template<size_t Align>
+void PatriciaMem<Align>::shrink_to_fit() {}
 void MainPatricia::compact() {}
 
 size_t
@@ -755,15 +786,17 @@ struct MainPatricia::NodeInfo {
     size_t node_valsize() const { return node_size - va_offset; }
 };
 
-template<MainPatricia::ConcurrentLevel ConLevel>
-void MainPatricia::free_node(size_t nodeId, size_t nodeSize, LazyFreeListTLS* tls) {
+template<size_t Align>
+template<Patricia::ConcurrentLevel ConLevel>
+void PatriciaMem<Align>::free_node(size_t nodeId, size_t nodeSize, LazyFreeListTLS* tls) {
     assert(mem_alloc_fail != nodeId);
     size_t nodePos = AlignSize * nodeId;
     free_raw<ConLevel>(nodePos, nodeSize, tls);
 }
 
-template<MainPatricia::ConcurrentLevel ConLevel>
-void MainPatricia::free_raw(size_t nodePos, size_t nodeSize, LazyFreeListTLS* tls) {
+template<size_t Align>
+template<Patricia::ConcurrentLevel ConLevel>
+void PatriciaMem<Align>::free_raw(size_t nodePos, size_t nodeSize, LazyFreeListTLS* tls) {
     assert(nodePos < m_mempool.size());
     if (ConLevel >= MultiWriteMultiRead)
         m_mempool_lock_free.sfree(nodePos, nodeSize, tls);
@@ -773,14 +806,16 @@ void MainPatricia::free_raw(size_t nodePos, size_t nodeSize, LazyFreeListTLS* tl
         m_mempool_lock_none.sfree(nodePos, nodeSize);
 }
 
-template<MainPatricia::ConcurrentLevel ConLevel>
-size_t MainPatricia::alloc_node(size_t nodeSize, LazyFreeListTLS* tls) {
+template<size_t Align>
+template<Patricia::ConcurrentLevel ConLevel>
+size_t PatriciaMem<Align>::alloc_node(size_t nodeSize, LazyFreeListTLS* tls) {
     size_t nodePos = alloc_raw<ConLevel>(nodeSize, tls);
     return nodePos / AlignSize;
 }
 
-template<MainPatricia::ConcurrentLevel ConLevel>
-size_t MainPatricia::alloc_raw(size_t nodeSize, LazyFreeListTLS* tls) {
+template<size_t Align>
+template<Patricia::ConcurrentLevel ConLevel>
+size_t PatriciaMem<Align>::alloc_raw(size_t nodeSize, LazyFreeListTLS* tls) {
     if (ConLevel >= MultiWriteMultiRead) {
         return m_mempool_lock_free.alloc(nodeSize, tls);
     }
@@ -796,7 +831,7 @@ size_t MainPatricia::alloc_raw(size_t nodeSize, LazyFreeListTLS* tls) {
 static size_t PT_MAX_ZPATH = 254; // % 4 == 2
 static size_t PT_LINK_NODE_SIZE = 4 + 4 + PT_MAX_ZPATH; // AlignSize = 4
 
-template<MainPatricia::ConcurrentLevel ConLevel>
+template<Patricia::ConcurrentLevel ConLevel>
 void MainPatricia::revoke_list(PatriciaNode* a, size_t head, size_t valsize,
                                LazyFreeListTLS* tls) {
     if (size_t(-1) == head)
@@ -989,8 +1024,8 @@ inline static size_t SuffixZpathStates(size_t chainLen, size_t pos, size_t keyle
     }
 }
 
-bool MainPatricia::insert_readonly_throw(fstring key, void* value,
-                                         WriterToken* token) {
+bool Patricia::insert_readonly_throw(fstring key, void* value,
+                                     WriterToken* token) {
     assert(NoWriteReadOnly == m_writing_concurrent_level);
     THROW_STD(logic_error, "invalid operation: insert to readonly trie");
 }
@@ -2135,13 +2170,15 @@ if (ConLevel != MultiWriteMultiRead)
 
 static const size_t BULK_FREE_NUM = 32;
 
-template<MainPatricia::ConcurrentLevel ConLevel>
-void MainPatricia::revoke_expired_nodes() {
+template<size_t Align>
+template<Patricia::ConcurrentLevel ConLevel>
+void PatriciaMem<Align>::revoke_expired_nodes() {
     static_assert(ConLevel <= OneWriteMultiRead, "ConLevel <= OneWriteMultiRead");
     revoke_expired_nodes<ConLevel>(lazy_free_list(ConLevel));
 }
-template<MainPatricia::ConcurrentLevel ConLevel, class LazyList>
-void MainPatricia::revoke_expired_nodes(LazyList& lazy_free_list) {
+template<size_t Align>
+template<Patricia::ConcurrentLevel ConLevel, class LazyList>
+void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list) {
 static long g_lazy_free_debug_level =
     getEnvLong("Patricia_lazy_free_debug_level", 0);
 
@@ -2155,12 +2192,12 @@ static long g_lazy_free_debug_level =
             const LazyFreeItem& head = lazy_free_list.front();
             fprintf(stderr
                 , "%s: LazyFreeList.size = %zd, min_age = %llu, trie.age = %llu, "
-                  "head = { age = %llu, node = %u, size = %u }\n"
+                  "head = { age = %llu, node = %llu, size = %llu }\n"
                 , sig
                 , lazy_free_list.size()
                 , (long long)min_age
                 , (long long)m_token_head.m_age
-                , (long long)head.age, head.node, head.size
+                , (long long)head.age, (long long)head.node, (long long)head.size
             );
         }
     };
@@ -2190,7 +2227,7 @@ static long g_lazy_free_debug_level =
 
 bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
 #if !defined(NDEBUG)
-    auto trie = token->m_trie;
+    auto trie = static_cast<MainPatricia*>(token->m_trie);
     if (m_writing_concurrent_level >= SingleThreadShared) {
         assert(NULL == mmap_base || -1 != m_fd);
         assert(&trie->m_token_head != trie->m_token_head.m_prev);
@@ -2402,12 +2439,14 @@ Fail:
     return false;
 }
 
-size_t MainPatricia::mem_alloc(size_t size) {
+template<size_t Align>
+size_t PatriciaMem<Align>::mem_alloc(size_t size) {
     size_t pos = alloc_aux(size);
     return pos / AlignSize;
 }
 
-size_t MainPatricia::alloc_aux(size_t size) {
+template<size_t Align>
+size_t PatriciaMem<Align>::alloc_aux(size_t size) {
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list(m_writing_concurrent_level));
     switch (m_writing_concurrent_level) {
     default:   assert(false); return size_t(-1);
@@ -2419,10 +2458,12 @@ size_t MainPatricia::alloc_aux(size_t size) {
     }
 }
 
-void MainPatricia::mem_free(size_t loc, size_t size) {
+template<size_t Align>
+void PatriciaMem<Align>::mem_free(size_t loc, size_t size) {
 }
 
-void MainPatricia::free_aux(size_t pos, size_t size) {
+template<size_t Align>
+void PatriciaMem<Align>::free_aux(size_t pos, size_t size) {
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list(m_writing_concurrent_level));
     switch (m_writing_concurrent_level) {
     default:   assert(false);                                           break;
@@ -2434,7 +2475,8 @@ void MainPatricia::free_aux(size_t pos, size_t size) {
     }
 }
 
-void MainPatricia::mem_lazy_free(size_t loc, size_t size) {
+template<size_t Align>
+void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
     auto conLevel = m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared) {
         uint64_t age = m_token_head.m_age;
@@ -2447,7 +2489,8 @@ void MainPatricia::mem_lazy_free(size_t loc, size_t size) {
     }
 }
 
-void* MainPatricia::alloc_appdata(size_t len) {
+template<size_t Align>
+void* PatriciaMem<Align>::alloc_appdata(size_t len) {
     assert(size_t(-1) == m_appdata_offset); // just allowing call once
     assert(size_t(00) == m_appdata_length);
     constexpr size_t appdata_align = 256; // max possible cache line size
@@ -2478,7 +2521,8 @@ void* MainPatricia::alloc_appdata(size_t len) {
     return m_mempool.data() + m_appdata_offset;
 }
 
-void MainPatricia::SingleThreadShared_sync_token_list(byte_t* oldmembase) {
+template<size_t Align>
+void PatriciaMem<Align>::SingleThreadShared_sync_token_list(byte_t* oldmembase) {
     assert(SingleThreadShared == m_writing_concurrent_level);
     assert(m_mempool.data() != oldmembase);
     TERARK_IF_DEBUG(size_t cnt = 0,);
@@ -2495,7 +2539,8 @@ void MainPatricia::SingleThreadShared_sync_token_list(byte_t* oldmembase) {
     }
 }
 
-void MainPatricia::finish_load_mmap(const DFA_MmapHeader* base) {
+template<size_t Align>
+void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
     byte_t* bbase = (byte_t*)base;
     if (base->total_states >= max_state) {
         THROW_STD(out_of_range, "total_states=%lld",
@@ -2535,7 +2580,8 @@ void MainPatricia::finish_load_mmap(const DFA_MmapHeader* base) {
     m_appdata_length = size_t(base->louds_dfa_cache_states) * AlignSize;
 }
 
-long MainPatricia::prepare_save_mmap(DFA_MmapHeader* header,
+template<size_t Align>
+long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
                                      const void** dataPtrs) const {
     header->is_dag = true;
     header->num_blocks = 1;
@@ -2554,14 +2600,6 @@ long MainPatricia::prepare_save_mmap(DFA_MmapHeader* header,
     return 0;
 }
 
-#if defined(TERARK_PATRICIA_USE_CHEAP_ITERATOR)
-ADFA_LexIterator* MainPatricia::adfa_make_iter(size_t) const {
-    return new Iterator(this);
-}
-ADFA_LexIterator16* MainPatricia::adfa_make_iter16(size_t) const {
-    return NULL;
-}
-#endif
 ///////////////////////////////////////////////////////////////////////
 
 Patricia::TokenBase::~TokenBase() {
@@ -2639,7 +2677,7 @@ void Patricia::ReaderToken::release() {
     m_value = NULL;
 }
 
-void Patricia::ReaderToken::update_list(ConcurrentLevel conLevel, MainPatricia* trie) {
+void Patricia::ReaderToken::update_list(ConcurrentLevel conLevel, Patricia* trie) {
 
 //  assert(main->m_writing_concurrent_level >= OneWriteMultiRead);
 //  assert may fail when another thread just called main->set_readonly()
@@ -2671,48 +2709,51 @@ void Patricia::ReaderToken::update_list(ConcurrentLevel conLevel, MainPatricia* 
 ///         false not updated
 bool Patricia::ReaderToken::update(TokenUpdatePolicy updatePolicy) {
     assert(NULL != m_trie);
-    auto conLevel = m_trie->m_writing_concurrent_level;
-    assert(this->m_age <= m_trie->m_token_head.m_age);
+    return m_trie->update_reader_token(this, updatePolicy);
+}
+
+template<size_t Align>
+bool PatriciaMem<Align>::update_reader_token(ReaderToken* token, TokenUpdatePolicy updatePolicy) {
+    auto conLevel = m_writing_concurrent_level;
+    assert(token->m_age <= m_token_head.m_age);
     if (conLevel == NoWriteReadOnly) {
-        if (m_next) { // I'm in list, remove me from list
-            assert(NULL != m_prev);
-            auto trie = m_trie;
-            conLevel = trie->m_mempool_concurrent_level;
-            if (conLevel >= SingleThreadShared) trie->m_token_mutex.lock();
-            trie->update_min_age_inlock(this);
-            assert(&trie->m_token_head == trie->m_token_head.m_next->m_prev);
-            assert(&trie->m_token_head == trie->m_token_head.m_prev->m_next);
-            auto  prev = m_prev; assert(this == prev->m_next);
-            auto  next = m_next; assert(this == next->m_prev);
+        if (token->m_next) { // I'm in list, remove me from list
+            assert(NULL != token->m_prev);
+            conLevel = m_mempool_concurrent_level;
+            if (conLevel >= SingleThreadShared) m_token_mutex.lock();
+            update_min_age_inlock(token);
+            assert(&m_token_head == m_token_head.m_next->m_prev);
+            assert(&m_token_head == m_token_head.m_prev->m_next);
+            auto  prev = token->m_prev; assert(token == prev->m_next);
+            auto  next = token->m_next; assert(token == next->m_prev);
             prev->m_next = next;
             next->m_prev = prev;
-            if (conLevel >= SingleThreadShared) trie->m_token_mutex.unlock();
-            m_value = NULL;
-            m_age  = 0;
-            m_prev = NULL;
-            m_next = NULL;
+            if (conLevel >= SingleThreadShared) m_token_mutex.unlock();
+            token->m_value = NULL;
+            token->m_age  = 0;
+            token->m_prev = NULL;
+            token->m_next = NULL;
             return true;
         }
     }
     else if (conLevel >= SingleThreadShared) {
-        auto trie = m_trie;
-        if (m_age == trie->m_token_head.m_age)
+        if (token->m_age == m_token_head.m_age)
             return false;
         if (UpdateLazy == updatePolicy) {
-            if (m_age + BULK_FREE_NUM > trie->m_token_head.m_age)
+            if (token->m_age + BULK_FREE_NUM > m_token_head.m_age)
                 return false;
-            if (trie->lazy_free_list(conLevel).size() < 2*BULK_FREE_NUM)
+            if (lazy_free_list(conLevel).size() < 2*BULK_FREE_NUM)
                 return false;
         }
         if (conLevel >= SingleThreadShared) {
-            update_list(conLevel, trie);
+            token->update_list(conLevel, this);
         }
         return true;
     }
     else {
         assert(conLevel == SingleThreadStrict);
-        assert(NULL == m_next);
-        assert(NULL == m_prev);
+        assert(NULL == token->m_next);
+        assert(NULL == token->m_prev);
     }
     return false;
 }
@@ -2815,7 +2856,7 @@ void Patricia::WriterToken::release() {
     m_tls   = NULL;
 }
 
-void Patricia::WriterToken::update_list(MainPatricia* trie) {
+void Patricia::WriterToken::update_list(Patricia* trie) {
     TokenLink* head = &trie->m_token_head;
     m_value = NULL;
     trie->update_min_age_inlock(this);
@@ -2843,24 +2884,31 @@ bool Patricia::WriterToken::update(TokenUpdatePolicy updatePolicy) {
     auto trie = m_trie;
     assert(trie->m_writing_concurrent_level != NoWriteReadOnly);
     assert(this->m_age <= trie->m_token_head.m_age);
-    if (trie->m_writing_concurrent_level >= MultiWriteMultiRead) {
-        if (m_age == trie->m_token_head.m_age)
+    return trie->update_writer_token(this, updatePolicy);
+}
+
+template<size_t Align>
+bool
+PatriciaMem<Align>::update_writer_token(WriterToken* token,
+                                        TokenUpdatePolicy updatePolicy) {
+    if (m_writing_concurrent_level >= MultiWriteMultiRead) {
+        if (token->m_age == m_token_head.m_age)
             return false;
-        MainPatricia::LazyFreeListTLS* lzf = nullptr;
+        LazyFreeListTLS* lzf = nullptr;
         if (UpdateLazy == updatePolicy) {
-            if (m_age + 2*BULK_FREE_NUM > trie->m_token_head.m_age)
+            if (token->m_age + 2*BULK_FREE_NUM > m_token_head.m_age)
                 return false;
-            lzf = static_cast<MainPatricia::LazyFreeListTLS*>(trie->m_mempool_lock_free.tls());
+            lzf = static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls());
             if (lzf->size() < 2*BULK_FREE_NUM)
                 return false;
         }
         else {
-            lzf = static_cast<MainPatricia::LazyFreeListTLS*>(trie->m_mempool_lock_free.tls());
+            lzf = static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls());
         }
-        trie->m_token_mutex.lock();
-        update_list(trie);
-        trie->m_token_mutex.unlock();
-        trie->revoke_expired_nodes<MultiWriteMultiRead>(*lzf);
+        m_token_mutex.lock();
+        token->update_list(this);
+        m_token_mutex.unlock();
+        revoke_expired_nodes<MultiWriteMultiRead>(*lzf);
         return true;
     }
     return false;
@@ -3041,8 +3089,31 @@ const {
     m_word.end()[0] = '\0'
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-class Patricia::Iterator::MyImpl : public Iterator {
+class MainPatricia::IterImpl : public Patricia::Iterator {
 public:
+    struct Entry {
+        uint32_t state;
+        uint16_t n_children;
+        uint08_t nth_child;
+        uint08_t zpath_len;
+        bool has_next() const { return nth_child + 1 < n_children; }
+    };
+    valvec<Entry> m_iter;
+    size_t        m_flag;
+
+    IterImpl();
+    explicit IterImpl(const Patricia*);
+    ~IterImpl();
+    void token_detach_iter() final;
+    bool update(Patricia::TokenUpdatePolicy) override final;
+    void reset(const BaseDFA*, size_t root = 0) override final;
+    bool seek_begin() override final;
+    bool seek_end() override final;
+    bool seek_lower_bound(fstring key) override final;
+    bool incr() override final;
+    bool decr() override final;
+    size_t seek_max_prefix(fstring) override final;
+
     inline static void Entry_init(Entry* e, size_t curr, size_t zlen) {
         BOOST_STATIC_ASSERT(sizeof(Entry) == 8);
     #if 0
@@ -3058,6 +3129,7 @@ public:
     terark_no_inline
     void append_lex_min_suffix(size_t root, const PatriciaNode* a) {
         BOOST_STATIC_ASSERT(sizeof(Entry) == 8);
+        auto trie = static_cast<MainPatricia*>(m_trie);
         size_t zlen; const byte_t* zptr = NULL;
         size_t curr = root;
         assert(nil_state != root);
@@ -3077,7 +3149,7 @@ public:
             m_iter.push_back(e);
             byte_t* pch = m_word.grow_no_init(zlen + 1);
             pch = tiny_memcpy_align_1(pch, zptr, zlen);
-            curr = m_trie->first_child(p, pch);
+            curr = trie->first_child(p, pch);
         } while (nil_state != curr && !p->meta.b_is_final);
         m_curr = m_iter.back().state;
         m_word.back() = '\0';
@@ -3087,6 +3159,7 @@ public:
     terark_no_inline
     void append_lex_max_suffix(size_t root, const PatriciaNode* a) {
         BOOST_STATIC_ASSERT(sizeof(Entry) == 8);
+        auto trie = static_cast<MainPatricia*>(m_trie);
         size_t zlen = 0; const byte_t* zptr = NULL;
         size_t curr = root;
         assert(nil_state != root);
@@ -3105,7 +3178,7 @@ public:
             m_iter.push_back(e);
             byte_t* pch = m_word.grow_no_init(zlen + 1);
             pch = tiny_memcpy_align_1(pch, zptr, zlen);
-            curr = m_trie->last_child(p, pch);
+            curr = trie->last_child(p, pch);
         } while (nil_state != curr);
         m_iter.back().nth_child = 0;
         m_curr = m_iter.back().state;
@@ -3140,22 +3213,23 @@ public:
     bool seek_lower_bound_impl(fstring key);
 };
 
-#define calc_word_len static_cast<MyImpl*>(this)->calc_word_len
+BOOST_STATIC_ASSERT(sizeof(MainPatricia::IterImpl) == Patricia::ITER_SIZE);
 
 //static const size_t IterFlag_lower_bound_fast  = 1;
 //static const size_t IterFlag_omit_token_update = 2;
 
-Patricia::Iterator::Iterator() : ADFA_LexIterator(NULL) {
-    m_iter.reserve(16); // fast malloc small
-    m_flag = 0;
-}
-Patricia::Iterator::Iterator(const Patricia* sub)
-    : ReaderToken(const_cast<Patricia*>(sub))
-    , ADFA_LexIterator(valvec_no_init())
+MainPatricia::IterImpl::IterImpl(const Patricia* sub)
+  : Iterator(const_cast<Patricia*>(sub))
 {
-    auto conLevel = m_trie->m_writing_concurrent_level;
+    if (NULL == sub) {
+        m_iter.reserve(16); // fast malloc small
+        m_flag = 0;
+        return;
+    }
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto conLevel = trie->m_writing_concurrent_level;
     if (NoWriteReadOnly == conLevel) {
-        size_t cap = m_trie->m_max_word_len + 2;
+        size_t cap = trie->m_max_word_len + 2;
         m_flag = 1;
         m_iter.reserve(cap);
         m_word.reserve(cap);
@@ -3168,27 +3242,27 @@ Patricia::Iterator::Iterator(const Patricia* sub)
     m_dfa = sub;
 }
 
-Patricia::Iterator::~Iterator() {
+MainPatricia::IterImpl::~IterImpl() {
     // do nothing
 }
 
 // after calling this function, this->update() will not re-search iter
 // thus this Iterator can be used as an ReaderToken
-void Patricia::Iterator::token_detach_iter() {
+void MainPatricia::IterImpl::token_detach_iter() {
     m_dfa = NULL;
-    static_cast<MyImpl*>(this)->reset1();
+    this->reset1();
 }
 
-bool Patricia::Iterator::update(TokenUpdatePolicy updatePolicy) {
+bool MainPatricia::IterImpl::update(TokenUpdatePolicy updatePolicy) {
     assert(NULL != m_trie);
     bool updated = ReaderToken::update(updatePolicy);
     if (updated && m_iter.size()) {
-        static_cast<MyImpl*>(this)->seek_lower_bound_impl(m_word);
+        seek_lower_bound_impl(m_word);
     }
     return updated;
 }
 
-void Patricia::Iterator::reset(const BaseDFA* dfa, size_t root) {
+void MainPatricia::IterImpl::reset(const BaseDFA* dfa, size_t root) {
     // root is ignored
     m_dfa = dfa;
     if (NULL == dfa) {
@@ -3205,42 +3279,44 @@ void Patricia::Iterator::reset(const BaseDFA* dfa, size_t root) {
             acquire(const_cast<MainPatricia*>(trie));
         }
     }
-    static_cast<MyImpl*>(this)->reset1();
+    reset1();
 }
 
-bool Patricia::Iterator::seek_begin() {
+bool MainPatricia::IterImpl::seek_begin() {
     assert(NULL != m_trie);
     return this->seek_lower_bound("");
 }
 
-bool Patricia::Iterator::seek_end() {
+bool MainPatricia::IterImpl::seek_end() {
     assert(NULL != m_trie);
     ReaderToken::update(UpdateLazy);
-    auto a = reinterpret_cast<const PatriciaNode*>(m_trie->m_mempool.data());
-    static_cast<MyImpl*>(this)->reset1();
-    static_cast<MyImpl*>(this)->append_lex_max_suffix(initial_state, a);
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
+    reset1();
+    append_lex_max_suffix(initial_state, a);
     return a[m_curr].meta.b_is_final;
 }
 
-bool Patricia::Iterator::seek_lower_bound(fstring key) {
+bool MainPatricia::IterImpl::seek_lower_bound(fstring key) {
     assert(NULL != m_trie);
     if (!(m_flag & 1))
         ReaderToken::update(UpdateLazy);
-    return static_cast<MyImpl*>(this)->seek_lower_bound_impl(key);
+    return seek_lower_bound_impl(key);
 }
 
 terark_flatten
-bool Patricia::Iterator::MyImpl::seek_lower_bound_impl(fstring key) {
-    auto a = reinterpret_cast<const PatriciaNode*>(m_trie->m_mempool.data());
+bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     if (m_flag & 1) {
         goto seek_lower_bound_fast;
     }
     {
-        auto conLevel = m_trie->m_writing_concurrent_level;
+        auto conLevel = trie->m_writing_concurrent_level;
         if (conLevel <= SingleThreadShared) {
             // m_iter is very likely over allocated,
             // because trie depth can not be efficiently maintained
-            size_t cap = m_trie->m_max_word_len + 2;
+            size_t cap = trie->m_max_word_len + 2;
             m_iter.ensure_capacity(cap);
             m_word.ensure_capacity(cap);
             if (NoWriteReadOnly == conLevel) {
@@ -3289,7 +3365,7 @@ bool Patricia::Iterator::MyImpl::seek_lower_bound_impl(fstring key) {
                     m_value = (void*)(zptr + pow2_align_up(zlen, AlignSize));
                 }
                 else {
-                    size_t next = m_trie->first_child(p, pch);
+                    size_t next = trie->first_child(p, pch);
                     if (terark_likely(nil_state != next)) {
                         prefetch(a+next);
                         append_lex_min_suffix(next, a);
@@ -3320,7 +3396,7 @@ bool Patricia::Iterator::MyImpl::seek_lower_bound_impl(fstring key) {
                     m_word.data()[pos] = '\0';
                 }
                 else {
-                    size_t next = m_trie->first_child(p, m_word.grow_no_init(1));
+                    size_t next = trie->first_child(p, m_word.grow_no_init(1));
                     if (terark_likely(nil_state != next)) {
                         prefetch(a+next);
                         append_lex_min_suffix(next, a);
@@ -3337,7 +3413,7 @@ bool Patricia::Iterator::MyImpl::seek_lower_bound_impl(fstring key) {
         }
         assert(pos < key.size());
         size_t ch = (byte_t)key.p[pos];
-        assert(curr < m_trie->total_states());
+        assert(curr < trie->total_states());
         assert(ch <= 255);
 #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
@@ -3533,7 +3609,7 @@ seek_lower_bound_fast:
                     m_value = (void*)(pow2_align_up(size_t(zptr), AlignSize));
                 }
                 else {
-                    size_t next = m_trie->first_child(p, wp++);
+                    size_t next = trie->first_child(p, wp++);
                     if (terark_likely(nil_state != next)) {
                         prefetch(a+next);
                         m_word.risk_set_end(wp);
@@ -3564,7 +3640,7 @@ seek_lower_bound_fast:
                     m_word.risk_set_end(wp);
                 }
                 else {
-                    size_t next = m_trie->first_child(p, wp++);
+                    size_t next = trie->first_child(p, wp++);
                     if (terark_likely(nil_state != next)) {
                         prefetch(a+next);
                         m_word.risk_set_end(wp);
@@ -3582,7 +3658,7 @@ seek_lower_bound_fast:
         }
         assert(pos < key.size());
         size_t ch = (byte_t)key.p[pos];
-        assert(curr < m_trie->total_states());
+        assert(curr < trie->total_states());
         assert(ch <= 255);
 #undef  SetNth
 #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
@@ -3770,7 +3846,7 @@ rewind_stack_for_next:
         if (top.has_next()) {
             top.nth_child++;
 #if 0
-            size_t curr = m_trie->nth_child(a+top.state, top.nth_child, &m_word.back());
+            size_t curr = trie->nth_child(a+top.state, top.nth_child, &m_word.back());
             if (nil_state != curr) {
                 append_lex_min_suffix(curr, a);
                 return true;
@@ -3874,16 +3950,17 @@ rewind_stack_for_next:
 // end seek_lower_bound_impl
 
 terark_flatten
-bool Patricia::Iterator::incr() {
+bool MainPatricia::IterImpl::incr() {
     if (terark_unlikely(m_iter.empty())) {
         return false;
     }
     ReaderToken::update_lazy();
-    auto a = reinterpret_cast<const PatriciaNode*>(m_trie->m_mempool.data());
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     assert(calc_word_len() == m_word.size());
     assert(0 == m_iter.back().nth_child);
     assert(m_curr == m_iter.back().state);
-    size_t curr = m_trie->first_child(a + m_curr, m_word.grow_no_init(1));
+    size_t curr = trie->first_child(a + m_curr, m_word.grow_no_init(1));
     if (terark_unlikely(nil_state == curr)) {
         m_word.back() = '\0';
         m_word.pop_back();
@@ -3893,7 +3970,7 @@ bool Patricia::Iterator::incr() {
     LoopForType15:
         while (!m_iter[--top].has_next()) {
             if (terark_unlikely(0 == top)) {
-                static_cast<MyImpl*>(this)->reset1();
+                reset1();
                 return false;
             }
             assert(len >= m_iter[top].zpath_len + 1u);
@@ -3973,7 +4050,7 @@ bool Patricia::Iterator::incr() {
             if (0 == top) {
                 assert(0 == len);
                 assert(initial_state == curr);
-                static_cast<MyImpl*>(this)->reset1();
+                reset1();
                 return false;
             }
             len--;
@@ -3983,25 +4060,26 @@ bool Patricia::Iterator::incr() {
         assert(calc_word_len() == m_word.size());
         m_word.unchecked_push_back(ch);
     }
-    static_cast<MyImpl*>(this)->append_lex_min_suffix(curr, a);
+    append_lex_min_suffix(curr, a);
     return true;
 }
 
 terark_flatten
-bool Patricia::Iterator::decr() {
+bool MainPatricia::IterImpl::decr() {
     if (m_iter.empty()) {
         return false;
     }
     ReaderToken::update_lazy();
     assert(calc_word_len() == m_word.size());
-    auto a = reinterpret_cast<const PatriciaNode*>(m_trie->m_mempool.data());
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     assert(m_curr == m_iter.back().state);
     assert(a[m_curr].meta.b_is_final);
     assert(0 == m_iter.back().nth_child);
     size_t top = m_iter.size();
     size_t len = m_word.size();
     if (terark_unlikely(0 == --top)) {
-        static_cast<MyImpl*>(this)->reset1();
+        reset1();
         return false;
     }
     assert(len >= m_iter[top].zpath_len + 1u);
@@ -4013,11 +4091,11 @@ LoopForType15:
             m_iter.risk_set_size(top+1);
             m_word.risk_set_size(len);
             mark_word_end_zero_at(curr);
-            m_value = m_trie->get_valptr(curr);
+            m_value = trie->get_valptr(curr);
             return true;
         }
         if (terark_unlikely(0 == top)) {
-            static_cast<MyImpl*>(this)->reset1();
+            reset1();
             return false;
         }
         assert(len >= m_iter[top].zpath_len + 1u);
@@ -4100,12 +4178,12 @@ LoopForType15:
         if (p->meta.b_is_final) {
             m_iter[top].nth_child = 0;
             m_curr = curr;
-            m_value = m_trie->get_valptr(curr);
+            m_value = trie->get_valptr(curr);
             return true;
         }
         if (0 == top) {
             assert(curr == initial_state);
-            static_cast<MyImpl*>(this)->reset1();
+            reset1();
             return false;
         }
         len--;
@@ -4114,13 +4192,14 @@ LoopForType15:
 switch_done:
     assert(calc_word_len() == m_word.size());
     m_word.unchecked_push_back(ch);
-    static_cast<MyImpl*>(this)->append_lex_max_suffix(curr, a);
+    append_lex_max_suffix(curr, a);
     return true;
 }
 
-size_t Patricia::Iterator::seek_max_prefix(fstring key) {
-    static_cast<MyImpl*>(this)->reset1();
-    auto a = reinterpret_cast<const PatriciaNode*>(m_trie->m_mempool.data());
+size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
+    reset1();
+    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     size_t last_stack_top = 0;
     size_t last_match_len = 0;
     size_t curr = initial_state;
@@ -4230,6 +4309,18 @@ RestoreLastMatch:
     return pos; // max partial match len
 }
 
+#if defined(TERARK_PATRICIA_USE_CHEAP_ITERATOR)
+ADFA_LexIterator* MainPatricia::adfa_make_iter(size_t) const {
+    return new IterImpl(this);
+}
+ADFA_LexIterator16* MainPatricia::adfa_make_iter16(size_t) const {
+    return NULL;
+}
+void MainPatricia::construct_iter(void* ptr) const {
+    new(ptr)IterImpl(this);
+}
+#endif
+
 /// load & save
 
 template<class DataIO>
@@ -4241,6 +4332,8 @@ void DataIO_saveObject(DataIO& dio, const MainPatricia& dfa) {
     THROW_STD(logic_error, "Not supported");
 }
 
+template class PatriciaMem<4>;
+template class PatriciaMem<8>;
 typedef MainPatricia DynamicPatriciaTrie;
 TMPL_INST_DFA_CLASS (DynamicPatriciaTrie)
 
