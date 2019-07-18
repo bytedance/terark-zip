@@ -65,6 +65,17 @@ byte_t* small_memcpy_align_1(void* dst, const void* src, size_t len) {
 }
 
 static inline //HSM_FORCE_INLINE
+byte_t* small_memcpy_align_8(void* dst, const void* src, size_t len) {
+    assert(len % 8 == 0);
+    assert(size_t(dst) % 8 == 0);
+    assert(size_t(src) % 8 == 0);
+    for (size_t i = 0; i < len; i += 8) {
+        *(uint64_t*)((byte_t*)dst + i) = *(uint64_t*)((byte_t*)src + i);
+    }
+    return (byte_t*)dst + len;
+}
+
+static inline //HSM_FORCE_INLINE
 byte_t* small_memcpy_align_4(void* dst, const void* src, size_t len) {
     assert(len % 4 == 0);
     assert((size_t(dst) & 3) == 0);
