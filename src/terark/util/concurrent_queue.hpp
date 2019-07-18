@@ -9,6 +9,7 @@
 #endif
 
 #include "../stdtypes.hpp"
+#include <boost/tti/has_member_function.hpp>
 
 #if defined(TERARK_CONCURRENT_QUEUE_USE_BOOST)
 #include <boost/thread/mutex.hpp>
@@ -19,6 +20,8 @@
 #endif
 
 namespace terark { namespace util {
+
+BOOST_TTI_HAS_MEMBER_FUNCTION(full)
 
 /**
  @ingroup util
@@ -63,6 +66,20 @@ class concurrent_queue
 	MyCond    m_pushCond;
 	size_t m_maxSize;
 
+	template<class Queue>
+	static bool is_full(Queue& q, size_t max_size) {
+	    return is_full_aux(q, max_size,
+	      std::integral_constant<bool, has_member_function_full<Queue, bool>::value>());
+	}
+	template<class Queue>
+	static bool is_full_aux(Queue& q, size_t, std::true_type) {
+        return q.full();
+	}
+	template<class Queue>
+	static bool is_full_aux(Queue& q, size_t max_size, std::false_type) {
+        return q.size() >= max_size;
+	}
+
 public:
 	typedef Container					   queue_type;
 	typedef typename Container::size_type  size_type;
@@ -93,7 +110,7 @@ public:
 	bool full()
 	{
 		LockGuard lock(m_mtx);
-		return m_queue.size() == m_maxSize;
+		return is_full(m_queue, m_maxSize);
 	}
 
 	/**
@@ -117,7 +134,7 @@ public:
 	//! not locked...
 	size_type peekSize() const throw() { return m_queue.size();	}
 	bool peekEmpty() const throw() { return m_queue.empty(); }
-	bool peekFull()  const throw() { return m_queue.size() == m_maxSize; }
+	bool peekFull()  const throw() { return is_full(m_queue, m_maxSize); }
 	//@}
 
 	//@{
@@ -134,7 +151,7 @@ public:
 		Container& cq;
 		size_t max_size;
 		explicit is_not_full(Container& q, size_t n) : cq(q), max_size(n) {}
-		bool operator()() const { return cq.size() < max_size; }
+		bool operator()() const { return !is_full(cq, max_size); }
 	};
 public:
 
@@ -150,15 +167,15 @@ public:
 	void push(const value_type& value)
 	{
 		UniqueLock lock(m_mtx);
-		while (m_queue.size() >= m_maxSize) m_pushCond.wait(lock);
-		assert(m_queue.size() <  m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push(value); // require this method
 		m_popCond.notify_one();
 	}
 	void push_by_swap(value_type& value) {
 		UniqueLock lock(m_mtx);
-		m_pushCond.wait(lock, is_not_full(m_queue, m_maxSize));
-		assert(m_queue.size() < m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push(value_type()); // require this method
 		m_queue.back().swap(value);
 		m_popCond.notify_one();
@@ -184,7 +201,7 @@ public:
 	{
 		UniqueLock lock(m_mtx);
 		if (!m_pushCond.wait_for(lock, MilliSec(timeout), is_not_full(m_queue, m_maxSize))) return false;
-		assert(m_queue.size() < m_maxSize);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push(value); // require this method
 		m_popCond.notify_one();
 		return true;
@@ -192,7 +209,7 @@ public:
 	bool push_by_swap(value_type& value, int timeout) {
 		UniqueLock lock(m_mtx);
 		if (!m_pushCond.wait_for(lock, MilliSec(timeout), is_not_full(m_queue, m_maxSize))) return false;
-		assert(m_queue.size() < m_maxSize);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push(value_type()); // require this method
 		m_queue.back().swap(value);
 		m_popCond.notify_one();
@@ -242,15 +259,15 @@ public:
 	void push_back(const value_type& value)
 	{
 		UniqueLock lock(m_mtx);
-		while (m_queue.size() >= m_maxSize) m_pushCond.wait(lock);
-		assert(m_queue.size() < m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push_back(value); // require this method
 		m_popCond.notify_one();
 	}
 	void push_back_by_swap(value_type& value) {
 		UniqueLock lock(m_mtx);
-		while (m_queue.size() >= m_maxSize) m_pushCond.wait(lock);
-		assert(m_queue.size() < m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push_back(value_type());
 		m_queue.back().swap(value);
 		m_popCond.notify_one();
@@ -276,7 +293,7 @@ public:
 	{
 		UniqueLock lock(m_mtx);
 		if (!m_pushCond.wait_for(lock, MilliSec(timeout), is_not_full(m_queue, m_maxSize))) return false;
-		assert(m_queue.size() < m_maxSize);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push_back(value); // require this method
 		m_popCond.notify_one();
 		return true;
@@ -284,7 +301,7 @@ public:
 	bool push_back_by_swap(value_type& value, int timeout) {
 		UniqueLock lock(m_mtx);
 		if (!m_pushCond.wait_for(lock, MilliSec(timeout), is_not_full(m_queue, m_maxSize))) return false;
-		assert(m_queue.size() < m_maxSize);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push_back(value_type()); // require this method
 		m_queue.back().swap(value);
 		m_popCond.notify_one();
@@ -312,8 +329,8 @@ public:
 	void push_front(const value_type& value)
 	{
 		UniqueLock lock(m_mtx);
-		while (m_queue.size() >= m_maxSize) m_pushCond.wait(lock);
-		assert(m_queue.size() < m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push_front(value); // require this method
 		m_popCond.notify_one();
 	}
@@ -330,7 +347,7 @@ public:
 	{
 		UniqueLock lock(m_mtx);
 		if (!m_pushCond.wait_for(lock, MilliSec(timeout), is_not_full(m_queue, m_maxSize))) return false;
-		assert(m_queue.size() < m_maxSize);
+		assert(!is_full(m_queue, m_maxSize));
 		m_queue.push_front(value); // require this method
 		m_popCond.notify_one();
 		return true;
@@ -378,8 +395,8 @@ public:
 	typename Container::iterator insert(const value_type& value)
 	{
 		UniqueLock lock(m_mtx);
-		m_pushCond.wait_for(lock, is_not_full(m_queue, m_maxSize));
-		assert(m_queue.size() < m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		typename Container::iterator iter = m_queue.insert(value); // require this method
 		m_popCond.notify_one();
 		return iter;
@@ -394,8 +411,8 @@ public:
 	bool insert_unique(const value_type& value)
 	{
 		UniqueLock lock(m_mtx);
-		m_pushCond.wait_for(lock, is_not_full(m_queue, m_maxSize));
-		assert(m_queue.size() < m_maxSize);
+		while (is_full(m_queue, m_maxSize)) m_pushCond.wait(lock);
+		assert(!is_full(m_queue, m_maxSize));
 		std::pair<typename Container::iterator, bool>
 		   	res = m_queue.insert(value); // require this method
 		// do not return res.first, it is the insert position.
