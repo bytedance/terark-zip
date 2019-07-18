@@ -199,8 +199,8 @@ public:
 	explicit circular_queue(ptrdiff_t cap) : m_nlen(cap)
 	{
 		if (cap) {
-            m_vec = (ElemT*)malloc(sizeof(ElemT) * m_nlen);
-            if (NULL == m_vec) throw std::bad_alloc();
+			m_vec = (ElemT*)malloc(sizeof(ElemT) * m_nlen);
+			if (NULL == m_vec) throw std::bad_alloc();
 		}
 		else {
 		    m_vec = NULL;
@@ -218,9 +218,9 @@ public:
 	}
 
 	~circular_queue() {
-	   	clear();
+		clear();
 		if (m_vec) ::free(m_vec);
-   	}
+	}
 
 	/**
 	 @brief 清除队列中的有效元素
@@ -281,7 +281,7 @@ public:
 		m_tail = next(m_tail);
 	}
 
-    //@{
+	//@{
 	/**
 	 @brief 返回队列头部的那个元素
 
@@ -349,7 +349,7 @@ public:
 	 @name 不是队列操作的成员
 	  none queue operations.
 	  只是为了功能扩展
-     @{
+	@{
 	 */
 
 	/**
