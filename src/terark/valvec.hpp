@@ -96,20 +96,41 @@ namespace terark {
 
 template<class ForwardIt, class Size>
 ForwardIt
-always_uninitialized_default_construct_n(ForwardIt first, Size n) {
+always_uninitialized_default_construct_n_aux(ForwardIt first, Size n,
+                                             std::false_type /*nothrow*/) {
     using T = typename std::iterator_traits<ForwardIt>::value_type;
     ForwardIt current = first;
     try {
         for (; n > 0 ; (void) ++current, --n) {
             ::new (static_cast<void*>(std::addressof(*current))) T ();
-            // ------------------------------- init primitives  ---^^
-            // std::uninitialized_default_construct_n will not init primitives
         }
         return current;
     }  catch (...) {
         STDEXT_destroy_range(first, current);
         throw;
     }
+}
+
+template<class ForwardIt, class Size>
+ForwardIt
+always_uninitialized_default_construct_n_aux(ForwardIt first, Size n,
+                                             std::true_type /*nothrow*/) {
+    using T = typename std::iterator_traits<ForwardIt>::value_type;
+    ForwardIt current = first;
+    for (; n > 0 ; (void) ++current, --n) {
+        ::new (static_cast<void*>(std::addressof(*current))) T ();
+        // ------------------------------- init primitives  ---^^
+        // std::uninitialized_default_construct_n will not init primitives
+    }
+    return current;
+}
+
+template<class ForwardIt, class Size>
+ForwardIt
+always_uninitialized_default_construct_n(ForwardIt first, Size n) {
+    using T = typename std::iterator_traits<ForwardIt>::value_type;
+    return always_uninitialized_default_construct_n_aux(
+            first, n, std::is_nothrow_default_constructible<T>());
 }
 
 template<class T>
@@ -425,6 +446,7 @@ public:
         reserve_slow(newcap);
     }
 
+private:
     terark_no_inline
     void reserve_slow(size_t newcap) {
         assert(newcap > c);
@@ -434,6 +456,7 @@ public:
         c = newcap;
     }
 
+public:
     void ensure_capacity(size_t min_cap) {
         if (terark_likely(min_cap <= c)) {
             // nothing to do
@@ -441,6 +464,7 @@ public:
         }
         ensure_capacity_slow(min_cap);
     }
+private:
     terark_no_inline
     void ensure_capacity_slow(size_t min_cap) {
         assert(min_cap > c);
@@ -469,6 +493,7 @@ public:
         c = new_cap;
     }
 
+public:
     void try_capacity(size_t min_cap, size_t max_cap) {
 		if (terark_likely(min_cap <= c)) {
 			// nothing to do
@@ -476,6 +501,7 @@ public:
 		}
         try_capacity_slow(min_cap, max_cap);
     }
+private:
     terark_no_inline
     void try_capacity_slow(size_t min_cap, size_t max_cap) {
         assert(min_cap > c);
@@ -497,6 +523,7 @@ public:
         }
     }
 
+public:
     T& ensure_get(size_t i) {
 		if (i < n)
 			return p[i];
@@ -594,6 +621,7 @@ public:
         }
         resize_slow(newsize, val);
     }
+private:
     terark_no_inline
     void resize_slow(size_t newsize, param_type val) {
         size_t oldsize = n;
@@ -609,6 +637,7 @@ public:
         n = newsize;
     }
 
+public:
     void resize(size_t newsize) {
         size_t oldsize = n;
         if (boost::has_trivial_destructor<T>::value) {
@@ -623,6 +652,7 @@ public:
         }
         resize_slow(newsize);
     }
+private:
     terark_no_inline
     void resize_slow(size_t newsize) {
         size_t oldsize = n;
@@ -638,32 +668,27 @@ public:
         n = newsize;
     }
 
-    terark_no_inline
+public:
+	terark_no_inline
 	void resize_fill(size_t newsize) {
-        if (n < newsize) {
-			ensure_capacity(newsize);
-        }
+		ensure_capacity(newsize);
 		STDEXT_destroy_range(p, p + n);
+		if (!std::is_nothrow_default_constructible<T>::value) {
+			n = 0;
+		}
 		always_uninitialized_default_construct_n(p, newsize);
-        n = newsize;
+		n = newsize;
 	}
 
 	terark_no_inline
 	void resize_fill(size_t newsize, param_type val) {
-        if (newsize <= n) {
-			STDEXT_destroy_range(p + newsize, p + n);
-			std::fill_n(p, newsize, val);
+		ensure_capacity(newsize);
+		STDEXT_destroy_range(p, p + n);
+		if (!std::is_nothrow_copy_constructible<T>::value) {
+			n = 0;
 		}
-		else {
-			ensure_capacity(newsize);
-			if (boost::is_pod<T>::value) {
-				std::uninitialized_fill_n(p, newsize, val);
-			} else {
-				std::fill_n(p, n, val);
-				std::uninitialized_fill_n(p+n, newsize-n, val);
-			}
-        }
-        n = newsize;
+		std::uninitialized_fill_n(p, newsize, val);
+		n = newsize;
 	}
 
 	void erase_all() {
@@ -744,6 +769,7 @@ public:
             push_back_slow();
         }
     }
+private:
     terark_no_inline
     void push_back_slow() {
         size_t oldsize = n;
@@ -752,6 +778,7 @@ public:
         n = oldsize + 1;
     }
 
+public:
 	void push_back(param_type x) {
         size_t oldsize = n;
 		if (terark_likely(oldsize < c)) {
@@ -761,6 +788,7 @@ public:
 			push_back_slow(x);
 		}
 	}
+private:
     terark_no_inline
     void push_back_slow(param_type x) {
         size_t oldsize = n;
@@ -777,6 +805,7 @@ public:
         n = oldsize + 1;
     }
 
+public:
 	void append(param_type x) { push_back(x); } // alias for push_back
 	template<class Iterator>
 	void append(Iterator first, ptrdiff_t len) {
@@ -804,6 +833,7 @@ public:
 		append(cont.begin(), cont.end());
 	}
 
+    terark_no_inline
     void push_n(size_t cnt, param_type val) {
         if (boost::has_trivial_copy<T>::value) {
             std::uninitialized_fill_n(grow_no_init(cnt), cnt, val);
@@ -918,6 +948,31 @@ public:
         return p[i];
     }
 
+    T& ref(size_t i) {
+        assert(i < n);
+        return p[i];
+    }
+    const T& ref(size_t i) const {
+        assert(i < n);
+        return p[i];
+    }
+    const T& cref(size_t i) const {
+        assert(i < n);
+        return p[i];
+    }
+    T* ptr(size_t i) {
+        assert(i < n);
+        return p + i;
+    }
+    const T* ptr(size_t i) const {
+        assert(i < n);
+        return p + i;
+    }
+    const T* cptr(size_t i) const {
+        assert(i < n);
+        return p + i;
+    }
+
 	void set(size_t i, param_type val) {
 		assert(i < n);
 		p[i] = val;
@@ -1000,14 +1055,17 @@ public:
 			emplace_back_slow(std::forward<Args>(args)...);
 		}
 	}
+private:
 	template<class... Args>
     terark_no_inline
 	void emplace_back_slow(Args&&... args) {
+        assert(n == c);
 		T val(std::forward<Args>(args)...);
-        ensure_capacity(n+1);
+        ensure_capacity_slow(n+1);
 		new(p+n)T(std::move(val));
 		++n;
 	}
+public:
 	template<class... Args>
 	void unchecked_emplace_back(Args&&... args) {
 		size_t oldsize = n;

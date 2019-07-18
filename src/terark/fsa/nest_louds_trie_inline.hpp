@@ -1132,7 +1132,7 @@ Iterator<Dawg>::Iterator(const Dawg* d) : ADFA_LexIterator(valvec_no_init()) {
     const NestLoudsTrieTpl* trie = d->m_trie;
     size_t word_mem = pow2_align_up(trie->m_max_strlen + 17, 16);
     size_t iter_mem = sizeof(Entry)*(trie->m_layer_id.size() + 2);
-    m_word.ensure_capacity_slow(word_mem + iter_mem);
+    m_word.ensure_capacity(word_mem + iter_mem);
     m_dfa = d;
     m_top = m_base = (Entry*)(m_word.data() + word_mem);
     m_trie = trie;
