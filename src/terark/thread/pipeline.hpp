@@ -11,6 +11,7 @@
 
 #include <stddef.h>
 #include <string>
+#include <type_traits>
 #include <terark/config.hpp>
 #include <terark/valvec.hpp>
 
@@ -169,6 +170,7 @@ class TERARK_DLL_EXPORT PipelineProcessor
 	volatile size_t m_run; // size_t is CPU word, should be bool
 	bool m_is_mutex_owner;
 	bool m_keepSerial;
+	signed char m_logLevel;
 
 protected:
 	static void defaultDestroyTask(PipelineTask* task);
@@ -178,15 +180,16 @@ protected:
 	void clear();
 
 public:
-	bool m_silent; // set to true to depress status messages
-
 	static int sysCpuCount();
 
 	PipelineProcessor();
 
 	virtual ~PipelineProcessor();
 
-	int isRunning() const { return m_run; }
+	bool isRunning() const { return 0 != m_run; }
+
+    void setLogLevel(int level) { m_logLevel = (signed char)level; }
+    int  getLogLevel() const { return m_logLevel; }
 
 	void setQueueSize(int queue_size) { m_queue_size = queue_size; }
 	int  getQueueSize() const { return m_queue_size; }
@@ -210,6 +213,15 @@ public:
 
 	void enqueue(PipelineTask* task);
 	void enqueue(PipelineTask** tasks, size_t num);
+
+	template<class Task>
+	typename
+	std::enable_if<std::is_base_of<PipelineTask, Task>::value, void>::type
+	enqueue(Task** tasks, size_t num) {
+	    static_assert(static_cast<Task*>((PipelineTask*)0) == 0,
+	                  "PipelineTask must be first base of Task");
+        enqueue(reinterpret_cast<PipelineTask**>(tasks), num);
+	}
 
 	void stop() { m_run = false; }
 	void wait();
