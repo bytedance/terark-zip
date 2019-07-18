@@ -46,7 +46,7 @@ class PipelineStage::queue_t : public base_queue
 public:
 	queue_t(size_t size) : base_queue(size)
 	{
-		base_queue::queue().init(size);
+		base_queue::queue().init(size + 1);
 	}
 };
 
@@ -207,7 +207,7 @@ void PipelineStage::onException(int threadno, const std::exception& exp)
 
 void PipelineStage::setup(int threadno)
 {
-	if (!m_owner->m_silent) {
+	if (m_owner->m_logLevel >= 1) {
 		PipelineLockGuard lock(*m_owner->getMutex());
 		std::cout << "start step[ordinal=" << step_ordinal()
 				  << ", threadno=" << threadno
@@ -219,7 +219,7 @@ void PipelineStage::clean(int threadno)
 {
 	PipelineLockGuard lock(*m_owner->getMutex());
 	if (err(threadno).empty()) {
-		if (!m_owner->m_silent)
+		if (m_owner->m_logLevel >= 1)
 			printf("ended step[ordinal=%d, threadno=%d]: %s\n"
 				, step_ordinal(), threadno, m_step_name.c_str());
 	} else {
@@ -312,7 +312,13 @@ void PipelineStage::run_step_first(int threadno)
  			//	queue_t::MutexLockSentry lock(*m_out_queue); // not need lock
 				item.plserial = ++m_plserial;
 			}
-			m_out_queue->push_back(item);
+			if (m_owner->m_logLevel >= 3) {
+                while (!m_out_queue->push_back(item, m_owner->m_queue_timeout)) {
+                    fprintf(stderr, "Pipeline: first_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+                }
+			} else {
+			    m_out_queue->push_back(item);
+			}
 		}
 	}
 }
@@ -330,6 +336,11 @@ void PipelineStage::run_step_last(int threadno)
 				process(threadno, &item);
 			if (item.task)
 				m_owner->destroyTask(item.task);
+		}
+		else {
+		    if (m_owner->m_logLevel >= 3) {
+		        fprintf(stderr, "Pipeline: last_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		    }
 		}
 	}
 }
@@ -353,6 +364,11 @@ void PipelineStage::run_step_mid(int threadno)
 				process(threadno, &item);
 			if (item.task || m_owner->m_keepSerial)
 				m_out_queue->push_back(item);
+		}
+		else {
+		    if (m_owner->m_logLevel >= 3) {
+		        fprintf(stderr, "Pipeline: mid_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		    }
 		}
 	}
 }
@@ -414,7 +430,12 @@ void PipelineStage::run_serial_step_slow(int threadno,
 	while (isPrevRunning()) {
 		PipelineQueueItem item;
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
+        {
+		    if (m_owner->m_logLevel >= 3) {
+		        fprintf(stderr, "Pipeline: serial_step_slow(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		    }
 			continue;
+		}
 		CHECK_SERIAL()
 		if (item.plserial == m_plserial)
 		{Loop:
@@ -460,7 +481,12 @@ void PipelineStage::run_serial_step_fast(int threadno,
 	while (isPrevRunning()) {
 		PipelineQueueItem item;
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
+        {
+		    if (m_owner->m_logLevel >= 3) {
+		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		    }
 			continue;
+		}
 		CHECK_SERIAL()
 		ptrdiff_t diff = item.plserial - m_plserial; // diff is in [0, nlen)
 		//  not all equivalent to cycle queue, so it is not 'diff < nlen-1'
@@ -569,7 +595,7 @@ PipelineProcessor::PipelineProcessor()
 	m_is_mutex_owner = false;
 	m_keepSerial = false;
 	m_run = false;
-	m_silent = false;
+	m_logLevel = 1;
 }
 
 PipelineProcessor::~PipelineProcessor()
@@ -715,16 +741,37 @@ void PipelineProcessor::enqueue(PipelineTask* task)
 {
 	PipelineLockGuard lock(m_mutexForInqueue);
 	PipelineQueueItem item(++m_head->m_plserial, task);
-	m_head->m_out_queue->push_back(item);
+    if (m_logLevel >= 3) {
+        if (!m_head->m_out_queue->push_back(item, m_queue_timeout)) {
+            fprintf(stderr,
+                    "Pipeline: enqueue_1: wait push timeout, serial = %lld, retry ...\n",
+                    (llong)item.plserial);
+        }
+    }
+    else {
+        m_head->m_out_queue->push_back(item);
+    }
 }
 
 void PipelineProcessor::enqueue(PipelineTask** tasks, size_t num) {
 	PipelineLockGuard lock(m_mutexForInqueue);
 	uintptr_t plserial = m_head->m_plserial;
 	auto queue = m_head->m_out_queue;
-	for (size_t i = 0; i < num; ++i) {
-		queue->push_back(PipelineQueueItem(++plserial, tasks[i]));
-	}
+    if (m_logLevel >= 3) {
+        for (size_t i = 0; i < num; ++i) {
+            PipelineQueueItem item(++plserial, tasks[i]);
+            while (!queue->push_back(item, m_queue_timeout)) {
+                fprintf(stderr,
+                        "Pipeline: enqueue(num=%zd): nth=%zd, wait push timeout, serial = %lld, retry ...\n",
+                        num, i, (llong)item.plserial);
+            }
+        }
+    }
+    else {
+        for (size_t i = 0; i < num; ++i) {
+            queue->push_back(PipelineQueueItem(++plserial, tasks[i]));
+        }
+    }
 	m_head->m_plserial = plserial;
 }
 
