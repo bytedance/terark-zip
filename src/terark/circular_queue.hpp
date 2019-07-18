@@ -16,6 +16,7 @@
 
 //#include <vector>
 #include <boost/swap.hpp>
+#include <terark/util/throw.hpp>
 
 namespace terark {
 
@@ -29,7 +30,7 @@ namespace terark {
   - 所有输入参数均需要满足其前条件，如果不满足，
     Debug 版会引发断言失败，Release 版会导致未定义行为
  */
-template<class ElemT>
+template<class ElemT, bool CapIsPower2 = false>
 class circular_queue
 {
 	// valid element count is (m_vec.size() - 1)
@@ -40,12 +41,18 @@ class circular_queue
 
 	ptrdiff_t prev(ptrdiff_t current) const throw()
 	{
+		if (CapIsPower2) {
+			return (current-1) & (m_nlen-1);
+		}
 		ptrdiff_t i = current - 1;
 		return i >=0 ? i : i + m_nlen; // == (i + m_nlen) % m_nlen, but more fast
 	//	return (current + m_vec.size() - 1) % m_vec.size();
 	}
 	ptrdiff_t next(ptrdiff_t current) const throw()
 	{
+		if (CapIsPower2) {
+			return (current+1) & (m_nlen-1);
+		}
 		ptrdiff_t i = current + 1;
 		return i < m_nlen ? i : i - m_nlen; // == i % m_nlen, but more fast
 	//	return (current + 1) % m_vec.size();
@@ -53,6 +60,9 @@ class circular_queue
 	ptrdiff_t prev_n(ptrdiff_t current, ptrdiff_t n) const throw()
 	{
 		assert(n < m_nlen);
+		if (CapIsPower2) {
+			return (current - n) & (m_nlen-1);
+		}
 		ptrdiff_t i = current - n;
 		return i >=0 ? i : i + m_nlen; // == i % c, but more fast
 //		return (current + m_vec.size() - n) % m_vec.size();
@@ -60,6 +70,9 @@ class circular_queue
 	ptrdiff_t next_n(ptrdiff_t current, ptrdiff_t n) const throw()
 	{
 		assert(n < m_nlen);
+		if (CapIsPower2) {
+		    return (current + n) & (m_nlen-1);
+		}
 		ptrdiff_t c = m_nlen;
 		ptrdiff_t i = current + n;
 		return i < c ? i : i - c; // == i % c, but more fast
@@ -130,6 +143,10 @@ public:
 
 		const ElemT& operator *() const throw() { return *p; }
 		const ElemT* operator->() const throw() { return  p; }
+
+		friend inline
+		my_type
+		operator+(ptrdiff_t n, const my_type& iter) noexcept { return iter + n; }
 	};
 
 	class iterator
@@ -189,6 +206,10 @@ public:
 
 		operator const const_iterator&() const throw()
 		{ return *reinterpret_cast<const const_iterator*>(this); }
+
+		friend inline
+		iterator
+		operator+(ptrdiff_t n, const iterator& iter) noexcept { return iter + n; }
 	};
 	friend class const_iterator;
 	friend class       iterator;
@@ -198,6 +219,11 @@ public:
 	 */
 	explicit circular_queue(ptrdiff_t cap) : m_nlen(cap)
 	{
+		if (CapIsPower2) {
+			if ((cap & (cap - 1)) != 0 || 0 == cap) {
+				THROW_STD(logic_error, "invalid cap = %zd, must be power of 2", cap);
+			}
+		}
 		if (cap) {
 			m_vec = (ElemT*)malloc(sizeof(ElemT) * m_nlen);
 			if (NULL == m_vec) throw std::bad_alloc();
@@ -250,7 +276,6 @@ public:
 	 @return true 表示队列已满，false 表示未满
 	 */
 	bool full() const throw() { return next(m_tail) == m_head; }
-//	bool full() const throw() { return m_tail+1==m_head || (m_head+m_nlen-1==m_tail); }
 
 	/**
 	 @brief 返回队列当前尺寸
@@ -258,7 +283,12 @@ public:
 	 - 前条件：无
 	 @return 队列中有效元素的个数，总小于等于 capacity
 	 */
-	size_type size() const throw() { return m_head <= m_tail ? m_tail - m_head : m_tail + m_nlen - m_head; }
+	size_type size() const throw() {
+		if (CapIsPower2) {
+			return (m_tail - m_head) & (m_nlen - 1);
+		}
+		return m_head <= m_tail ? m_tail - m_head : m_tail + m_nlen - m_head;
+	}
 
 	/**
 	 @brief 返回队列容量
@@ -463,6 +493,11 @@ public:
 	 */
 	ptrdiff_t virtual_index(ptrdiff_t real_index) const throw()
 	{
+		if (CapIsPower2) {
+			ptrdiff_t i = (real_index - m_head) & (m_nlen - 1);
+			assert(i <= (intptr_t)size());
+			return i;
+		}
 		ptrdiff_t i = real_index - m_head;
 		if (i < 0) {
 			i += m_nlen;
@@ -481,6 +516,9 @@ public:
 	{
 		assert(virtual_index >= 0);
 		assert(virtual_index <= (ptrdiff_t)size());
+		if (CapIsPower2) {
+			return (virtual_index + m_head) & (m_nlen - 1);
+		}
 		ptrdiff_t i = virtual_index + m_head;
 		return i < m_nlen ? i : i - m_nlen;
 	//	return (virtual_index + m_head) % m_vec.size();
@@ -505,6 +543,9 @@ public:
 		assert(virtual_index < (ptrdiff_t)size());
 		ptrdiff_t c = m_nlen;
 		ptrdiff_t i = m_head + virtual_index;
+		if (CapIsPower2) {
+			return m_vec[i & (c-1)];
+		}
 		ptrdiff_t j = i < c ? i : i - c;
 		return m_vec[j];
 	//	return m_vec[(m_head + virtual_index) % m_vec.size()];
@@ -515,30 +556,15 @@ public:
 		assert(virtual_index < (ptrdiff_t)size());
 		ptrdiff_t c = m_nlen;
 		ptrdiff_t i = m_head + virtual_index;
+		if (CapIsPower2) {
+			return m_vec[i & (c-1)];
+		}
 		ptrdiff_t j = i < c ? i : i - c;
 		return m_vec[j];
 	//	return m_vec[(m_head + virtual_index) % m_vec.size()];
 	}
 	//@}
 };
-
-/*
-template<class ElemT, class VectorT>
-inline
-circular_queue<ElemT, VectorT>::const_iterator
-operator+(ptrdiff_t n, const circular_queue<ElemT, VectorT>::const_iterator& iter)
-{
-	return iter + n;
-}
-
-template<class ElemT, class VectorT>
-inline
-circular_queue<ElemT, VectorT>::iterator
-operator+(ptrdiff_t n, const circular_queue<ElemT, VectorT>::iterator& iter)
-{
-	return iter + n;
-}
-*/
 
 } // namespace terark
 
