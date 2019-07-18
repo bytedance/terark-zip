@@ -611,7 +611,7 @@ public:
 static int g_zipThreads = (int)getEnvLong("DictZipBlobStore_zipThreads", -1);
 static bool g_isPipelineStarted = false;
 
-static bool g_silentPipelineMsg = getEnvBool("DictZipBlobStore_silentPipelineMsg", false);
+static int g_pipelineLogLevel = (int)getEnvLong("DictZipBlobStore_pipelineLogLevel", 1);
 static bool g_printEntropyCount = getEnvBool("DictZipBlobStore_printEntropyCount", false);
 
 TERARK_DLL_EXPORT void DictZipBlobStore_setZipThreads(int zipThreads) {
@@ -624,13 +624,13 @@ TERARK_DLL_EXPORT void DictZipBlobStore_setZipThreads(int zipThreads) {
 	}
 }
 
-void DictZipBlobStore_silentPipelineMsg(bool silent) {
+TERARK_DLL_EXPORT void DictZipBlobStore_setPipelineLogLevel(int level) {
   if (g_isPipelineStarted) {
     fprintf(stderr,
       "WARN: DictZipBlobStore pipeline has started, can not change silentPipelineMsg\n");
   }
   else {
-    g_silentPipelineMsg = silent;
+    g_pipelineLogLevel = level;
   }
 }
 
@@ -690,7 +690,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			else {
 				zipThreads = min(cpuCount, 8);
 			}
-			this->m_silent = g_silentPipelineMsg;
+			this->setLogLevel(g_pipelineLogLevel);
 			this->setQueueSize(8*zipThreads);
 			this->add_step(new MyZipStage(zipThreads));
 			this->add_step(new MyWriteStage());
