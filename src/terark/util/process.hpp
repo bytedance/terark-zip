@@ -17,10 +17,10 @@ namespace terark {
 
     /// Notes:
     ///   1. If mode = "r", then stdout redirect  in @param cmd is not allowed
-    ///   2. If mode = "r", then stdin  redirect  in @param cmd is not allowed
+    ///   2. If mode = "w", then stdin  redirect  in @param cmd is not allowed
     ///   3. stderr redirect such as 2>&1 or 1>&2 in @param cmd is not allowed
     ///   4. If redirect rules are violated, the behavior is undefined
-    ///   5. If you needs redirect, write a warping shell script
+    ///   5. If you needs redirect, write a wrapping shell script
     class TERARK_DLL_EXPORT ProcPipeStream : public FileStream {
         using FileStream::dopen;
         using FileStream::size;

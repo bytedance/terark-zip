@@ -2,10 +2,13 @@
 #include <terark/util/autofree.hpp>
 #include <terark/bitmanip.hpp>
 #include <terark/util/throw.hpp>
+#include <type_traits>
+
 namespace terark {
 
 template<class T>
 class AutoGrowCircularQueue {
+    static_assert(std::is_trivially_destructible<T>::value, "T must be trivially destructible");
     AutoFree<T> m_vec;
     size_t      m_cap;
     size_t      m_head;

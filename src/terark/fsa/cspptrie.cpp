@@ -4350,5 +4350,25 @@ Patricia::MemStat Patricia::mem_get_stat() const {
     return ms;
 }
 
+Patricia::IterMem::IterMem() noexcept {
+    memset(this, 0, sizeof(IterMem));
+}
+Patricia::IterMem::~IterMem() noexcept {
+    if (is_constructed()) {
+        auto it = reinterpret_cast<const Iterator*>(this);
+        it->~Iterator();
+    }
+}
+bool Patricia::IterMem::is_constructed() const noexcept {
+    auto it = reinterpret_cast<const Iterator*>(this);
+    auto al = static_cast<const ADFA_LexIterator*>(it);
+    auto vt = *reinterpret_cast<const intptr_t*>(al);
+    return 0 != vt; // v-table-ptr of ADFA_LexIterator
+}
+void Patricia::IterMem::construct(Patricia* trie) {
+    assert(!is_constructed());
+    trie->construct_iter(this);
+}
+
 } // namespace terark
 
