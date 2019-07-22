@@ -94,7 +94,19 @@ public:
     public:
         virtual void token_detach_iter() = 0;
     };
-    static const size_t ITER_SIZE = sizeof(Iterator) + sizeof(valvec<byte_t>) + sizeof(size_t);
+    class TERARK_DLL_EXPORT IterMem : boost::noncopyable {
+        byte_t  m_iter[sizeof(Iterator)];
+        union { valvec<uint64_t> m_vstk; };
+        size_t  m_flag;
+    public:
+        IterMem() noexcept;
+        ~IterMem() noexcept;
+        bool is_constructed() const noexcept;
+        void construct(Patricia*);
+        Iterator* iter() noexcept { return reinterpret_cast<Iterator*>(this); }
+        const Iterator* iter() const noexcept { return reinterpret_cast<const Iterator*>(this); }
+    };
+    static const size_t ITER_SIZE = sizeof(IterMem);
 
     /// ptr size must be allocated ITER_SIZE
     virtual void construct_iter(void* ptr) const = 0;
