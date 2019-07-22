@@ -4350,6 +4350,10 @@ Patricia::MemStat Patricia::mem_get_stat() const {
     return ms;
 }
 
+#if defined(__GNUC__)
+    #pragma GCC diagnostic ignored "-Wunused-private-field"
+#endif
+
 Patricia::IterMem::IterMem() noexcept {
     memset(this, 0, sizeof(IterMem));
 }
@@ -4368,6 +4372,12 @@ bool Patricia::IterMem::is_constructed() const noexcept {
 void Patricia::IterMem::construct(Patricia* trie) {
     assert(!is_constructed());
     trie->construct_iter(this);
+}
+void Patricia::IterMem::reset(Patricia* trie) {
+    if (is_constructed())
+        reinterpret_cast<Iterator*>(this)->reset(trie);
+    else
+        trie->construct_iter(this);
 }
 
 } // namespace terark

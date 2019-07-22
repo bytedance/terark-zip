@@ -103,6 +103,7 @@ public:
         ~IterMem() noexcept;
         bool is_constructed() const noexcept;
         void construct(Patricia*);
+        void reset(Patricia*);
         Iterator* iter() noexcept { return reinterpret_cast<Iterator*>(this); }
         const Iterator* iter() const noexcept { return reinterpret_cast<const Iterator*>(this); }
     };
