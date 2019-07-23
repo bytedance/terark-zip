@@ -3267,6 +3267,7 @@ void MainPatricia::IterImpl::reset(const BaseDFA* dfa, size_t root) {
     m_dfa = dfa;
     if (NULL == dfa) {
         release();
+        m_trie = NULL;
     }
     else {
         assert(dynamic_cast<const BaseDFA*>(dfa) != NULL);
@@ -4371,7 +4372,8 @@ bool Patricia::IterMem::is_constructed() const noexcept {
 }
 void Patricia::IterMem::construct(Patricia* trie) {
     assert(!is_constructed());
-    trie->construct_iter(this);
+    if (trie)
+        trie->construct_iter(this);
 }
 void Patricia::IterMem::reset(Patricia* trie) {
     if (is_constructed())
