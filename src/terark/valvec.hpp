@@ -22,7 +22,11 @@
 #include <terark/util/autofree.hpp>
 #include "config.hpp"
 
-#if defined(TERARK_HAS_WEAK_SYMBOL)
+#if defined(TERARK_HAS_WEAK_SYMBOL) && 0
+  #define TERARK_VALVEC_HAS_WEAK_SYMBOL 1
+#endif
+
+#if TERARK_VALVEC_HAS_WEAK_SYMBOL
 extern "C" {
     // jemalloc specific
     size_t TERARK_WEAK_SYMBOL xallocx(void*, size_t, size_t, int flags);
@@ -469,7 +473,7 @@ private:
     void ensure_capacity_slow(size_t min_cap) {
         assert(min_cap > c);
         size_t new_cap = std::max(larger_capacity(c), min_cap);
-#if defined(TERARK_HAS_WEAK_SYMBOL)
+#if defined(TERARK_VALVEC_HAS_WEAK_SYMBOL)
         if (xallocx) {
             size_t extra = sizeof(T) * (new_cap - min_cap);
             size_t minsz = sizeof(T) * min_cap;
@@ -573,7 +577,7 @@ public:
 
     // may do nothing
     void shrink_to_fit_inplace() {
-#if defined(TERARK_HAS_WEAK_SYMBOL)
+#if defined(TERARK_VALVEC_HAS_WEAK_SYMBOL)
         if (xallocx) {
             size_t usesz = xallocx(p, sizeof(T) * n, 0, 0);
             c = usesz / sizeof(T); // done
