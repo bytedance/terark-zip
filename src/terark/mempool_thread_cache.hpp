@@ -480,11 +480,11 @@ public:
     void get_fastbin(valvec<size_t>* fast) const {
         fast->resize_fill(m_fastbin_max_size/AlignSize, 0);
         m_tls.for_each_tls([fast](TCMemPoolOneThread<AlignSize>* tc) {
-            auto p = tc->m_freelist_head.data();
-            auto n = tc->m_freelist_head.size();
+            auto _p = tc->m_freelist_head.data();
+            auto _n = tc->m_freelist_head.size();
             size_t* fastptr = fast->data();
-            for (size_t i = 0; i < n; ++i) {
-                fastptr[i] += p[i].cnt;
+            for (size_t i = 0; i < _n; ++i) {
+                fastptr[i] += _p[i].cnt;
             }
         });
     }
