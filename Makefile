@@ -185,7 +185,7 @@ core_src := \
 
 core_src := $(filter-out ${zip_src}, ${core_src})
 
-ifeq (${UNAME_System},Darwin)
+ifeq (${UNAME_System},"DarwinWithoutC++11")
 # lib boost-fiber can not be built by boost build
 # include the source
 core_src += \
@@ -384,7 +384,7 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 boost-include/build-lib-for-terark.done:
 	cd boost-include \
 		&& bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
-		&& ./b2 -j8 cxxflags=-fPIC cflags=-fPIC
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC
 	touch $@
 
 %${DLL_SUFFIX}:
