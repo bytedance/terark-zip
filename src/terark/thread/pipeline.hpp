@@ -76,6 +76,7 @@ class TERARK_DLL_EXPORT PipelineStage : boost::noncopyable
 
 public:
 	class queue_t;
+	class ExecUnit; // ExecUnit is thread or fiber
 
 protected:
 	queue_t* m_out_queue;
@@ -85,7 +86,7 @@ protected:
 
     struct ThreadData {
         std::string m_err_text;
-        thread*  m_thread;
+        ExecUnit*  m_thread;
         volatile size_t m_run; // size_t is a CPU word, should be bool
         ThreadData();
         ~ThreadData();
@@ -140,7 +141,7 @@ public:
 	mutex* getMutex() const;
 	size_t getInputQueueSize()  const;
 	size_t getOutputQueueSize() const;
-	void setOutputQueueSize(size_t size);
+	void createOutputQueue(size_t size);
 };
 
 class TERARK_DLL_EXPORT FunPipelineStage : public PipelineStage
@@ -171,6 +172,7 @@ class TERARK_DLL_EXPORT PipelineProcessor
 	bool m_is_mutex_owner;
 	bool m_keepSerial;
 	signed char m_logLevel;
+	bool m_fiberMode;
 
 protected:
 	static void defaultDestroyTask(PipelineTask* task);
@@ -178,6 +180,9 @@ protected:
 
 	void add_step(PipelineStage* step);
 	void clear();
+
+	void enqueue_impl(PipelineTask* task);
+	void enqueue_impl(PipelineTask** tasks, size_t num);
 
 public:
 	static int sysCpuCount();
@@ -190,6 +195,9 @@ public:
 
     void setLogLevel(int level) { m_logLevel = (signed char)level; }
     int  getLogLevel() const { return m_logLevel; }
+
+    void setFiberMode(bool fiberMode) { m_fiberMode = fiberMode; }
+    bool isFiberMode() const { return m_fiberMode; }
 
 	void setQueueSize(int queue_size) { m_queue_size = queue_size; }
 	int  getQueueSize() const { return m_queue_size; }

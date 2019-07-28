@@ -109,16 +109,22 @@ public:
 		PipelineLockGuard lock(*step->getMutex());
 		printf("step6_clean: threadno=%d\n", threadno);
 	}
+
 	int main(int argc, char* argv[])
 	{
 		G_bPrint = argc >= 2 ? atoi(argv[1]) : 0;
 		maxNum = argc >= 3 ? atoi(argv[2]) : TERARK_IF_DEBUG(10000, 50000);
 		int bcompile = argc >= 4 ? atoi(argv[3]) : 1;
-
+		int err1 = run_test(false, 3, bcompile);
+		int err2 = run_test(true, 0, bcompile);
+		return err1 + err2;
+    }
+    int run_test(bool fiberMode, int logLevel, int bcompile) {
 		PipelineProcessor pipeline;
-		pipeline.setLogLevel(3);
+		pipeline.setLogLevel(logLevel);
 		pipeline.setQueueTimeout(1);
 		pipeline.setQueueSize(4); // small queue is likely full
+		pipeline.setFiberMode(fiberMode);
 
 		std::vector<int> bindArg1;
 		// use the UNIX shell pipe denotation
@@ -141,9 +147,10 @@ public:
 	//	| PPL_STEP_EX_0(this, Main, step6, 0)
 		;
 		terark::profiling pf;
+		const char* modeName = fiberMode? "fiber" : "thread";
 		long long t0 = pf.now();
 		if (bcompile) {
-    		fprintf(stderr, "pipeline test with compile\n");
+    		fprintf(stderr, "%s pipeline test with compile\n", modeName);
 			// this is the recommended usage
 			//
 			// compile means no generator step
@@ -152,12 +159,12 @@ public:
 			pipeline.compile();
 
 			// corresponding to GeneratorStep
-			for (int i = 0; i < maxNum; ++i)
+			for (unsigned long i = 0; i < maxNum; ++i)
 				pipeline.enqueue(new MyTask(i+2)); // send to the pipeline
 			pipeline.stop(); // just set stop flag
 			pipeline.wait(); // wait for all pending items to be processed
 		} else {
-    		fprintf(stderr, "pipeline test without compile\n");
+    		fprintf(stderr, "%s pipeline test without compile\n", modeName);
 			pipeline.start(); // start the pipeline, input is from GeneratorStep
 
 			// wait for the pipeline to auto complete
@@ -165,8 +172,8 @@ public:
 			pipeline.wait();
 		}
 		long long t1 = pf.now();
-		fprintf(stderr, "time=%ld'us, average=%f'us\n", (long)pf.us(t0, t1), (double)pf.ns(t0, t1)/1000/maxNum);
-		fprintf(stderr, "pipeline test passed\n");
+		fprintf(stderr, "%s pipeline test passed, time=%ld'us, average=%f'us\n",
+		        modeName, (long)pf.us(t0, t1), (double)pf.ns(t0, t1)/1000/maxNum);
 		return 0;
 	}
 };
