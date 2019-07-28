@@ -185,6 +185,33 @@ core_src := \
 
 core_src := $(filter-out ${zip_src}, ${core_src})
 
+ifeq (${UNAME_System},Darwin)
+# lib boost-fiber can not be built by boost build
+# include the source
+core_src += \
+  boost-include/libs/fiber/src/algo/algorithm.cpp \
+  boost-include/libs/fiber/src/algo/round_robin.cpp \
+  boost-include/libs/fiber/src/algo/shared_work.cpp \
+  boost-include/libs/fiber/src/algo/work_stealing.cpp \
+  boost-include/libs/fiber/src/barrier.cpp \
+  boost-include/libs/fiber/src/condition_variable.cpp \
+  boost-include/libs/fiber/src/context.cpp \
+  boost-include/libs/fiber/src/fiber.cpp \
+  boost-include/libs/fiber/src/future.cpp \
+  boost-include/libs/fiber/src/mutex.cpp \
+  boost-include/libs/fiber/src/properties.cpp \
+  boost-include/libs/fiber/src/recursive_mutex.cpp \
+  boost-include/libs/fiber/src/recursive_timed_mutex.cpp \
+  boost-include/libs/fiber/src/timed_mutex.cpp \
+  boost-include/libs/fiber/src/scheduler.cpp
+
+  BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_thread.a
+else
+  BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_fiber.a
+endif
+BOOST_FIBER_DEP_LIBS += \
+  boost-include/stage/lib/libboost_context.a \
+  boost-include/stage/lib/libboost_system.a
 
 fsa_src := $(wildcard src/terark/fsa/*.cpp)
 fsa_src += $(wildcard src/terark/zsrch/*.cpp)
@@ -301,20 +328,23 @@ ${static_zbs_d} : $(call objs,zbs,d)
 ${static_zbs_r} : $(call objs,zbs,r)
 ${static_zbs_a} : $(call objs,zbs,a)
 
-${core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o
-${core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o
-${core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o
-${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o
-${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o
-${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o
+${core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+
+${core_d} ${core_r} ${core_a} : LIBS := ${BOOST_FIBER_DEP_LIBS} ${LIBS}
+
+${static_core_d} ${static_core_r} ${static_core_a}: STATIC_FLATTEN_LIBS := ${BOOST_FIBER_DEP_LIBS}
 
 
-.PHONY: git-version.phony
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
 ${1}/git-version-fsa.cpp: ${fsa_src}
 ${1}/git-version-zbs.cpp: ${zbs_src}
-${1}/git-version-%.cpp: git-version.phony Makefile
+${1}/git-version-%.cpp: Makefile
 	@mkdir -p $$(dir $$@)
 	@rm -f $$@.tmp
 	@echo '__attribute__ ((visibility ("default"))) const char*' \
@@ -351,6 +381,12 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 		CFLAGS="-fPIC -std=c99 -O3 -Wall -Wextra -pedantic"
 		#AVX2_CFLAGS=-mavx2 SSE41_CFLAGS=-msse4.1 SSE42_CFLAGS=-msse4.2 AVX_CFLAGS=-mavx
 
+boost-include/build-lib-for-terark.done:
+	cd boost-include \
+		&& bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+		&& ./b2 -j8 cxxflags=-fPIC cflags=-fPIC
+	touch $@
+
 %${DLL_SUFFIX}:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating dynamic library: $@"
@@ -373,7 +409,27 @@ endif
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	${AR} rcs $@ $(filter %.o,$^) ${EXTRA_OBJECTS}
+	@echo STATIC_FLATTEN_LIBS = "${STATIC_FLATTEN_LIBS}"
+	@if test -n "${STATIC_FLATTEN_LIBS}" -a `uname` = Darwin; then \
+		echo; \
+		echo Mac OS does not support ar script, you need to add link libs:; \
+		for f in ${STATIC_FLATTEN_LIBS}; do echo "    $$f"; done; \
+	fi
+	@echo
+	@if test -n "${STATIC_FLATTEN_LIBS}" -a `uname` != Darwin; then \
+		tmp=`mktemp -u XXXXXX.tmp.a`; \
+		set -x; \
+		${AR} rcs $$tmp $(filter %.o,$^) ${EXTRA_OBJECTS}; \
+		(\
+		echo open $$tmp; \
+		echo addlib ${STATIC_FLATTEN_LIBS}; \
+		echo save; \
+		echo end; \
+		) | ar -M; \
+		mv $$tmp $@; \
+	else \
+		${AR} rcs $@ $(filter %.o,$^) ${EXTRA_OBJECTS}; \
+	fi
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 
 .PHONY : install

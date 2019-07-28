@@ -11,6 +11,7 @@ int main(int argc, char* argv[]) {
 
         line.read_all(pp);
         line.chomp();
+        assert(line.size() == 4);
         printf("read result = len=%zd : %s\n", line.n, line.p);
         assert(fstring(line) == "aaaa");
         printf("1 passed\n");
