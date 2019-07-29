@@ -16,7 +16,19 @@ FILE(GLOB CORE_SRC src/terark/*.cpp
         src/terark/util/*.cpp
         src/terark/thread/*.cpp
         src/terark/succinct/*.cpp
-        src/terark/c/*.c)
+        src/terark/c/*.c
+        boost-include/libs/coroutine/src/*.cpp
+        boost-include/libs/coroutine/src/detail/*.cpp
+        boost-include/libs/coroutine/src/posix/*.cpp
+        boost-include/libs/fiber/src/*.cpp
+        boost-include/libs/fiber/src/algo/*.cpp
+        boost-include/libs/fiber/src/numa/*.cpp
+        boost-include/libs/fiber/examples/*.cpp
+        boost-include/libs/fiber/examples/asio/*.cpp
+        boost-include/libs/fiber/examples/cuda/*.cpp
+        boost-include/libs/fiber/examples/hip/*.cpp
+        boost-include/libs/fiber/examples/numa/*.cpp
+        )
 ADD_LIBRARY(terark-core SHARED ${CORE_SRC})
 
 
