@@ -234,37 +234,9 @@ public:
 	size_t getInputQueueSize(size_t step_no) const;
 };
 
-#define PPL_STEP(pObject, Class, MemFun, thread_count, ...) \
+#define PPL_STAGE(pObject, Class, MemFun, thread_count, ...) \
 	new terark::FunPipelineStage(thread_count\
 		, terark::bind(&Class::MemFun, pObject, _1, _2, _3,##__VA_ARGS__) \
-		, BOOST_STRINGIZE(Class::MemFun)\
-		)
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#define PPL_STEP_0(pObject, Class, MemFun, thread_count) \
-	new terark::FunPipelineStage(thread_count\
-		, terark::bind(&Class::MemFun, pObject, _1, _2, _3)\
-		, BOOST_STRINGIZE(Class::MemFun)\
-		)
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#define PPL_STEP_1(pObject, Class, MemFun, thread_count, arg1) \
-	new terark::FunPipelineStage(thread_count\
-		, terark::bind(&Class::MemFun, pObject, _1, _2, _3, arg1)\
-		, BOOST_STRINGIZE(Class::MemFun)\
-		)
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#define PPL_STEP_2(pObject, Class, MemFun, thread_count, arg1, arg2) \
-	new terark::FunPipelineStage(thread_count\
-		, terark::bind(&Class::MemFun, pObject, _1, _2, _3, arg1, arg2)\
-		, BOOST_STRINGIZE(Class::MemFun)\
-		)
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-
-#define PPL_STEP_3(pObject, Class, MemFun, thread_count, arg1, arg2, arg3) \
-	new terark::FunPipelineStage(thread_count\
-		, terark::bind(&Class::MemFun, pObject, _1, _2, _3, arg1, arg2, arg3)\
 		, BOOST_STRINGIZE(Class::MemFun)\
 		)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
