@@ -14,9 +14,9 @@
 #include <type_traits>
 #include <terark/config.hpp>
 #include <terark/valvec.hpp>
+#include <terark/util/function.hpp>
 
 #if defined(TERARK_CONCURRENT_QUEUE_USE_BOOST)
-	#include <boost/function.hpp>
 	namespace boost {
 		// forward declaration
 		// avoid app compile time dependency to <boost/thread.hpp>
@@ -24,7 +24,6 @@
 		class mutex;
 	}
 #else
-	#include <functional>
 	#include <mutex>
 	#include <thread>
 #endif
@@ -34,14 +33,10 @@ namespace terark {
 #if defined(TERARK_CONCURRENT_QUEUE_USE_BOOST)
 	using boost::thread;
 	using boost::mutex;
-	using boost::function;
-	#define TerarkFuncBind boost::bind
 	typedef boost::lock_guard<boost::mutex> PipelineLockGuard;
 #else
 	using std::thread;
 	using std::mutex;
-	using std::function;
-	#define TerarkFuncBind std::bind
 	typedef std::lock_guard<std::mutex> PipelineLockGuard;
 #endif
 
@@ -215,6 +210,9 @@ public:
 	PipelineProcessor& operator| (PipelineStage* step) { this->add_step(step); return *this; }
 	PipelineProcessor& operator>>(PipelineStage* step) { this->add_step(step); return *this; }
 
+	PipelineProcessor& operator| (std::pair<intptr_t, function<void(PipelineTask*)> >&&);
+	PipelineProcessor& operator>>(std::pair<intptr_t, function<void(PipelineTask*)> >&&s) { return *this | std::move(s);}
+
 	void start();
 	void compile(); // input feed from external, not first step
 	void compile(int input_feed_queue_size /* default = m_queue_size */);
@@ -235,6 +233,13 @@ public:
 	void wait();
 	size_t getInputQueueSize(size_t step_no) const;
 };
+
+#define PPL_STEP(pObject, Class, MemFun, thread_count, ...) \
+	new terark::FunPipelineStage(thread_count\
+		, TerarkFuncBind(&Class::MemFun, pObject, _1, _2, _3,#__VA_ARGS__) \
+		, BOOST_STRINGIZE(Class::MemFun)\
+		)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 #define PPL_STEP_0(pObject, Class, MemFun, thread_count) \
 	new terark::FunPipelineStage(thread_count\

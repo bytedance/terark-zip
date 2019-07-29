@@ -285,7 +285,7 @@ void PipelineStage::start(int queue_size)
 		//
 		assert(m_threads[threadno].m_thread == nullptr);
 		m_threads[threadno].m_thread = NewExecUnit(fiberMode,
-			TerarkFuncBind(&PipelineStage::run_wrapper, this, threadno));
+		                  bind(&PipelineStage::run_wrapper, this, threadno));
 	}
 }
 
@@ -903,6 +903,15 @@ void PipelineProcessor::add_step(PipelineStage* step)
 	step->m_next = m_head;
 	m_head->m_prev->m_next = step;
 	m_head->m_prev = step;
+}
+
+PipelineProcessor&
+PipelineProcessor::operator|(std::pair<intptr_t, function<void(PipelineTask*)> >&& s) {
+  *this | new FunPipelineStage(s.first,
+  [s=std::move(s)](PipelineStage*, int, PipelineQueueItem* item){
+    s.second(item->task);
+  });
+  return *this;
 }
 
 void PipelineProcessor::clear()
