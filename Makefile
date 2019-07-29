@@ -426,7 +426,9 @@ endif
 		${AR} rcs $$tmp $(filter %.o,$^) ${EXTRA_OBJECTS}; \
 		(\
 		echo open $$tmp; \
-		echo addlib ${STATIC_FLATTEN_LIBS}; \
+		for f in ${STATIC_FLATTEN_LIBS}; do \
+		  echo addlib $$f; \
+		done; \
 		echo save; \
 		echo end; \
 		) | ar -M; \
