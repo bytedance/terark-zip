@@ -133,18 +133,17 @@ public:
 
 		pipeline
 		| new FunPipelineStage(3,
-			TerarkFuncBind(&Main::step1, this, _1, _2, _3, &bindArg1),
+			bind(&Main::step1, this, _1, _2, _3, &bindArg1),
 			"step1"
 			)
 		// or PPL_STEP_EX_1(this, Main, step1, 10, &bindArg1)
 
-		| new FunPipelineStage(4, TerarkFuncBind(&Main::step2, this, _1, _2, _3), "step2")
+		| new FunPipelineStage(4, bind(&Main::step2, this, _1, _2, _3), "step2")
 		// or PPL_STEP_0(this, Main, step2, 2)
 
-		| PPL_STEP_0(this, Main, step3, 0)
-		| PPL_STEP_1(this, Main, step4, 1, 1.0)
-		| PPL_STEP_2(this, Main, step5, 1, 2.0, std::string("abcd"))
-	//	| PPL_STEP_EX_0(this, Main, step6, 0)
+		| PPL_STEP(this, Main, step3, 0)
+		| PPL_STEP(this, Main, step4, 1, 1.0)
+		| PPL_STEP(this, Main, step5, 1, 2.0, std::string("abcd"))
 		;
 		terark::profiling pf;
 		const char* modeName = fiberMode? "fiber" : "thread";
