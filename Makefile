@@ -335,7 +335,11 @@ ${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build
 ${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 ${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 
-${core_d} ${core_r} ${core_a} : LIBS := ${BOOST_FIBER_DEP_LIBS} ${LIBS}
+ifeq (${UNAME_MachineSystem},Darwin)
+${core_d} ${core_r} ${core_a} : LIBS := -Wl,-all_load ${BOOST_FIBER_DEP_LIBS} ${LIBS} -Wl,-noall_load
+else
+${core_d} ${core_r} ${core_a} : LIBS := -Wl,--whole-archive ${BOOST_FIBER_DEP_LIBS} ${LIBS} -Wl,--no-whole-archive
+endif
 
 ${static_core_d} ${static_core_r} ${static_core_a}: STATIC_FLATTEN_LIBS := ${BOOST_FIBER_DEP_LIBS}
 
