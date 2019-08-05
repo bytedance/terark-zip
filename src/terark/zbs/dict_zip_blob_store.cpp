@@ -597,7 +597,12 @@ public:
             m_fpWriter.ensureWrite(m_dio.begin(), m_dio.tell());
 		}
         if (m_freq_hist) {
-            m_freq_hist->add_record(fstring(m_dio.begin(), m_dio.tell()));
+            if (m_opt.checksumLevel == 2) {
+                assert(m_dio.tell() >= 4);
+                m_freq_hist->add_record(fstring(m_dio.begin(), m_dio.tell() - 4));
+            } else {
+                m_freq_hist->add_record(fstring(m_dio.begin(), m_dio.tell()));
+            }
         }
 		m_zipDataSize += m_dio.tell();
 		m_unzipSize += rSize;
@@ -859,10 +864,13 @@ MyWriteStage::process(int tno, PipelineQueueItem* item) {
 #endif
     if (builder->m_freq_hist) {
         auto freq_hist = builder->m_freq_hist;
-        freq_hist->add_record(fstring(task->obuf.begin(), taskOffsets[0]));
+        size_t crc_size = builder->m_opt.checksumLevel == 2 ? 4 : 0;
+        assert(taskOffsets[0] >= crc_size);
+        freq_hist->add_record(fstring(task->obuf.begin(), taskOffsets[0] - crc_size));
         for (size_t i = 1; i < taskRecNum; ++i) {
+            assert(taskOffsets[i] - taskOffsets[i - 1] >= crc_size);
             freq_hist->add_record(fstring(task->obuf.begin() + taskOffsets[i - 1],
-                taskOffsets[i] - taskOffsets[i - 1]));
+                taskOffsets[i] - taskOffsets[i - 1] - crc_size));
         }
     }
     builder->m_lengthWriter << var_uint64_t(taskOffsets[0]);
