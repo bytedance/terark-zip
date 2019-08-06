@@ -498,7 +498,8 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'p') {
-        PlainBlobStore::MyBuilder pbuilder(strVec.mem_size(), nlt_fname);
+        size_t contentSize = strVec.str_size() + (2 == checksumLevel ? (strVec.size() * sizeof(uint32_t)) : 0);
+        PlainBlobStore::MyBuilder pbuilder(contentSize, nlt_fname, 0, checksumLevel);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             pbuilder.addRecord(strVec[i]);
         }

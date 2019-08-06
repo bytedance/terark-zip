@@ -360,14 +360,14 @@ public:
         }
     }
     void add_record(fstring rec) {
+        m_offset_builder->push_back(m_content_size);
         m_writer.ensureWrite(rec.data(), rec.size());
+        m_content_size += rec.size();
         if (2 == m_checksumLevel) {
             uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
             m_writer.ensureWrite(&crc, sizeof(crc));
             m_content_size += sizeof(crc);
         }
-        m_offset_builder->push_back(m_content_size);
-        m_content_size += rec.size();
         ++m_num_records;
     }
     void finish() {
