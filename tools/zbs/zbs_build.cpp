@@ -493,7 +493,7 @@ GetoptDone:
         if (2 == checksumLevel) {
             varLenSize += sizeof(uint32_t) * (histogram.m_cnt_sum - histogram.m_cnt_of_max_cnt_key);
         }
-        MixedLenBlobStore::MyBuilder mlbuilder(fixedLen, varLenSize, nlt_fname);
+        MixedLenBlobStore::MyBuilder mlbuilder(fixedLen, varLenSize, nlt_fname, 0, checksumLevel);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             mlbuilder.addRecord(strVec[i]);
         }

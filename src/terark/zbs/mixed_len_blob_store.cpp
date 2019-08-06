@@ -572,8 +572,8 @@ class MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::Impl : boost::noncopyable 
 public:
     Impl(size_t fixedLen, size_t varLenContentSize, fstring fpath, size_t offset, int checksumLevel)
         : m_is_fixed_len()
-        , m_fixed_len(fixedLen)
-        , m_fixed_len_without_crc(fixedLen  + (2 == checksumLevel ? sizeof(uint32_t) : 0))
+        , m_fixed_len(2 == checksumLevel ? (fixedLen + sizeof(uint32_t)) : fixedLen)
+        , m_fixed_len_without_crc(fixedLen)
         , m_fpath(fpath.begin(), fpath.end())
         , m_fpath_var_len(m_fpath + ".varlen")
         , m_fpath_var_len_offset(m_fpath + ".varlen-offset")
@@ -630,7 +630,7 @@ public:
             m_content_size_var_len += rec.size();
             if (2 == m_checksumLevel) {
                 uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-                m_writer.ensureWrite(&crc, sizeof(crc));
+                m_writer_var_len.ensureWrite(&crc, sizeof(crc));
                 m_content_size_var_len += sizeof(crc);
             }
             ++m_num_records_var_len;
