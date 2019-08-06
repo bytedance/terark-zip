@@ -10,6 +10,7 @@ template<class rank_select_t>
 class TERARK_DLL_EXPORT MixedLenBlobStoreTpl : public AbstractBlobStore {
 	struct FileHeader; friend struct FileHeader;
 	size_t      m_fixedLen;
+    size_t      m_fixedLenWithoutCRC;
 	size_t      m_fixedNum;
     rank_select_t          m_isFixedLen;
 	terark::valvec<byte_t> m_fixedLenValues;
@@ -55,7 +56,7 @@ public:
     struct TERARK_DLL_EXPORT MyBuilder : public AbstractBlobStore::Builder {
         class TERARK_DLL_EXPORT Impl; Impl* impl;
     public:
-        MyBuilder(size_t fixedLen, size_t varLenContentSize, fstring fpath, size_t offset = 0);
+        MyBuilder(size_t fixedLen, size_t varLenContentSize, fstring fpath, size_t offset = 0, int checksumLevel = 3);
         virtual ~MyBuilder();
         void addRecord(fstring rec) override;
         void finish() override;

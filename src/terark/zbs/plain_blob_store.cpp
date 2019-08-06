@@ -74,7 +74,7 @@ PlainBlobStore::FileHeader::FileHeader(const PlainBlobStore* store) {
     contentBytes = store->m_content.size();
     offsetsBytes = store->m_offsets.mem_size();
     offsetsUintBits = store->m_offsets.uintbits();
-    checksumLevel = store->m_checksumLevel;
+    checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
 }
 
 void PlainBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
