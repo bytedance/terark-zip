@@ -11,6 +11,10 @@ namespace terark {
     const std::atomic<T>& as_atomic(const T& x) {
         return reinterpret_cast<const std::atomic<T>&>(x);
     }
+    template<class T>
+    volatile std::atomic<T>& as_atomic(volatile T& x) {
+        return reinterpret_cast<volatile std::atomic<T>&>(x);
+    }
 
     template<class T>
     inline
