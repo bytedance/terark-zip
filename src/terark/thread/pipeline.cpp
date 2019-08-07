@@ -811,8 +811,8 @@ const char* PipelineProcessor::euTypeName() const {
 		return "invalid";
 	}
 	const char* names[] = {
-			"fiber",
 			"thread",
+			"fiber",
 			"mixed",
 	};
 	return names[int(m_EUType)];
