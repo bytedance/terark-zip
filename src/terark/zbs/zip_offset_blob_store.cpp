@@ -11,6 +11,7 @@
 #include <terark/io/FileStream.hpp>
 #include <terark/io/MemStream.hpp>
 #include <terark/io/IStreamWrapper.hpp>
+#include <terark/util/crc.hpp>
 #include <terark/util/checksum_exception.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/zbs/xxhash_helper.hpp>
@@ -27,7 +28,8 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
     uint64_t  contentBytes;
     uint64_t  offsetsBytes; // same as footer.indexBytes
     uint08_t  offsets_log2_blockUnits; // 6 or 7
-    uint08_t  padding21[7];
+    uint08_t  checksumLevel;
+    uint08_t  padding21[6];
     uint64_t  padding22[3];
 
     void init() {
@@ -37,7 +39,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         strcpy(magic, MagicString);
         strcpy(className, "ZipOffsetBlobStore");
     }
-    FileHeader(fstring mem, size_t content_size, size_t offsets_size) {
+    FileHeader(fstring mem, size_t content_size, size_t offsets_size, int _checksumLevel) {
         init();
         fileSize = mem.size();
         assert(fileSize == 0
@@ -53,6 +55,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         offsetsBytes = offsets_size;
         offsets_log2_blockUnits = offsets.log2_block_units();
         offsets.risk_release_ownership();
+        checksumLevel = static_cast<uint08_t>(_checksumLevel);
     }
     FileHeader(const ZipOffsetBlobStore* store, const SortedUintVec& offsets) {
         init();
@@ -66,6 +69,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         contentBytes = store->m_content.size();
         offsetsBytes = offsets.mem_size();
         offsets_log2_blockUnits = offsets.log2_block_units();
+        checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
     }
 };
 
@@ -84,6 +88,7 @@ void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     }
     m_numRecords = mmapBase->records;
     m_unzipSize = mmapBase->contentBytes;
+    m_checksumLevel = mmapBase->checksumLevel;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), mmapBase->contentBytes);
     m_offsets.risk_set_data(m_content.data() + align_up(m_content.size(), 16), mmapBase->offsetsBytes);
     assert(m_offsets.size() == mmapBase->records+1);
@@ -201,6 +206,16 @@ const {
     assert(BegEnd[0] <= BegEnd[1]);
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
+    const byte_t* pData = m_content.data() + BegEnd[0];
+    if (2 == m_checksumLevel) {
+        len -= sizeof(uint32_t);
+        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+        uint32_t crc2 = Crc32c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc32cException(
+                    "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
+        }
+    }
     recData->append(m_content.data() + BegEnd[0], len);
 }
 
@@ -220,7 +235,17 @@ const {
     size_t inBlockID = recID & mask;
     size_t BegEnd[2] = { co->offsets[inBlockID], co->offsets[inBlockID+1] };
     size_t len = BegEnd[1] - BegEnd[0];
-    co->recData.append(m_content.data() + BegEnd[0], len);
+    const byte_t* pData = m_content.data() + BegEnd[0];
+     if (2 == m_checksumLevel) {
+        len -= sizeof(uint32_t);
+        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+        uint32_t crc2 = Crc32c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc32cException(
+                    "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+        }
+    }
+    co->recData.append(pData, len);
 }
 
 void
@@ -239,6 +264,15 @@ const {
     size_t offset = sizeof(FileHeader) + BegEnd[0];
     auto pData = fspread(lambda, baseOffset + offset, len, rdbuf);
     assert(NULL != pData);
+    if (2 == m_checksumLevel) {
+        len -= sizeof(uint32_t);
+        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+        uint32_t crc2 = Crc32c_update(0, pData, len);
+        if (crc2 != crc1) {
+            throw BadCrc32cException(
+                    "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
+        }
+    }
     recData->append(pData, len);
 }
 
@@ -311,8 +345,9 @@ class ZipOffsetBlobStore::MyBuilder::Impl : boost::noncopyable {
     NativeDataOutput<OutputBuffer> m_writer;
     size_t m_offset;
     size_t m_content_size;
+    int m_checksumLevel;
 public:
-    Impl(size_t blockUnits, fstring fpath, size_t offset)
+    Impl(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel)
         : m_fpath(fpath.begin(), fpath.end())
         , m_fpath_offset(fpath + ".offset")
         , m_builder(SortedUintVec::createBuilder(blockUnits, m_fpath_offset.c_str()))
@@ -320,7 +355,8 @@ public:
         , m_memStream(nullptr)
         , m_writer(&m_file)
         , m_offset(offset)
-        , m_content_size(0) {
+        , m_content_size(0)
+        , m_checksumLevel(checksumLevel) {
         assert(offset % 8 == 0);
         if (offset == 0) {
           m_file.open(fpath, "wb");
@@ -334,7 +370,7 @@ public:
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
     }
-    Impl(size_t blockUnits, FileMemIO& mem)
+    Impl(size_t blockUnits, FileMemIO& mem, int checksumLevel)
         : m_fpath()
         , m_fpath_offset()
         , m_builder(SortedUintVec::createBuilder(blockUnits))
@@ -342,15 +378,21 @@ public:
         , m_memStream(&mem)
         , m_writer(&m_memStream)
         , m_offset(0)
-        , m_content_size(0) {
+        , m_content_size(0)
+        , m_checksumLevel(checksumLevel) {
         std::aligned_storage<sizeof(FileHeader)>::type header;
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
     }
     void add_record(fstring rec) {
-        m_writer.ensureWrite(rec.data(), rec.size());
         m_builder->push_back(m_content_size);
+        m_writer.ensureWrite(rec.data(), rec.size());
         m_content_size += rec.size();
+        if (2 == m_checksumLevel) {
+            uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+            m_writer.ensureWrite(&crc, sizeof(crc));
+            m_content_size += sizeof(crc);
+        }
     }
     void finish() {
         PadzeroForAlign<16>(m_writer, m_content_size);
@@ -373,7 +415,8 @@ public:
             assert(m_memStream.size() == file_size - sizeof(BlobStoreFileFooter));
             m_memStream.stream()->resize(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
-                FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()), m_content_size, offsets_size);
+                FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()), m_content_size, offsets_size,
+                                   m_checksumLevel);
 
             XXHash64 xxhash64(g_dpbsnark_seed);
             xxhash64.update(m_memStream.stream()->begin(), m_memStream.size() - sizeof(BlobStoreFileFooter));
@@ -403,7 +446,8 @@ public:
             FileStream(m_fpath, "rb+").chsize(file_size);
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
-            *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, offsets_size);
+            *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, offsets_size, 
+                                                                       m_checksumLevel);
 
             XXHash64 xxhash64(g_dpbsnark_seed);
             xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
@@ -418,11 +462,11 @@ public:
 ZipOffsetBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, fstring fpath, size_t offset) {
-    impl = new Impl(blockUnits, fpath, offset);
+ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel) {
+    impl = new Impl(blockUnits, fpath, offset, checksumLevel);
 }
-ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, FileMemIO& mem) {
-    impl = new Impl(blockUnits, mem);
+ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, FileMemIO& mem, int checksumLevel) {
+    impl = new Impl(blockUnits, mem, checksumLevel);
 }
 void ZipOffsetBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);
