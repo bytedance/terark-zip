@@ -269,7 +269,7 @@ void PipelineStage::start(int queue_size)
 	if (m_threads.size() == 0) {
 		throw std::runtime_error("thread count = 0");
 	}
-	m_running_exec_units = m_threads.size();
+	m_running_exec_units = 0;
 
 	for (size_t threadno = 0; threadno != m_threads.size(); ++threadno)
 	{
@@ -333,6 +333,7 @@ void PipelineStage::clean(int threadno)
 
 void PipelineStage::run_wrapper(int threadno)
 {
+	as_atomic(m_running_exec_units)++;
 	m_threads[threadno]->m_run = true;
 	bool setup_successed = false;
 	try {
@@ -365,7 +366,7 @@ void PipelineStage::run_wrapper(int threadno)
 	}
 	m_owner->stop();
 	m_threads[threadno]->m_run = false;
-	as_atomic(m_running_exec_units).fetch_sub(1, std::memory_order_relaxed);
+	as_atomic(m_running_exec_units)--;
 }
 
 void PipelineStage::run(int threadno)
