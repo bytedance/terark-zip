@@ -510,7 +510,7 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'o') {
-        ZipOffsetBlobStore::MyBuilder zobuilder(dzopt.offsetArrayBlockUnits, nlt_fname);
+        ZipOffsetBlobStore::MyBuilder zobuilder(dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             zobuilder.addRecord(strVec[i]);
         }
