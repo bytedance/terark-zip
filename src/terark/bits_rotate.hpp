@@ -7,6 +7,8 @@
 #include <intrin.h>
 #endif
 
+#include <cassert>
+
 #include <boost/static_assert.hpp>
 #include <boost/type_traits/is_unsigned.hpp>
 

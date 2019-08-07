@@ -249,7 +249,6 @@ inline uint32_t load_uint32_from_bits(const void* data, size_t skip) {
 #else                            // little endian
     cache >>= r;
 #endif
-    cache &= UINT32_MAX;
     return static_cast<uint32_t>(cache);
 }
 

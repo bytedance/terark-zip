@@ -271,7 +271,7 @@ const {
     assert(BegEnd[0] <= BegEnd[1]);
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= 8 * sizeof(uint32_t); // crc32c costs 8 * 4 = 32 bits
+        len -= 32; // crc32c costs 8 * 4 = 32 bits
     }
     auto ctx = GetTlsTerarkContext();
     EntropyBits bits = {
@@ -291,7 +291,7 @@ const {
     
     const auto& data = ctx_data.get();
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = load_uint32_from_bits((byte_t*)data.data(), BegEnd[0] + len);
+        uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
         uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
         if (crc2 != crc1) {
              throw BadCrc32cException(
@@ -320,7 +320,7 @@ const {
     auto ctx = GetTlsTerarkContext();
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= 8 * sizeof(uint32_t); // crc32c costs 8 * 4 = 32 bits
+        len -= 32; // crc32c costs 8 * 4 = 32 bits
     }
     EntropyBits bits = {
         (byte_t*)m_content.data(), BegEnd[0], len, {}
@@ -338,7 +338,7 @@ const {
 
     const auto& data = ctx_data.get();
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = load_uint32_from_bits((byte_t*)data.data(), BegEnd[0] + len);
+        uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
         uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
         if (crc2 != crc1) {
              throw BadCrc32cException(
@@ -368,7 +368,7 @@ const {
     auto ctx = GetTlsTerarkContext();
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= 8 * sizeof(uint32_t); // crc32c costs 8 * 4 = 32 bits
+        len -= 32; // crc32c costs 8 * 4 = 32 bits
     }
     EntropyBits bits = {
         (byte_t*)pData, BegEnd[0] - byte_beg * 8, len, {}
@@ -386,7 +386,7 @@ const {
 
     const auto& data = ctx_data.get();
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = load_uint32_from_bits((byte_t*)data.data(), BegEnd[0] + len);
+        uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
         uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
         if (crc2 != crc1) {
              throw BadCrc32cException(
@@ -552,8 +552,7 @@ public:
         m_entropy_bits += bits.size;
         if (2 == m_checksumLevel) {
             uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-            fstring scrc(reinterpret_cast<byte_t*>(&crc), sizeof(crc));
-            bits = EntropyBytesToBits(scrc);
+            bits = {reinterpret_cast<byte*>(&crc), 0, 32, {}};
             m_bitWriter.write(bits);
             m_raw_size += sizeof(crc);
             m_entropy_bits += bits.size;
