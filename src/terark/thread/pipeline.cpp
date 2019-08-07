@@ -7,6 +7,7 @@
 #include <terark/valvec.hpp>
 //#include <deque>
 //#include <boost/circular_buffer.hpp>
+#include <terark/util/atomic.hpp>
 #include <terark/util/concurrent_queue.hpp>
 #include <stdio.h>
 #include <iostream>
@@ -147,15 +148,28 @@ PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, function<void()>&& func) {
         return new ThreadExecUnit(std::move(func));
 }
 
+struct PipelineStage::ThreadData : boost::noncopyable {
+    std::string m_err_text;
+    ExecUnit*  m_thread;
+    volatile size_t m_run; // size_t is a CPU word, should be bool
+    ThreadData();
+    ~ThreadData();
+};
+
 PipelineStage::ThreadData::ThreadData() : m_run(false) {
 	m_thread = NULL;
 }
-PipelineStage::ThreadData::~ThreadData() {}
+PipelineStage::ThreadData::~ThreadData() {
+    delete m_thread;
+}
 
 //////////////////////////////////////////////////////////////////////////
 
 PipelineStage::PipelineStage(int thread_count)
-: m_owner(0)
+: PipelineStage(thread_count, 0) {}
+
+PipelineStage::PipelineStage(int thread_count, int fibers_per_thread)
+: m_owner(NULL)
 {
 	if (0 == thread_count)
 	{
@@ -176,6 +190,8 @@ PipelineStage::PipelineStage(int thread_count)
 	m_prev = m_next = NULL;
 	m_out_queue = NULL;
 	m_threads.resize(thread_count);
+	m_fibers_per_thread = fibers_per_thread;
+	m_running_exec_units = -1;
 }
 
 PipelineStage::~PipelineStage()
@@ -183,8 +199,7 @@ PipelineStage::~PipelineStage()
 	delete m_out_queue;
 	for (size_t threadno = 0; threadno != m_threads.size(); ++threadno)
 	{
-		assert(!m_threads[threadno].m_thread->joinable());
-		delete m_threads[threadno].m_thread;
+		assert(!m_threads[threadno]->m_thread->joinable());
 	}
 }
 
@@ -207,7 +222,7 @@ void PipelineStage::createOutputQueue(size_t size) {
 
 const std::string& PipelineStage::err(int threadno) const
 {
-	return m_threads[threadno].m_err_text;
+	return m_threads[threadno]->m_err_text;
 }
 
 int PipelineStage::step_ordinal() const
@@ -237,20 +252,10 @@ inline bool PipelineStage::isPrevRunning()
 	return m_owner->isRunning() || m_prev->isRunning() || !m_prev->m_out_queue->empty();
 }
 
-bool PipelineStage::isRunning()
-{
-	for (int t = 0, n = (int)m_threads.size(); t != n; ++t)
-	{
-		if (m_threads[t].m_run)
-			return true;
-	}
-	return false;
-}
-
 void PipelineStage::wait()
 {
 	for (size_t t = 0; t != m_threads.size(); ++t)
-		m_threads[t].m_thread->join();
+		m_threads[t]->m_thread->join();
 }
 
 void PipelineStage::start(int queue_size)
@@ -264,6 +269,8 @@ void PipelineStage::start(int queue_size)
 	if (m_threads.size() == 0) {
 		throw std::runtime_error("thread count = 0");
 	}
+	m_running_exec_units = m_threads.size();
+
 	for (size_t threadno = 0; threadno != m_threads.size(); ++threadno)
 	{
 		// 在 PipelineThread 保存 auto_ptr<thread> 指针
@@ -283,15 +290,15 @@ void PipelineStage::start(int queue_size)
 		// first:  construct the PipelineThread and assign it to m_threads[threadno]
 		// second: start the thread
 		//
-		assert(m_threads[threadno].m_thread == nullptr);
-		m_threads[threadno].m_thread = NewExecUnit(fiberMode,
+		assert(m_threads[threadno]->m_thread == nullptr);
+		m_threads[threadno]->m_thread = NewExecUnit(fiberMode,
 		                  bind(&PipelineStage::run_wrapper, this, threadno));
 	}
 }
 
 void PipelineStage::onException(int threadno, const std::exception& exp)
 {
-	static_cast<string_appender<>&>(m_threads[threadno].m_err_text = "")
+	static_cast<string_appender<>&>(m_threads[threadno]->m_err_text = "")
 		<< "exception class=" << typeid(exp).name() << ", what=" << exp.what();
 
 //	error message will be printed in this->clean()
@@ -299,7 +306,7 @@ void PipelineStage::onException(int threadno, const std::exception& exp)
 // 	PipelineLockGuard lock(*m_owner->m_mutex);
 // 	std::cerr << "step[" << step_ordinal() << "]: " << m_step_name
 // 			  << ", threadno[" << threadno
-// 			  << "], caught: " << m_threads[threadno].m_err_text
+// 			  << "], caught: " << m_threads[threadno]->m_err_text
 // 			  << std::endl;
 }
 
@@ -326,7 +333,7 @@ void PipelineStage::clean(int threadno)
 
 void PipelineStage::run_wrapper(int threadno)
 {
-	m_threads[threadno].m_run = true;
+	m_threads[threadno]->m_run = true;
 	bool setup_successed = false;
 	try {
 		setup(threadno);
@@ -357,7 +364,8 @@ void PipelineStage::run_wrapper(int threadno)
 		}
 	}
 	m_owner->stop();
-	m_threads[threadno].m_run = false;
+	m_threads[threadno]->m_run = false;
+	as_atomic(m_running_exec_units).fetch_sub(1, std::memory_order_relaxed);
 }
 
 void PipelineStage::run(int threadno)
@@ -645,6 +653,15 @@ FunPipelineStage::FunPipelineStage(int thread_count,
 	m_step_name = (step_name);
 }
 
+FunPipelineStage::FunPipelineStage(int thread_count, int fibers_per_thread,
+				const function<void(PipelineStage*, int, PipelineQueueItem*)>& fprocess,
+				const std::string& step_name)
+	: PipelineStage(thread_count, fibers_per_thread)
+	, m_process(fprocess)
+{
+	m_step_name = (step_name);
+}
+
 FunPipelineStage::~FunPipelineStage() {}
 
 void FunPipelineStage::process(int threadno, PipelineQueueItem* task)
@@ -768,7 +785,7 @@ void PipelineProcessor::start()
 		assert(s->m_threads.size() > 0);
 		for (size_t i = 0; i < s->m_threads.size(); ++i) {
 			// if pipeline was compiled, it should not call start
-			TERARK_RT_assert(NULL == s->m_threads[i].m_thread, std::invalid_argument);
+			TERARK_RT_assert(NULL == s->m_threads[i]->m_thread, std::invalid_argument);
 		}
 	}
 // End check for double start
@@ -824,7 +841,7 @@ void PipelineProcessor::compile(int input_feed_queue_size)
 		assert(s->m_threads.size() > 0);
 		for (size_t i = 0; i < s->m_threads.size(); ++i) {
 			// if pipeline was compiled, it should not call start
-			TERARK_RT_assert(NULL == s->m_threads[i].m_thread, std::invalid_argument);
+			TERARK_RT_assert(NULL == s->m_threads[i]->m_thread, std::invalid_argument);
 		}
 	}
 // End check for double start
@@ -910,6 +927,15 @@ PipelineProcessor::operator|(std::pair<intptr_t, function<void(PipelineTask*)> >
   *this | new FunPipelineStage(s.first,
   [s=std::move(s)](PipelineStage*, int, PipelineQueueItem* item){
     s.second(item->task);
+  });
+  return *this;
+}
+
+PipelineProcessor&
+PipelineProcessor::operator|(std::tuple<int,int, function<void(PipelineTask*)> >&& s) {
+  *this | new FunPipelineStage(std::get<0>(s), std::get<1>(s),
+  [s=std::move(s)](PipelineStage*, int, PipelineQueueItem* item){
+    std::get<2>(s)(item->task);
   });
   return *this;
 }

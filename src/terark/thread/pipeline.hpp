@@ -79,20 +79,16 @@ protected:
 	PipelineStage *m_prev, *m_next;
 	PipelineProcessor* m_owner;
 
-    struct ThreadData {
-        std::string m_err_text;
-        ExecUnit*  m_thread;
-        volatile size_t m_run; // size_t is a CPU word, should be bool
-        ThreadData();
-        ~ThreadData();
-    };
-	valvec<ThreadData> m_threads;
+	struct ThreadData;
+	valvec<std::unique_ptr<ThreadData> > m_threads;
 	enum {
 		ple_none,
 		ple_generate,
 		ple_keep
 	} m_pl_enum;
 	uintptr_t m_plserial;
+	int m_fibers_per_thread;
+	volatile int m_running_exec_units;
 
 	void run_wrapper(int threadno);
 
@@ -106,7 +102,7 @@ protected:
 	void serial_step_do_last(PipelineQueueItem& item);
 
 	bool isPrevRunning();
-	bool isRunning();
+	bool isRunning() { return 0 != m_running_exec_units; }
 	void start(int queue_size);
 	void wait();
 	void stop();
@@ -125,6 +121,7 @@ public:
 
 	//! @param thread_count 0 indicate keepSerial, -1 indicate generate serial
 	explicit PipelineStage(int thread_count);
+	PipelineStage(int thread_count, int fibers_per_thread);
 
 	virtual ~PipelineStage();
 
@@ -148,8 +145,11 @@ protected:
 
 public:
 	FunPipelineStage(int thread_count,
-					const function<void(PipelineStage*, int, PipelineQueueItem*)>& fprocess,
-					const std::string& step_name = "");
+					 const function<void(PipelineStage*, int, PipelineQueueItem*)>&,
+					 const std::string& step_name = "");
+	FunPipelineStage(int thread_count, int fibers_per_thread,
+					 const function<void(PipelineStage*, int, PipelineQueueItem*)>&,
+					 const std::string& step_name = "");
 	~FunPipelineStage(); // move destructor into libterark-thread*
 };
 
@@ -212,6 +212,9 @@ public:
 
 	PipelineProcessor& operator| (std::pair<intptr_t, function<void(PipelineTask*)> >&&);
 	PipelineProcessor& operator>>(std::pair<intptr_t, function<void(PipelineTask*)> >&&s) { return *this | std::move(s);}
+
+	PipelineProcessor& operator| (std::tuple<int,int, function<void(PipelineTask*)> >&&);
+	PipelineProcessor& operator>>(std::tuple<int,int, function<void(PipelineTask*)> >&&s) { return *this | std::move(s);}
 
 	void start();
 	void compile(); // input feed from external, not first step
