@@ -290,6 +290,7 @@ void PipelineStage::start(int queue_size)
 		// first:  construct the PipelineThread and assign it to m_threads[threadno]
 		// second: start the thread
 		//
+		m_threads[threadno].reset(new ThreadData());
 		assert(m_threads[threadno]->m_thread == nullptr);
 		m_threads[threadno]->m_thread = NewExecUnit(fiberMode,
 		                  bind(&PipelineStage::run_wrapper, this, threadno));
