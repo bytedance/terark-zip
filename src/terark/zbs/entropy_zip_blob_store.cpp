@@ -12,6 +12,7 @@
 #include <terark/io/FileStream.hpp>
 #include <terark/io/MemStream.hpp>
 #include <terark/io/IStreamWrapper.hpp>
+#include <terark/util/crc.hpp>
 #include <terark/util/checksum_exception.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/zbs/xxhash_helper.hpp>
@@ -33,7 +34,8 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
     uint64_t  offsetsBytes; // same as footer.indexBytes
     uint08_t  offsets_log2_blockUnits; // 6 or 7
     uint08_t  entropyOrder;
-    uint08_t  padding21[6];
+    uint08_t  checksumLevel;
+    uint08_t  padding21[5];
     uint64_t  tableBytes;
     uint64_t  padding22[2];
 
@@ -44,7 +46,7 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         strcpy(magic, MagicString);
         strcpy(className, "EntropyZipBlobStore");
     }
-    FileHeader(fstring mem, size_t entropy_order, size_t raw_size, size_t entropy_bits, size_t offsets_size, size_t table_size) {
+    FileHeader(fstring mem, size_t entropy_order, size_t raw_size, size_t entropy_bits, size_t offsets_size, size_t table_size, int _checksumLevel) {
         init();
         fileSize = mem.size();
         assert(fileSize == 0
@@ -62,6 +64,7 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         entropyOrder = entropy_order;
         offsets.risk_release_ownership();
         tableBytes = table_size;
+        checksumLevel = static_cast<uint08_t>(_checksumLevel);
     }
     FileHeader(const EntropyZipBlobStore* store, const SortedUintVec& offsets) {
         init();
@@ -77,6 +80,7 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         offsetsBytes = offsets.mem_size();
         offsets_log2_blockUnits = offsets.log2_block_units();
         entropyOrder = store->m_decoder_o0 ? 0 : 1;
+        checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
     }
 };
 
@@ -115,6 +119,7 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
     }
     m_numRecords = mmapBase->records;
     m_unzipSize = mmapBase->unzipSize;
+    m_checksumLevel = mmapBase->checksumLevel;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), (mmapBase->contentBits + 7) / 8);
     m_table.risk_set_data(m_content.data() + m_content.size(), mmapBase->tableBytes);
     m_offsets.risk_set_data(m_content.data() +
@@ -145,9 +150,10 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
 
 void EntropyZipBlobStore::init_from_components(
     SortedUintVec&& offset, valvec<byte_t>&& data,
-    valvec<byte_t>&& table, size_t order, uint64_t raw_size) {
+    valvec<byte_t>&& table, size_t order, uint64_t raw_size, int checksumLevel) {
     m_numRecords = offset.size() - 1;
     m_unzipSize = raw_size;
+    m_checksumLevel = checksumLevel;
     m_content.swap(data);
     m_table.swap(table);
     m_offsets.swap(offset);
@@ -263,9 +269,13 @@ const {
     size_t BegEnd[2];
     m_offsets.get2(recID, BegEnd);
     assert(BegEnd[0] <= BegEnd[1]);
+    size_t len = BegEnd[1] - BegEnd[0];
+    if (2 == m_checksumLevel) {
+        len -= 8 * sizeof(uint32_t); // crc32c costs 8 * 4 = 32 bits
+    }
     auto ctx = GetTlsTerarkContext();
     EntropyBits bits = {
-        (byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0], {}
+        (byte_t*)m_content.data(), BegEnd[0], len, {}
     };
     auto ctx_data = ctx->alloc();
     bool ok;
@@ -278,7 +288,17 @@ const {
         THROW_STD(logic_error, "EntropyZipBlobStore Huffman decode error");
     }
     assert(ok); (void)ok;
-    recData->append(ctx_data.get());
+    
+    const auto& data = ctx_data.get();
+    if (2 == m_checksumLevel) {
+        uint32_t crc1 = load_uint32_from_bits((byte_t*)data.data(), BegEnd[0] + len);
+        uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
+        if (crc2 != crc1) {
+             throw BadCrc32cException(
+                    "EntropyZipBlobStore::get_record_append_imp", crc1, crc2);
+        }
+    }
+    recData->append(data);
 }
 
 template<size_t Order>
@@ -298,8 +318,12 @@ const {
     size_t inBlockID = recID & mask;
     size_t BegEnd[2] = { co->offsets[inBlockID], co->offsets[inBlockID+1] };
     auto ctx = GetTlsTerarkContext();
+    size_t len = BegEnd[1] - BegEnd[0];
+    if (2 == m_checksumLevel) {
+        len -= 8 * sizeof(uint32_t); // crc32c costs 8 * 4 = 32 bits
+    }
     EntropyBits bits = {
-        (byte_t*)m_content.data(), BegEnd[0], BegEnd[1] - BegEnd[0], {}
+        (byte_t*)m_content.data(), BegEnd[0], len, {}
     };
     auto ctx_data = ctx->alloc();
     bool ok;
@@ -311,7 +335,17 @@ const {
     if (!ok) {
         THROW_STD(logic_error, "EntropyZipBlobStore Huffman decode error");
     }
-    co->recData.append(ctx_data.get());
+
+    const auto& data = ctx_data.get();
+    if (2 == m_checksumLevel) {
+        uint32_t crc1 = load_uint32_from_bits((byte_t*)data.data(), BegEnd[0] + len);
+        uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
+        if (crc2 != crc1) {
+             throw BadCrc32cException(
+                    "EntropyZipBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+        }
+    }
+    co->recData.append(data);
 }
 
 template<size_t Order>
@@ -332,8 +366,12 @@ const {
     auto pData = fspread(lambda, baseOffset + offset, byte_end - byte_beg, rdbuf);
     assert(NULL != pData);
     auto ctx = GetTlsTerarkContext();
+    size_t len = BegEnd[1] - BegEnd[0];
+    if (2 == m_checksumLevel) {
+        len -= 8 * sizeof(uint32_t); // crc32c costs 8 * 4 = 32 bits
+    }
     EntropyBits bits = {
-        (byte_t*)pData, BegEnd[0] - byte_beg * 8, BegEnd[1] - BegEnd[0], {}
+        (byte_t*)pData, BegEnd[0] - byte_beg * 8, len, {}
     };
     auto ctx_data = ctx->alloc();
     bool ok;
@@ -345,7 +383,17 @@ const {
     if (!ok) {
         THROW_STD(logic_error, "EntropyZipBlobStore Huffman decode error");
     }
-    recData->append(ctx_data.get());
+
+    const auto& data = ctx_data.get();
+    if (2 == m_checksumLevel) {
+        uint32_t crc1 = load_uint32_from_bits((byte_t*)data.data(), BegEnd[0] + len);
+        uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
+        if (crc2 != crc1) {
+             throw BadCrc32cException(
+                    "EntropyZipBlobStore::fspread_record_append_imp", crc1, crc2);
+        }
+    }
+    recData->append(data);
 }
 
 void EntropyZipBlobStore::reorder_zip_data(ZReorderMap& newToOld,
@@ -433,8 +481,9 @@ class EntropyZipBlobStore::MyBuilder::Impl : boost::noncopyable {
     size_t m_raw_size;
     size_t m_output_size;
     size_t m_entropy_bits;
+    int m_checksumLevel;
 public:
-    Impl(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset)
+    Impl(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset, int checksumLevel)
         : m_fpath(fpath.begin(), fpath.end())
         , m_fpath_offset(fpath + ".offset")
         , m_builder(SortedUintVec::createBuilder(blockUnits, m_fpath_offset.c_str()))
@@ -445,7 +494,8 @@ public:
         , m_offset(offset)
         , m_raw_size(0)
         , m_output_size(0)
-        , m_entropy_bits(0) {
+        , m_entropy_bits(0)
+        , m_checksumLevel(checksumLevel) {
         assert(offset % 8 == 0);
         if (offset == 0) {
           m_file.open(fpath, "wb");
@@ -457,7 +507,7 @@ public:
         m_file.disbuf();
         init(freq);
     }
-    Impl(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem)
+    Impl(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem, int checksumLevel)
         : m_fpath()
         , m_fpath_offset()
         , m_builder(SortedUintVec::createBuilder(blockUnits))
@@ -468,7 +518,8 @@ public:
         , m_offset(0)
         , m_raw_size(0)
         , m_output_size(0)
-        , m_entropy_bits(0) {
+        , m_entropy_bits(0)
+        , m_checksumLevel(checksumLevel) {
         init(freq);
     }
     void init(freq_hist_o1& freq) {
@@ -495,10 +546,18 @@ public:
         } else {
             bits = m_encoder_o1->bitwise_encode_x1(rec, &m_ctx);
         }
-        m_bitWriter.write(bits);
         m_builder->push_back(m_entropy_bits);
+        m_bitWriter.write(bits);
         m_raw_size += rec.size();
         m_entropy_bits += bits.size;
+        if (2 == m_checksumLevel) {
+            uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+            fstring scrc(reinterpret_cast<byte_t*>(&crc), sizeof(crc));
+            bits = EntropyBytesToBits(scrc);
+            m_bitWriter.write(bits);
+            m_raw_size += sizeof(crc);
+            m_entropy_bits += bits.size;
+        }
     }
     void finish() {
         auto bits = m_bitWriter.finish();
@@ -537,7 +596,7 @@ public:
             m_memStream.stream()->resize(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
                 FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()),
-                    order, m_raw_size, m_entropy_bits, offsets_size, table.size());
+                    order, m_raw_size, m_entropy_bits, offsets_size, table.size(), m_checksumLevel);
 
             XXHash64 xxhash64(g_debsnark_seed);
             xxhash64.update(m_memStream.stream()->begin(), m_memStream.size() - sizeof(BlobStoreFileFooter));
@@ -568,7 +627,7 @@ public:
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
             *(FileHeader*)mem.data() =
-                FileHeader(mem, order, m_raw_size, m_entropy_bits, offsets_size, table.size());
+                FileHeader(mem, order, m_raw_size, m_entropy_bits, offsets_size, table.size(), m_checksumLevel);
 
             XXHash64 xxhash64(g_debsnark_seed);
             xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
@@ -583,11 +642,11 @@ public:
 EntropyZipBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset) {
-    impl = new Impl(freq, blockUnits, fpath, offset);
+EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset, int checksumLevel) {
+    impl = new Impl(freq, blockUnits, fpath, offset, checksumLevel);
 }
-EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem) {
-    impl = new Impl(freq, blockUnits, mem);
+EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem, int checksumLevel) {
+    impl = new Impl(freq, blockUnits, mem, checksumLevel);
 }
 void EntropyZipBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);

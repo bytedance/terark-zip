@@ -416,6 +416,9 @@ GetoptDone:
         size_t recno = 0;
         for (; readoneRecord(fp, &rec, recno, isBson); recno++) {
             freq->add_record(rec);
+			strVec.push_back(rec);
+			allstrlen += rec.size();
+			allstrnum += 1;
         }
         freq->finish();
     }
