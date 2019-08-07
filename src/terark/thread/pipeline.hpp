@@ -161,6 +161,13 @@ public:
 
 class TERARK_DLL_EXPORT PipelineProcessor
 {
+public:
+	enum class EUType : unsigned char {
+		thread,
+		fiber,
+		mixed,
+	};
+private:
 	friend class PipelineStage;
 
 	PipelineStage *m_head;
@@ -173,7 +180,7 @@ class TERARK_DLL_EXPORT PipelineProcessor
 	bool m_is_mutex_owner;
 	bool m_keepSerial;
 	signed char m_logLevel;
-	bool m_fiberMode;
+	EUType m_EUType;
 
 protected:
 	static void defaultDestroyTask(PipelineTask* task);
@@ -194,11 +201,13 @@ public:
 
 	bool isRunning() const { return 0 != m_run; }
 
-    void setLogLevel(int level) { m_logLevel = (signed char)level; }
-    int  getLogLevel() const { return m_logLevel; }
+	void setLogLevel(int level) { m_logLevel = (signed char)level; }
+	int  getLogLevel() const { return m_logLevel; }
 
-    void setFiberMode(bool fiberMode) { m_fiberMode = fiberMode; }
-    bool isFiberMode() const { return m_fiberMode; }
+	void setEUType(EUType eut) { m_EUType = eut; }
+	EUType getEUType() const { return m_EUType; }
+
+	const char* euTypeName() const;
 
 	void setQueueSize(int queue_size) { m_queue_size = queue_size; }
 	int  getQueueSize() const { return m_queue_size; }
