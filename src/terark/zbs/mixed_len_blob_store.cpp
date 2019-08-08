@@ -570,10 +570,11 @@ class MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::Impl : boost::noncopyable 
 
     static const size_t offset_flush_size = 128;
 public:
-    Impl(size_t fixedLen, size_t varLenContentSize, fstring fpath, size_t offset, int checksumLevel)
+    Impl(size_t fixedLen, size_t fixedLenWithoutCRC, size_t varLenContentSize, fstring fpath, size_t offset,
+         int checksumLevel)
         : m_is_fixed_len()
         , m_fixed_len(fixedLen)
-        , m_fixed_len_without_crc(fixedLen)
+        , m_fixed_len_without_crc(fixedLenWithoutCRC)
         , m_fpath(fpath.begin(), fpath.end())
         , m_fpath_var_len(m_fpath + ".varlen")
         , m_fpath_var_len_offset(m_fpath + ".varlen-offset")
@@ -743,11 +744,12 @@ MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::MyBuilder(size_t fixedLen,
                                                           fstring fpath,
                                                           size_t offset,
                                                           int checksumLevel) {
+    size_t fixedLenWithoutCRC = fixedLen;
     if (2 == checksumLevel) { // record level crc, 32 bits per record
         fixedLen += sizeof(uint32_t);
         varLenContentSize += sizeof(uint32_t) * varLenContentCnt;
     }
-    impl = new Impl(fixedLen, varLenContentSize, fpath, offset, checksumLevel);
+    impl = new Impl(fixedLen, fixedLenWithoutCRC, varLenContentSize, fpath, offset, checksumLevel);
 }
 template<class rank_select_t>
 void MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::addRecord(fstring rec) {
