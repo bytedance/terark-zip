@@ -41,10 +41,6 @@
 
 #include <string.h> // for memcpy
 
-#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
-#error must define byte endian
-#endif
-
 namespace terark {
 
 typedef unsigned char uint08_t;

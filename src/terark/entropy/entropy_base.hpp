@@ -1,5 +1,6 @@
 #pragma once
 
+#include <boost/predef/other/endian.h>
 #include <boost/preprocessor/repeat.hpp>
 #include <terark/fstring.hpp>
 #include <terark/valvec.hpp>
@@ -10,6 +11,10 @@
 #  define ENTROPY_FORCE_INLINE __attribute__((always_inline))
 #else
 #  define ENTROPY_FORCE_INLINE inline
+#endif
+
+#if !defined(BOOST_ENDIAN_BIG_BYTE) && !defined(BOOST_ENDIAN_LITTLE_BYTE)
+#error must define byte endian
 #endif
 
 namespace terark {
