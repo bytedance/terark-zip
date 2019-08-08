@@ -350,6 +350,7 @@ public:
     void normalise(size_t norm);
 };
 
+// be careful with potential memory out of bounds
 inline uint32_t load_uint32_from_bits(const void* data, size_t skip) {
     //  [  0  ][  1  ][  2  ][  3  ][  4  ][  5  ][  6  ][  7  ][  8  ][  9  ]
     //  |----------------------- loaded -----------------------| 64bits
@@ -358,7 +359,7 @@ inline uint32_t load_uint32_from_bits(const void* data, size_t skip) {
     //  |hi|                           |----------- lo --------| big    endian
     size_t q = skip / 8;
     size_t r = skip % 8;
-    uint64_t cache = unaligned_load<uint64_t>(reinterpret_cast<const char *>(data) + q);
+    uint64_t cache = unaligned_load<uint64_t>(reinterpret_cast<const byte_t*>(data) + q);
 #ifndef BOOST_ENDIAN_LITTLE_BYTE // big endian
     cache >>= (64 - (r + 32));
 #else                            // little endian

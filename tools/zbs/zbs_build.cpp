@@ -493,10 +493,8 @@ GetoptDone:
     else if (select_store == 'm') {
         size_t fixedLen = histogram.m_max_cnt_key;
         size_t varLenSize = histogram.m_total_key_len - histogram.m_cnt_of_max_cnt_key * fixedLen;
-        if (2 == checksumLevel) {
-            varLenSize += sizeof(uint32_t) * (histogram.m_cnt_sum - histogram.m_cnt_of_max_cnt_key);
-        }
-        MixedLenBlobStore::MyBuilder mlbuilder(fixedLen, varLenSize, nlt_fname, 0, checksumLevel);
+		size_t varLenCnt = histogram.m_cnt_sum - histogram.m_cnt_of_max_cnt_key;
+        MixedLenBlobStore::MyBuilder mlbuilder(fixedLen, varLenSize, varLenCnt, nlt_fname, 0, checksumLevel);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             mlbuilder.addRecord(strVec[i]);
         }
@@ -504,8 +502,7 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'p') {
-        size_t contentSize = strVec.str_size() + (2 == checksumLevel ? (strVec.size() * sizeof(uint32_t)) : 0);
-        PlainBlobStore::MyBuilder pbuilder(contentSize, nlt_fname, 0, checksumLevel);
+        PlainBlobStore::MyBuilder pbuilder(strVec.str_size(), strVec.size(), nlt_fname, 0, checksumLevel);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             pbuilder.addRecord(strVec[i]);
         }

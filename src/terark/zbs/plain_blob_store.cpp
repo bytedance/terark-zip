@@ -409,8 +409,11 @@ public:
 PlainBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-PlainBlobStore::MyBuilder::MyBuilder(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel) {
-    impl = new Impl(blockUnits, fpath, offset, checksumLevel);
+PlainBlobStore::MyBuilder::MyBuilder(size_t contentSize, size_t contentCnt, fstring fpath, size_t offset, int checksumLevel) {
+    if (2 == checksumLevel) { // record level crc, 32bits per record
+        contentSize += sizeof(uint32_t) * contentCnt;
+    }
+    impl = new Impl(contentSize, fpath, offset, checksumLevel);
 }
 void PlainBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);
