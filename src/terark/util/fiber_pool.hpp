@@ -6,6 +6,7 @@
 #include <boost/fiber/context.hpp>
 #include <boost/fiber/scheduler.hpp>
 #include <boost/noncopyable.hpp>
+#include <terark/valvec.hpp>
 
 namespace terark {
 
@@ -78,7 +79,7 @@ class RunOnceFiberPool {
         }
     };
 
-    std::vector<Worker> m_workers;
+    valvec<Worker> m_workers;
     boost::fibers::context** m_active_pp;
     boost::fibers::scheduler* m_sched;
     int m_freehead = -1;
@@ -92,7 +93,7 @@ public:
         m_sched = (*m_active_pp)->get_scheduler();
         m_workers.reserve(num);
         for (size_t i = 0; i < num; ++i) {
-            m_workers.emplace_back(stack_size);
+            m_workers.unchecked_emplace_back(stack_size);
             auto& w = m_workers[i];
             w.m_next = int(i + 1);
         }
