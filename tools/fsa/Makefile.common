@@ -30,15 +30,18 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 
 #override CXXFLAGS += -Wfatal-errors
 
-ifeq ($(shell uname), Linux)
-  override LIBS += -lrt
-endif
-override LIBS += -lpthread
-
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
 UNAME_MachineSystem := $(shell uname -m -s | sed 's:[ /]:-:g')
 UNAME_System := $(shell uname | sed 's/^\([0-9a-zA-Z]*\).*/\1/')
+
+ifeq (${UNAME_System},Linux)
+  override LIBS += -lrt
+endif
+ifeq (${UNAME_System},Darwin)
+  override LIBS += ${TERARK_HOME}/boost-include/stage/lib/libboost_{fiber,system,context}.a
+endif
+override LIBS += -lpthread
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
   override CXXFLAGS += -fcolor-diagnostics
@@ -189,6 +192,29 @@ ${BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-
 
 clean :
 	rm -rf ${BUILD_ROOT} dbg rls
+
+UNIT_TESTS_DBG := $(addsuffix .test_dbg,${BINS_D})
+UNIT_TESTS_AFR := $(addsuffix .test_afr,${BINS_A})
+UNIT_TESTS_RLS := $(addsuffix .test_rls,${BINS_R})
+
+.PHONY : test
+.PHONY : test_dbg
+.PHONY : test_afr
+.PHONY : test_rls
+test : test_dbg test_afr test_rls
+
+test_dbg : ${UNIT_TESTS_DBG}
+test_afr : ${UNIT_TESTS_AFR}
+test_rls : ${UNIT_TESTS_RLS}
+
+${UNIT_TESTS_DBG} : %.test_dbg : %
+	env ${DLL_PATH_VAR}=${LIB_DIR} $<
+
+${UNIT_TESTS_AFR} : %.test_afr : %
+	env ${DLL_PATH_VAR}=${LIB_DIR} $<
+
+${UNIT_TESTS_RLS} : %.test_rls : %
+	env ${DLL_PATH_VAR}=${LIB_DIR} $<
 
 ${DBG_DIR}/%.o : %.cpp
 	@mkdir -p $(dir $@)
