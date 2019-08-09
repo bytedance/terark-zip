@@ -29,6 +29,9 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
 
 #override CXXFLAGS += -Wfatal-errors
+AFR_FLAGS = -O2
+DBG_FLAGS = -O0
+RLS_FLAGS = -O2 -DNDEBUG
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
@@ -122,18 +125,23 @@ endif
 BUILD_NAME := ${UNAME_MachineSystem}-${COMPILER}-bmi2-${WITH_BMI2}
 BUILD_ROOT := build/${BUILD_NAME}
 
+AFR_DIR := ${BUILD_ROOT}/afr
 DBG_DIR := ${BUILD_ROOT}/dbg
 RLS_DIR := ${BUILD_ROOT}/rls
 
 SRCS ?= $(wildcard *.cpp)
+OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${SRCS})))
 OBJS_R := $(addprefix ${RLS_DIR}/, $(addsuffix .o, $(basename ${SRCS})))
 OBJS_D := $(addprefix ${DBG_DIR}/, $(addsuffix .o ,$(basename ${SRCS})))
+BINS_A := $(addsuffix .exe ,$(basename ${OBJS_A}))
 BINS_D := $(addsuffix .exe ,$(basename ${OBJS_D}))
 BINS_R := $(addsuffix .exe ,$(basename ${OBJS_R}))
 
 DLL_SRCS += $(wildcard *.cxx)
+DLL_OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${DLL_SRCS})))
 DLL_OBJS_R := $(addprefix ${RLS_DIR}/, $(addsuffix .o, $(basename ${DLL_SRCS})))
 DLL_OBJS_D := $(addprefix ${DBG_DIR}/, $(addsuffix .o ,$(basename ${DLL_SRCS})))
+DLL_BINS_A := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_A}))
 DLL_BINS_D := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_D}))
 DLL_BINS_R := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_R}))
 
@@ -142,10 +150,10 @@ ext_cxxflags = $(strip $(shell sed -n 's,.*//Makefile\s*:\s*CXXFLAGS\s*:\s*\(.*\
 
 .PHONY : all clean link
 
-all : ${BINS_D} ${BINS_R} ${OBJS_D} ${OBJS_R} link \
-	${DLL_OBJS_D} ${DLL_OBJS_R} ${DLL_BINS_D} ${DLL_BINS_R}
-
-link : ${BINS_D} ${BINS_R} ${DLL_BINS_D} ${DLL_BINS_R}
+all : link
+link: ${BINS_A} ${DLL_BINS_A} \
+      ${BINS_D} ${DLL_BINS_D} \
+      ${BINS_R} ${DLL_BINS_R}
 	@mkdir -p dbg; cd dbg; \
 	for f in `find ../${DBG_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
 		ln -sf $$f .; \
@@ -162,8 +170,6 @@ else
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib
   LIB_SUF := ${DLL_SUFFIX}
 endif
-LIB_LIBS_D := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-d${LIB_SUF})
-LIB_LIBS_R := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-r${LIB_SUF})
 
 ifeq (${CHECK_TERARK_FSA_LIB_UPDATE},1)
 LIB_SRCS := $(shell find ${TERARK_HOME}/src -type f -name '*pp') \
@@ -174,8 +180,16 @@ LIB_SRCS := $(shell find ${TERARK_HOME}/src -type f -name '*pp') \
 #$(warning LIB_LIBS_D: $(subst ${TERARK_HOME}/,,${LIB_LIBS_D}))
 #$(warning LIB_LIBS_R: $(subst ${TERARK_HOME}/,,${LIB_LIBS_R}))
 
+LIB_LIBS_A := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-a${LIB_SUF})
+LIB_LIBS_D := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-d${LIB_SUF})
+LIB_LIBS_R := $(shell echo ${LIB_DIR}/libterark-{core,fsa,zbs}-${COMPILER}-r${LIB_SUF})
+
+${LIB_LIBS_A}: ${LIB_SRCS}
 ${LIB_LIBS_D}: ${LIB_SRCS}
 ${LIB_LIBS_R}: ${LIB_SRCS}
+
+%zbs-${COMPILER}-a${LIB_SUF}:
+	+$(MAKE) -C ${TERARK_HOME} $(subst ${TERARK_HOME}/,,${LIB_LIBS_A})
 
 %zbs-${COMPILER}-d${LIB_SUF}:
 	+$(MAKE) -C ${TERARK_HOME} $(subst ${TERARK_HOME}/,,${LIB_LIBS_D})
@@ -183,10 +197,12 @@ ${LIB_LIBS_R}: ${LIB_SRCS}
 %zbs-${COMPILER}-r${LIB_SUF}:
 	+$(MAKE) -C ${TERARK_HOME} $(subst ${TERARK_HOME}/,,${LIB_LIBS_R})
 
+${BINS_A}: ${LIB_LIBS_A}
 ${BINS_D}: ${LIB_LIBS_D}
 ${BINS_R}: ${LIB_LIBS_R}
 endif
 
+${BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
 ${BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
 ${BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-r,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-r ${LIBS}
 
@@ -216,6 +232,29 @@ ${UNIT_TESTS_AFR} : %.test_afr : %
 ${UNIT_TESTS_RLS} : %.test_rls : %
 	env ${DLL_PATH_VAR}=${LIB_DIR} $<
 
+#@param ${1} file name suffix: cpp | cxx | cc
+#@PARAM ${2} build dir       : ddir | rdir | adir
+#@param ${3} debug flag      : DBG_FLAGS | RLS_FLAGS | AFR_FLAGS
+define COMPILE_CXX
+${2}/%.dep : %.${1}
+	@echo file: $$< "->" $$@
+	@echo INCS = ${INCS}
+	mkdir -p $$(dir $$@)
+	-${CXX} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+endef
+
+$(eval $(call COMPILE_CXX,cpp,${AFR_DIR},${AFR_FLAGS}))
+$(eval $(call COMPILE_CXX,cpp,${DBG_DIR},${DBG_FLAGS}))
+$(eval $(call COMPILE_CXX,cpp,${RLS_DIR},${RLS_FLAGS}))
+
+$(eval $(call COMPILE_CXX,cxx,${AFR_DIR},${AFR_FLAGS}))
+$(eval $(call COMPILE_CXX,cxx,${DBG_DIR},${DBG_FLAGS}))
+$(eval $(call COMPILE_CXX,cxx,${RLS_DIR},${RLS_FLAGS}))
+
+${AFR_DIR}/%.o : %.cpp
+	@mkdir -p $(dir $@)
+	${CXX} ${AFR_FLAGS} -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags)
+
 ${DBG_DIR}/%.o : %.cpp
 	@mkdir -p $(dir $@)
 	${CXX} -O0 -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags)
@@ -224,6 +263,10 @@ ${DBG_DIR}/%.o : %.cpp
 ${RLS_DIR}/%.o : %.cpp
 	@mkdir -p $(dir $@)
 	${CXX} -Ofast -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags) -DNDEBUG
+
+${AFR_DIR}/%.o : %.cxx
+	@mkdir -p $(dir $@)
+	${CXX} -O0 -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags) ${FPIC}
 
 ${DBG_DIR}/%.o : %.cxx
 	@mkdir -p $(dir $@)
