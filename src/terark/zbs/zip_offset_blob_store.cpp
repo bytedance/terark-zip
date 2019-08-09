@@ -212,12 +212,22 @@ const {
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-        uint32_t crc2 = Crc32c_update(0, pData, len);
-        if (crc2 != crc1) {
-            throw BadCrc32cException(
-                    "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            len -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+            uint16_t crc2 = Crc16c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
+            }
+        } else {
+            len -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+            uint32_t crc2 = Crc32c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "ZipOffsetBlobStore::get_record_append_imp", crc1, crc2);
+            }
         }
     }
     recData->append(m_content.data() + BegEnd[0], len);
@@ -241,13 +251,23 @@ const {
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
      if (2 == m_checksumLevel) {
-        len -= sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-        uint32_t crc2 = Crc32c_update(0, pData, len);
-        if (crc2 != crc1) {
-            throw BadCrc32cException(
-                    "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
-        }
+         if (kCRC16C == m_checksumType) {
+             len -= sizeof(uint16_t);
+             uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+             uint16_t crc2 = Crc16c_update(0, pData, len);
+             if (crc2 != crc1) {
+                 throw BadCrc16cException(
+                         "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+             }
+         } else {
+             len -= sizeof(uint32_t);
+             uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+             uint32_t crc2 = Crc32c_update(0, pData, len);
+             if (crc2 != crc1) {
+                 throw BadCrc32cException(
+                         "ZipOffsetBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+             }
+         }
     }
     co->recData.append(pData, len);
 }
@@ -269,12 +289,22 @@ const {
     auto pData = fspread(lambda, baseOffset + offset, len, rdbuf);
     assert(NULL != pData);
     if (2 == m_checksumLevel) {
-        len -= sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-        uint32_t crc2 = Crc32c_update(0, pData, len);
-        if (crc2 != crc1) {
-            throw BadCrc32cException(
-                    "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            len -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+            uint16_t crc2 = Crc16c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
+            }
+        } else {
+            len -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+            uint32_t crc2 = Crc32c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "ZipOffsetBlobStore::fspread_record_append_imp", crc1, crc2);
+            }
         }
     }
     recData->append(pData, len);
@@ -396,9 +426,15 @@ public:
         m_writer.ensureWrite(rec.data(), rec.size());
         m_content_size += rec.size();
         if (2 == m_checksumLevel) {
-            uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-            m_writer.ensureWrite(&crc, sizeof(crc));
-            m_content_size += sizeof(crc);
+            if (kCRC16C == m_checksumType) {
+                uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
+                m_writer.ensureWrite(&crc, sizeof(crc));
+                m_content_size += sizeof(crc);
+            } else {
+                uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+                m_writer.ensureWrite(&crc, sizeof(crc));
+                m_content_size += sizeof(crc);
+            }
         }
     }
     void finish() {
