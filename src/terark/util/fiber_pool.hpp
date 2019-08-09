@@ -142,7 +142,7 @@ public:
 
     // never run fn in calling fiber
     template<class Fn, class... Arg>
-    void submit_bench(int& myhead, Fn&& fn, Arg... arg) {
+    void async(int& myhead, Fn&& fn, Arg... arg) {
         using namespace boost::fibers;
         assert(-1 == myhead || size_t(myhead) < m_workers.size());
         if (BOOST_UNLIKELY(-1 == m_freehead)) {

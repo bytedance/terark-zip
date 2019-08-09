@@ -25,7 +25,7 @@ int main(int argc, char* argv[]) {
 
     t0 = pf.now();
     for (size_t i = 0; i < loop_cnt; ++i) {
-        fp2.submit_bench(h1, [&](){cnt++;});
+        fp2.async(h1, [&](){cnt++;});
     }
     fp2.reap(h1);
     t1 = pf.now();
