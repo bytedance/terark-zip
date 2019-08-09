@@ -37,6 +37,7 @@ Options:
      1: checksum file header
      2: checksum each record(needs extra 4 bytes per record)
      3: checksum zip data area, and do not checksum each record
+  -t checksumType: default 0(CRC32C), can be 0, 1(CRC16C)
   -C Check for correctness
   -d Use Dawg String Pool
   -e EntropyAlgo: Use EntropyAlgo for entropy zip, default none
@@ -175,6 +176,7 @@ int main(int argc, char* argv[])
 TERARK_IF_DEBUG(,try) {
 	size_t benchmarkLoop = 0;
 	int  checksumLevel = 1;
+	int  checksumType = 0;
 	bool checkForCorrect = false;
 	bool b_write_dot_file = false;
 	bool isBson = false;
@@ -195,7 +197,7 @@ TERARK_IF_DEBUG(,try) {
 	conf.flags.set0(conf.optUseDawgStrPool);
 	conf.initFromEnv();
 	for (;;) {
-		int opt = getopt(argc, argv, "Bb:c:Ce:ghdn:o:M:F:S:L:rU::ZET:R:j::pV");
+		int opt = getopt(argc, argv, "Bb:c:t:Ce:ghdn:o:M:F:S:L:rU::ZET:R:j::pV");
 		switch (opt) {
 		case -1:
 			goto GetoptDone;
@@ -210,6 +212,11 @@ TERARK_IF_DEBUG(,try) {
 			checksumLevel = std::min(3, checksumLevel);
 			checksumLevel = std::max(0, checksumLevel);
 			break;
+        case 't':
+            checksumType = atoi(optarg);
+            checksumType = std::min(1, checksumType);
+            checksumType = std::max(0, checksumType);
+            break;
 		case 'C':
 			checkForCorrect = true;
 			break;
@@ -494,7 +501,7 @@ GetoptDone:
         size_t fixedLen = histogram.m_max_cnt_key;
         size_t varLenSize = histogram.m_total_key_len - histogram.m_cnt_of_max_cnt_key * fixedLen;
 		size_t varLenCnt = histogram.m_cnt_sum - histogram.m_cnt_of_max_cnt_key;
-        MixedLenBlobStore::MyBuilder mlbuilder(fixedLen, varLenSize, varLenCnt, nlt_fname, 0, checksumLevel);
+        MixedLenBlobStore::MyBuilder mlbuilder(fixedLen, varLenSize, varLenCnt, nlt_fname, 0, checksumLevel, checksumType);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             mlbuilder.addRecord(strVec[i]);
         }
@@ -502,7 +509,7 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'p') {
-        PlainBlobStore::MyBuilder pbuilder(strVec.str_size(), strVec.size(), nlt_fname, 0, checksumLevel);
+        PlainBlobStore::MyBuilder pbuilder(strVec.str_size(), strVec.size(), nlt_fname, 0, checksumLevel, checksumType);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             pbuilder.addRecord(strVec[i]);
         }
@@ -510,7 +517,7 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'o') {
-        ZipOffsetBlobStore::MyBuilder zobuilder(dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel);
+        ZipOffsetBlobStore::MyBuilder zobuilder(dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel, checksumType);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             zobuilder.addRecord(strVec[i]);
         }
@@ -518,7 +525,7 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'e') {
-        EntropyZipBlobStore::MyBuilder ezbuilder(*freq.get(), dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel);
+        EntropyZipBlobStore::MyBuilder ezbuilder(*freq.get(), dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel, checksumType);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             ezbuilder.addRecord(strVec[i]);
         }
