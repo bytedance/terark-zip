@@ -373,4 +373,17 @@ inline uint32_t load_uint32_from_bits(const void* data, size_t skip) {
     return static_cast<uint32_t>(cache);
 }
 
+// be careful with potential memory out of bounds
+inline uint16_t load_uint16_from_bits(const void* data, size_t skip) {
+    size_t q = skip / 8;
+    size_t r = skip % 8;
+    uint32_t cache = unaligned_load<uint32_t>(reinterpret_cast<const byte_t*>(data) + q);
+#ifndef BOOST_ENDIAN_LITTLE_BYTE // big endian
+    cache >>= (32 - (r + 16));
+#else                            // little endian
+    cache >>= r;
+#endif
+    return static_cast<uint16_t>(cache);
+}
+
 }
