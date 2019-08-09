@@ -192,12 +192,21 @@ const {
 	assert((fixLenRecID + 1) * m_fixedLen <= m_fixedLenValues.size());
 	const byte_t* pData = m_fixedLenValues.data() + m_fixedLen * fixLenRecID;
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + m_fixedLenWithoutCRC);
-		uint32_t crc2 = Crc32c_update(0, pData, m_fixedLenWithoutCRC);
-		if (crc2 != crc1) {
-			throw BadCrc32cException(
-				"MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordAppend", crc1, crc2);
-		}
+        if (kCRC16C == m_checksumType) {
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + m_fixedLenWithoutCRC);
+            uint16_t crc2 = Crc16c_update(0, pData, m_fixedLenWithoutCRC);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordAppend", crc1, crc2);
+            }
+        } else {
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + m_fixedLenWithoutCRC);
+            uint32_t crc2 = Crc32c_update(0, pData, m_fixedLenWithoutCRC);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordAppend", crc1, crc2);
+            }
+        }
     }
 	recData->append(pData, m_fixedLenWithoutCRC);
 }
@@ -214,13 +223,23 @@ const {
     const byte_t* pData = basePtr + offset0;
     size_t len = offset1 - offset0;
     if (2 == m_checksumLevel) {
-        len -= sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-		uint32_t crc2 = Crc32c_update(0, pData, len);
-		if (crc2 != crc1) {
-			throw BadCrc32cException(
-				"MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
-		}
+        if (kCRC16C == m_checksumType) {
+            len -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+            uint16_t crc2 = Crc16c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
+            }
+        } else {
+            len -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+            uint32_t crc2 = Crc32c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
+            }
+        }
     }
 	recData->append(pData, len);
 }
@@ -259,11 +278,20 @@ const {
     size_t offset = m_fixedLenValues.data() - (byte_t*)m_mmapBase + fixlen * fixLenRecID;
 	auto pData = fspread(lambda, baseOffset + offset, fixlen, rdbuf);
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + fixLenWithoutCRC);
-        uint32_t crc2 = Crc32c_update(0, pData, fixLenWithoutCRC);
-        if (crc2 != crc1) {
-            throw BadCrc32cException(
-                    "MixedLenBlobStoreTpl<rank_select_t>::fspread_FixLenRecordAppend", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + fixLenWithoutCRC);
+            uint16_t crc2 = Crc16c_update(0, pData, fixLenWithoutCRC);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_FixLenRecordAppend", crc1, crc2);
+            }
+        } else {
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + fixLenWithoutCRC);
+            uint32_t crc2 = Crc32c_update(0, pData, fixLenWithoutCRC);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_FixLenRecordAppend", crc1, crc2);
+            }
         }
     }
 	recData->append(pData, fixLenWithoutCRC);
@@ -285,12 +313,22 @@ const {
     size_t varlen = offset1 - offset0;
 	auto pData = fspread(lambda, baseOffset + offset, varlen, rdbuf);
     if (2 == m_checksumLevel) {
-        varlen -= sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + varlen);
-        uint32_t crc2 = Crc32c_update(0, pData, varlen);
-        if (crc2 != crc1) {
-            throw BadCrc32cException(
-                    "MixedLenBlobStoreTpl<rank_select_t>::fspread_VarLenRecordAppend", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            varlen -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + varlen);
+            uint16_t crc2 = Crc16c_update(0, pData, varlen);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_VarLenRecordAppend", crc1, crc2);
+            }
+        } else {
+            varlen -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + varlen);
+            uint32_t crc2 = Crc32c_update(0, pData, varlen);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_VarLenRecordAppend", crc1, crc2);
+            }
         }
     }
 	recData->append(pData, varlen);
@@ -305,7 +343,9 @@ void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dict
 	m_checksumLevel = mmapBase->checksumLevel;
 	m_checksumType = mmapBase->checksumType;
 	m_fixedLen = int32_t(mmapBase->fixedLen); // signed extention
-    m_fixedLenWithoutCRC = (2 == m_checksumLevel ? m_fixedLen - sizeof(uint32_t) : m_fixedLen);
+    m_fixedLenWithoutCRC = (2 == m_checksumLevel ? m_fixedLen - (kCRC16C == m_checksumType ? sizeof(uint16_t)
+                                                                                           : sizeof(uint32_t))
+                                                 : m_fixedLen);
 	m_fixedNum = mmapBase->fixedNum;
 	if (isChecksumVerifyEnabled()) {
 		XXHash64 hash(g_dmbsnark_seed);
@@ -624,9 +664,15 @@ public:
             m_is_fixed_len.push_back(true);
             m_content_size_fixed_len += rec.size();
             if (2 == m_checksumLevel) {
-                uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-                m_writer.ensureWrite(&crc, sizeof(crc));
-                m_content_size_fixed_len += sizeof(crc);
+                if (kCRC16C == m_checksumType) {
+                    uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
+                    m_writer.ensureWrite(&crc, sizeof(crc));
+                    m_content_size_fixed_len += sizeof(crc);
+                } else {
+                    uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+                    m_writer.ensureWrite(&crc, sizeof(crc));
+                    m_content_size_fixed_len += sizeof(crc);
+                }
             }
         }
         else {
@@ -635,9 +681,15 @@ public:
             m_is_fixed_len.push_back(false);
             m_content_size_var_len += rec.size();
             if (2 == m_checksumLevel) {
-                uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-                m_writer_var_len.ensureWrite(&crc, sizeof(crc));
-                m_content_size_var_len += sizeof(crc);
+                if (kCRC16C == m_checksumType) {
+                    uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
+                    m_writer_var_len.ensureWrite(&crc, sizeof(crc));
+                    m_content_size_var_len += sizeof(crc);
+                } else {
+                    uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+                    m_writer_var_len.ensureWrite(&crc, sizeof(crc));
+                    m_content_size_var_len += sizeof(crc);
+                }
             }
             ++m_num_records_var_len;
         }
@@ -752,9 +804,14 @@ MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::MyBuilder(size_t fixedLen,
                                                           int checksumLevel,
                                                           int checksumType) {
     size_t fixedLenWithoutCRC = fixedLen;
-    if (2 == checksumLevel) { // record level crc, 32 bits per record
-        fixedLen += sizeof(uint32_t);
-        varLenContentSize += sizeof(uint32_t) * varLenContentCnt;
+    if (2 == checksumLevel) { // record level crc
+        if (kCRC16C == checksumType) {
+            fixedLen += sizeof(uint16_t);
+            varLenContentSize += sizeof(uint16_t) * varLenContentCnt;
+        } else {
+            fixedLen += sizeof(uint32_t);
+            varLenContentSize += sizeof(uint32_t) * varLenContentCnt;
+        }
     }
     impl = new Impl(fixedLen, fixedLenWithoutCRC, varLenContentSize, fpath, offset, checksumLevel, checksumType);
 }
