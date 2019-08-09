@@ -541,10 +541,25 @@ ${TarBall}.tgz: ${TarBall}
 	cd pkg; tar czf ${TarBallBaseName}.tgz ${TarBallBaseName}
 
 .PONY: test
-test: ${zbs_d} ${fsa_d} ${core_d}
-	+$(MAKE) -C tests/core        test  CHECK_TERARK_FSA_LIB_UPDATE=0
-	+$(MAKE) -C tests/tries       test  CHECK_TERARK_FSA_LIB_UPDATE=0
-	+$(MAKE) -C tests/succinct    test  CHECK_TERARK_FSA_LIB_UPDATE=0
+.PONY: test_dbg
+.PONY: test_afr
+.PONY: test_rls
+test: test_dbg test_afr test_rls
+
+test_dbg: ${zbs_d} ${fsa_d} ${core_d}
+	+$(MAKE) -C tests/core        test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
+
+test_afr: ${zbs_a} ${fsa_a} ${core_a}
+	+$(MAKE) -C tests/core        test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
+
+test_rls: ${zbs_r} ${fsa_r} ${core_r}
+	+$(MAKE) -C tests/core        test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
 
 ifneq ($(MAKECMDGOALS),cleanall)
 ifneq ($(MAKECMDGOALS),clean)
