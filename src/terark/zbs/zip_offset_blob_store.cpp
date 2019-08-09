@@ -423,7 +423,7 @@ public:
             m_memStream.stream()->resize(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
                 FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()), m_content_size, offsets_size,
-                                   m_checksumLevel);
+                                   m_checksumLevel, m_checksumType);
 
             XXHash64 xxhash64(g_dpbsnark_seed);
             xxhash64.update(m_memStream.stream()->begin(), m_memStream.size() - sizeof(BlobStoreFileFooter));
@@ -454,7 +454,7 @@ public:
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
             *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, offsets_size, 
-                                                                       m_checksumLevel);
+                                                                       m_checksumLevel, m_checksumType);
 
             XXHash64 xxhash64(g_dpbsnark_seed);
             xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));

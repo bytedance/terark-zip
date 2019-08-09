@@ -605,7 +605,8 @@ public:
             m_memStream.stream()->resize(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
                 FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()),
-                    order, m_raw_size, m_entropy_bits, offsets_size, table.size(), m_checksumLevel);
+                    order, m_raw_size, m_entropy_bits, offsets_size, table.size(),
+                    m_checksumLevel, m_checksumType);
 
             XXHash64 xxhash64(g_debsnark_seed);
             xxhash64.update(m_memStream.stream()->begin(), m_memStream.size() - sizeof(BlobStoreFileFooter));
@@ -636,7 +637,8 @@ public:
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
             *(FileHeader*)mem.data() =
-                FileHeader(mem, order, m_raw_size, m_entropy_bits, offsets_size, table.size(), m_checksumLevel);
+                FileHeader(mem, order, m_raw_size, m_entropy_bits, offsets_size, table.size(),
+                           m_checksumLevel, m_checksumType);
 
             XXHash64 xxhash64(g_debsnark_seed);
             xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
@@ -652,11 +654,11 @@ EntropyZipBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
 EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset,
-        int checksumLevel, int checksumType) {
+                                          int checksumLevel, int checksumType) {
     impl = new Impl(freq, blockUnits, fpath, offset, checksumLevel, checksumType);
 }
 EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem,
-        int checksumLevel, int checksumType) {
+                                          int checksumLevel, int checksumType) {
     impl = new Impl(freq, blockUnits, mem, checksumLevel, checksumType);
 }
 void EntropyZipBlobStore::MyBuilder::addRecord(fstring rec) {
