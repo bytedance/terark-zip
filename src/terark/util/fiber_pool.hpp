@@ -142,6 +142,8 @@ public:
         else {
             // run in active fiber
             fn(std::forward<Arg>(arg)...);
+            reap(myhead);
+            myhead = -1;
         }
     }
 
