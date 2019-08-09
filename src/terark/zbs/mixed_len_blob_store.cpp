@@ -92,6 +92,7 @@ MixedLenBlobStoreTpl<rank_select_t>::FileHeader::FileHeader(const MixedLenBlobSt
     assert(fixedNum + (store->m_varLenOffsets.size() ?
         store->m_varLenOffsets.size() - 1 : 0) == records);
     checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
+    checksumType = static_cast<uint08_t>(store->m_checksumType);
 }
 
 template<class rank_select_t>
@@ -101,7 +102,8 @@ MixedLenBlobStoreTpl<rank_select_t>::MixedLenBlobStoreTpl() {
   m_fixedNum = 0;
   m_fixedLen = size_t(-1);
   m_fixedLenWithoutCRC = size_t(-1);
-  m_checksumLevel = 0;
+  m_checksumLevel = 3;
+  m_checksumType = 0;
 }
 
 template<class rank_select_t>
@@ -301,6 +303,7 @@ void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dict
 	m_numRecords = mmapBase->records;
 	m_unzipSize = mmapBase->unzipSize;
 	m_checksumLevel = mmapBase->checksumLevel;
+	m_checksumType = mmapBase->checksumType;
 	m_fixedLen = int32_t(mmapBase->fixedLen); // signed extention
     m_fixedLenWithoutCRC = (2 == m_checksumLevel ? m_fixedLen - sizeof(uint32_t) : m_fixedLen);
 	m_fixedNum = mmapBase->fixedNum;
@@ -567,11 +570,12 @@ class MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::Impl : boost::noncopyable 
     size_t m_num_records;
     size_t m_num_records_var_len;
     int m_checksumLevel;
+    int m_checksumType;
 
     static const size_t offset_flush_size = 128;
 public:
     Impl(size_t fixedLen, size_t fixedLenWithoutCRC, size_t varLenContentSize, fstring fpath, size_t offset,
-         int checksumLevel)
+         int checksumLevel, int checksumType)
         : m_is_fixed_len()
         , m_fixed_len(fixedLen)
         , m_fixed_len_without_crc(fixedLenWithoutCRC)
@@ -590,7 +594,8 @@ public:
         , m_content_input_size_var_len(varLenContentSize)
         , m_num_records(0)
         , m_num_records_var_len(0)
-        , m_checksumLevel(checksumLevel) {
+        , m_checksumLevel(checksumLevel)
+        , m_checksumType(checksumType) {
         assert(offset % 8 == 0);
         if (offset == 0) {
             m_file.open(fpath, "wb");
@@ -723,6 +728,7 @@ public:
             header.varLenBytes = m_content_size_var_len;
         }
         header.checksumLevel = static_cast<uint8_t>(m_checksumLevel);
+        header.checksumType = static_cast<uint8_t>(m_checksumType);
 
         XXHash64 xxhash64(g_dmbsnark_seed);
         xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
@@ -743,13 +749,14 @@ MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::MyBuilder(size_t fixedLen,
                                                           size_t varLenContentCnt,
                                                           fstring fpath,
                                                           size_t offset,
-                                                          int checksumLevel) {
+                                                          int checksumLevel,
+                                                          int checksumType) {
     size_t fixedLenWithoutCRC = fixedLen;
     if (2 == checksumLevel) { // record level crc, 32 bits per record
         fixedLen += sizeof(uint32_t);
         varLenContentSize += sizeof(uint32_t) * varLenContentCnt;
     }
-    impl = new Impl(fixedLen, fixedLenWithoutCRC, varLenContentSize, fpath, offset, checksumLevel);
+    impl = new Impl(fixedLen, fixedLenWithoutCRC, varLenContentSize, fpath, offset, checksumLevel, checksumType);
 }
 template<class rank_select_t>
 void MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::addRecord(fstring rec) {

@@ -43,7 +43,8 @@ public:
     void init_from_memory(fstring dataMem, Dictionary dict) override;
     void init_from_components(
         SortedUintVec&& offset, valvec<byte_t>&& data,
-        valvec<byte_t>&& table, size_t order, uint64_t raw_size, int checksumLevel);
+        valvec<byte_t>&& table, size_t order, uint64_t raw_size,
+        int checksumLevel, int checksumType);
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
     void detach_meta_blocks(const valvec<fstring>& blocks) override;
@@ -58,8 +59,10 @@ public:
     struct TERARK_DLL_EXPORT MyBuilder : public AbstractBlobStore::Builder {
         class TERARK_DLL_EXPORT Impl; Impl* impl;
     public:
-        MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset = 0, int checksumLevel = 3);
-        MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem, int checksumLevel = 3);
+        MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset = 0,
+                  int checksumLevel = 3, int checksumType = 0);
+        MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem,
+                  int checksumLevel = 3, int checksumType = 0);
         virtual ~MyBuilder();
         void addRecord(fstring rec) override;
         void finish() override;

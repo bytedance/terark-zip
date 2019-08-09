@@ -33,6 +33,12 @@ void PadzeroForAlign(File& f, Hash& h, size_t offset) {
 // Compatible with DFA_MmapHeader
 static const char   MagicString[] = "terark-blob-store";
 static const size_t MagicStrLen   = sizeof(MagicString)-1; // 17
+
+enum ChecksumType : uint8_t {
+    kCRC32C = 0,
+    kCRC16C = 1
+};
+
 struct FileHeaderBase {
 	uint8_t  magic_len;
 	char     magic[19];
@@ -42,7 +48,7 @@ struct FileHeaderBase {
 	uint64_t unzipSize;
 
 	uint64_t records        : 40;
-	uint64_t pad11          :  8;
+	uint64_t checksumType   :  8;
 	uint64_t formatVersion  : 16;
 
 	uint64_t globalDictSize : 40;

@@ -35,6 +35,7 @@ protected:
     bool            m_isDetachMeta;
     MemoryCloseType m_dictCloseType;
 	int             m_checksumLevel;
+	int             m_checksumType;
 	const struct FileHeaderBase* m_mmapBase;
 
 	void risk_swap(AbstractBlobStore& y);

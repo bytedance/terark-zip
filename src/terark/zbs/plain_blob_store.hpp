@@ -46,7 +46,8 @@ public:
     struct TERARK_DLL_EXPORT MyBuilder : public AbstractBlobStore::Builder {
         class TERARK_DLL_EXPORT Impl; Impl* impl;
     public:
-        MyBuilder(size_t contentSize, size_t contentCnt, fstring fpath, size_t offset = 0, int checksumLevel = 3);
+        MyBuilder(size_t contentSize, size_t contentCnt, fstring fpath, size_t offset = 0,
+                  int checksumLevel = 3, int checksumType = 0);
         virtual ~MyBuilder();
         void addRecord(fstring rec) override;
         void finish() override;

@@ -39,7 +39,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         strcpy(magic, MagicString);
         strcpy(className, "ZipOffsetBlobStore");
     }
-    FileHeader(fstring mem, size_t content_size, size_t offsets_size, int _checksumLevel) {
+    FileHeader(fstring mem, size_t content_size, size_t offsets_size, int _checksumLevel, int _checksumType) {
         init();
         fileSize = mem.size();
         assert(fileSize == 0
@@ -56,6 +56,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         offsets_log2_blockUnits = offsets.log2_block_units();
         offsets.risk_release_ownership();
         checksumLevel = static_cast<uint08_t>(_checksumLevel);
+        checksumType = static_cast<uint08_t>(_checksumType);
     }
     FileHeader(const ZipOffsetBlobStore* store, const SortedUintVec& offsets) {
         init();
@@ -70,6 +71,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         offsetsBytes = offsets.mem_size();
         offsets_log2_blockUnits = offsets.log2_block_units();
         checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
+        checksumType = static_cast<uint08_t>(store->m_checksumType);
     }
 };
 
@@ -89,6 +91,7 @@ void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     m_numRecords = mmapBase->records;
     m_unzipSize = mmapBase->contentBytes;
     m_checksumLevel = mmapBase->checksumLevel;
+    m_checksumType = mmapBase->checksumType;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), mmapBase->contentBytes);
     m_offsets.risk_set_data(m_content.data() + align_up(m_content.size(), 16), mmapBase->offsetsBytes);
     assert(m_offsets.size() == mmapBase->records+1);
@@ -157,6 +160,7 @@ void ZipOffsetBlobStore::save_mmap(function<void(const void*, size_t)> write) co
 
 ZipOffsetBlobStore::ZipOffsetBlobStore() {
     m_checksumLevel = 3; // check all data
+    m_checksumType = 0;  // crc32c
     m_get_record_append = static_cast<get_record_append_func_t>
                 (&ZipOffsetBlobStore::get_record_append_imp);
     m_fspread_record_append = static_cast<fspread_record_append_func_t>
@@ -346,8 +350,9 @@ class ZipOffsetBlobStore::MyBuilder::Impl : boost::noncopyable {
     size_t m_offset;
     size_t m_content_size;
     int m_checksumLevel;
+    int m_checksumType;
 public:
-    Impl(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel)
+    Impl(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel, int checksumType)
         : m_fpath(fpath.begin(), fpath.end())
         , m_fpath_offset(fpath + ".offset")
         , m_builder(SortedUintVec::createBuilder(blockUnits, m_fpath_offset.c_str()))
@@ -356,7 +361,8 @@ public:
         , m_writer(&m_file)
         , m_offset(offset)
         , m_content_size(0)
-        , m_checksumLevel(checksumLevel) {
+        , m_checksumLevel(checksumLevel)
+        , m_checksumType(checksumType) {
         assert(offset % 8 == 0);
         if (offset == 0) {
           m_file.open(fpath, "wb");
@@ -370,7 +376,7 @@ public:
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
     }
-    Impl(size_t blockUnits, FileMemIO& mem, int checksumLevel)
+    Impl(size_t blockUnits, FileMemIO& mem, int checksumLevel, int checksumType)
         : m_fpath()
         , m_fpath_offset()
         , m_builder(SortedUintVec::createBuilder(blockUnits))
@@ -379,7 +385,8 @@ public:
         , m_writer(&m_memStream)
         , m_offset(0)
         , m_content_size(0)
-        , m_checksumLevel(checksumLevel) {
+        , m_checksumLevel(checksumLevel)
+        , m_checksumType(checksumType) {
         std::aligned_storage<sizeof(FileHeader)>::type header;
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
@@ -462,11 +469,13 @@ public:
 ZipOffsetBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel) {
-    impl = new Impl(blockUnits, fpath, offset, checksumLevel);
+ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, fstring fpath, size_t offset,
+                                         int checksumLevel, int checksumType) {
+    impl = new Impl(blockUnits, fpath, offset, checksumLevel, checksumType);
 }
-ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, FileMemIO& mem, int checksumLevel) {
-    impl = new Impl(blockUnits, mem, checksumLevel);
+ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, FileMemIO& mem,
+                                         int checksumLevel, int checksumType) {
+    impl = new Impl(blockUnits, mem, checksumLevel, checksumType);
 }
 void ZipOffsetBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);

@@ -46,7 +46,8 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         strcpy(magic, MagicString);
         strcpy(className, "EntropyZipBlobStore");
     }
-    FileHeader(fstring mem, size_t entropy_order, size_t raw_size, size_t entropy_bits, size_t offsets_size, size_t table_size, int _checksumLevel) {
+    FileHeader(fstring mem, size_t entropy_order, size_t raw_size, size_t entropy_bits, size_t offsets_size, size_t table_size,
+            int _checksumLevel, int _checksumType) {
         init();
         fileSize = mem.size();
         assert(fileSize == 0
@@ -65,6 +66,7 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         offsets.risk_release_ownership();
         tableBytes = table_size;
         checksumLevel = static_cast<uint08_t>(_checksumLevel);
+        checksumType = static_cast<uint08_t>(_checksumType);
     }
     FileHeader(const EntropyZipBlobStore* store, const SortedUintVec& offsets) {
         init();
@@ -81,6 +83,7 @@ struct EntropyZipBlobStore::FileHeader : public FileHeaderBase {
         offsets_log2_blockUnits = offsets.log2_block_units();
         entropyOrder = store->m_decoder_o0 ? 0 : 1;
         checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
+        checksumType = static_cast<uint08_t>(store->m_checksumType);
     }
 };
 
@@ -120,6 +123,7 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
     m_numRecords = mmapBase->records;
     m_unzipSize = mmapBase->unzipSize;
     m_checksumLevel = mmapBase->checksumLevel;
+    m_checksumType = mmapBase->checksumType;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), (mmapBase->contentBits + 7) / 8);
     m_table.risk_set_data(m_content.data() + m_content.size(), mmapBase->tableBytes);
     m_offsets.risk_set_data(m_content.data() +
@@ -150,10 +154,12 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
 
 void EntropyZipBlobStore::init_from_components(
     SortedUintVec&& offset, valvec<byte_t>&& data,
-    valvec<byte_t>&& table, size_t order, uint64_t raw_size, int checksumLevel) {
+    valvec<byte_t>&& table, size_t order, uint64_t raw_size,
+    int checksumLevel, int checksumType) {
     m_numRecords = offset.size() - 1;
     m_unzipSize = raw_size;
     m_checksumLevel = checksumLevel;
+    m_checksumType = checksumType;
     m_content.swap(data);
     m_table.swap(table);
     m_offsets.swap(offset);
@@ -220,6 +226,7 @@ void EntropyZipBlobStore::save_mmap(function<void(const void*, size_t)> write) c
 
 EntropyZipBlobStore::EntropyZipBlobStore() {
     m_checksumLevel = 3; // check all data
+    m_checksumType = 0;  // crc32c
     init_get_calls(0);
 }
 
@@ -482,8 +489,9 @@ class EntropyZipBlobStore::MyBuilder::Impl : boost::noncopyable {
     size_t m_output_size;
     size_t m_entropy_bits;
     int m_checksumLevel;
+    int m_checksumType;
 public:
-    Impl(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset, int checksumLevel)
+    Impl(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset, int checksumLevel, int checksumType)
         : m_fpath(fpath.begin(), fpath.end())
         , m_fpath_offset(fpath + ".offset")
         , m_builder(SortedUintVec::createBuilder(blockUnits, m_fpath_offset.c_str()))
@@ -495,7 +503,8 @@ public:
         , m_raw_size(0)
         , m_output_size(0)
         , m_entropy_bits(0)
-        , m_checksumLevel(checksumLevel) {
+        , m_checksumLevel(checksumLevel)
+        , m_checksumType(checksumType) {
         assert(offset % 8 == 0);
         if (offset == 0) {
           m_file.open(fpath, "wb");
@@ -507,7 +516,7 @@ public:
         m_file.disbuf();
         init(freq);
     }
-    Impl(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem, int checksumLevel)
+    Impl(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem, int checksumLevel, int checksumType)
         : m_fpath()
         , m_fpath_offset()
         , m_builder(SortedUintVec::createBuilder(blockUnits))
@@ -519,7 +528,8 @@ public:
         , m_raw_size(0)
         , m_output_size(0)
         , m_entropy_bits(0)
-        , m_checksumLevel(checksumLevel) {
+        , m_checksumLevel(checksumLevel)
+        , m_checksumType(checksumType) {
         init(freq);
     }
     void init(freq_hist_o1& freq) {
@@ -641,11 +651,13 @@ public:
 EntropyZipBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset, int checksumLevel) {
-    impl = new Impl(freq, blockUnits, fpath, offset, checksumLevel);
+EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset,
+        int checksumLevel, int checksumType) {
+    impl = new Impl(freq, blockUnits, fpath, offset, checksumLevel, checksumType);
 }
-EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem, int checksumLevel) {
-    impl = new Impl(freq, blockUnits, mem, checksumLevel);
+EntropyZipBlobStore::MyBuilder::MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem,
+        int checksumLevel, int checksumType) {
+    impl = new Impl(freq, blockUnits, mem, checksumLevel, checksumType);
 }
 void EntropyZipBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);

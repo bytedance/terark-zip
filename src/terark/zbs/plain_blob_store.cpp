@@ -30,7 +30,8 @@ struct PlainBlobStore::FileHeader : public FileHeaderBase {
     uint64_t  padding22[3];
 
     void init();
-    FileHeader(fstring mem, size_t content_size, size_t offsets_size, int checksumLevel);
+    FileHeader(fstring mem, size_t content_size, size_t offsets_size,
+               int checksumLevel, int checksumType);
     FileHeader(const PlainBlobStore* store);
 };
 
@@ -43,7 +44,8 @@ void PlainBlobStore::FileHeader::init() {
     strcpy(className, "PlainBlobStore");
 }
 
-PlainBlobStore::FileHeader::FileHeader(fstring mem, size_t content_size, size_t num_records, int _checksumLevel) {
+PlainBlobStore::FileHeader::FileHeader(fstring mem, size_t content_size, size_t num_records,
+                                       int _checksumLevel, int _checksumType) {
     init();
     fileSize = mem.size();
     size_t uintbits = UintVecMin0::compute_uintbits(content_size);
@@ -60,6 +62,7 @@ PlainBlobStore::FileHeader::FileHeader(fstring mem, size_t content_size, size_t 
     offsetsBytes = offsets.mem_size();
     offsetsUintBits = offsets.uintbits();
     checksumLevel = static_cast<uint08_t>(_checksumLevel);
+    checksumType = static_cast<uint08_t>(_checksumType);
     offsets.risk_release_ownership();
 }
 
@@ -75,6 +78,7 @@ PlainBlobStore::FileHeader::FileHeader(const PlainBlobStore* store) {
     offsetsBytes = store->m_offsets.mem_size();
     offsetsUintBits = store->m_offsets.uintbits();
     checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
+    checksumType = static_cast<uint08_t>(store->m_checksumType);
 }
 
 void PlainBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
@@ -94,6 +98,7 @@ void PlainBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     m_numRecords = mmapBase->records;
     m_unzipSize = mmapBase->contentBytes;
     m_checksumLevel = mmapBase->checksumLevel;
+    m_checksumType = mmapBase->checksumType;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), mmapBase->contentBytes);
     m_offsets.risk_set_data(m_content.data() + align_up(m_content.size(), 16),
         m_numRecords + 1, mmapBase->offsetsUintBits);
@@ -151,6 +156,7 @@ void PlainBlobStore::save_mmap(function<void(const void*, size_t)> write) const 
 
 PlainBlobStore::PlainBlobStore() {
     m_checksumLevel = 3;
+    m_checksumType = 0;
     m_get_record_append = static_cast<get_record_append_func_t>
                     (&PlainBlobStore::get_record_append_imp);
     m_fspread_record_append = static_cast<fspread_record_append_func_t>
@@ -327,10 +333,11 @@ class PlainBlobStore::MyBuilder::Impl : boost::noncopyable {
     size_t m_content_size;
     size_t m_content_input_size;
     int m_checksumLevel;
+    int m_checksumType;
 
     static const size_t offset_flush_size = 128;
 public:
-    Impl(size_t contentSize, fstring fpath, size_t offset, int checksumLevel)
+    Impl(size_t contentSize, fstring fpath, size_t offset, int checksumLevel, int checksumType)
         : m_fpath(fpath.begin(), fpath.end())
         , m_fpath_offset(fpath + ".offset")
         , m_file()
@@ -340,7 +347,8 @@ public:
         , m_num_records(0)
         , m_content_size(0)
         , m_content_input_size(contentSize)
-        , m_checksumLevel(checksumLevel) {
+        , m_checksumLevel(checksumLevel)
+        , m_checksumType(checksumType) {
         assert(offset % 8 == 0);
         if (offset == 0) {
             m_file.open(fpath, "wb");
@@ -395,7 +403,8 @@ public:
         FileStream(m_fpath, "rb+").chsize(file_size);
         MmapWholeFile mmap(m_fpath, true);
         fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
-        *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, m_num_records, m_checksumLevel);
+        *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, m_num_records,
+                                                                   m_checksumLevel, m_checksumType);
 
         XXHash64 xxhash64(g_dpbsnark_seed);
         xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
@@ -409,11 +418,12 @@ public:
 PlainBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-PlainBlobStore::MyBuilder::MyBuilder(size_t contentSize, size_t contentCnt, fstring fpath, size_t offset, int checksumLevel) {
+PlainBlobStore::MyBuilder::MyBuilder(size_t contentSize, size_t contentCnt, fstring fpath, size_t offset,
+                                     int checksumLevel, int checksumType) {
     if (2 == checksumLevel) { // record level crc, 32bits per record
         contentSize += sizeof(uint32_t) * contentCnt;
     }
-    impl = new Impl(contentSize, fpath, offset, checksumLevel);
+    impl = new Impl(contentSize, fpath, offset, checksumLevel, checksumType);
 }
 void PlainBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);
