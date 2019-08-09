@@ -278,7 +278,11 @@ const {
     assert(BegEnd[0] <= BegEnd[1]);
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= 32; // crc32c costs 8 * 4 = 32 bits
+        if (kCRC16C == m_checksumType) {
+            len -= 16; // crc16c costs 8 * 2 = 16bits
+        } else {
+            len -= 32; // crc32c costs 8 * 4 = 32bits
+        }
     }
     auto ctx = GetTlsTerarkContext();
     EntropyBits bits = {
@@ -298,11 +302,20 @@ const {
     
     const auto& data = ctx_data.get();
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
-        uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
-        if (crc2 != crc1) {
-             throw BadCrc32cException(
-                    "EntropyZipBlobStore::get_record_append_imp", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            uint16_t crc1 = load_uint16_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
+            uint16_t crc2 = Crc16c_update(0, data.data(), data.size());
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "EntropyZipBlobStore::get_record_append_imp", crc1, crc2);
+            }
+        } else {
+            uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
+            uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
+            if (crc2 != crc1) {
+                 throw BadCrc32cException(
+                        "EntropyZipBlobStore::get_record_append_imp", crc1, crc2);
+            }
         }
     }
     recData->append(data);
@@ -327,7 +340,11 @@ const {
     auto ctx = GetTlsTerarkContext();
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= 32; // crc32c costs 8 * 4 = 32 bits
+        if (kCRC16C == m_checksumType) {
+            len -= 16; // crc16c costs 8 * 2 = 16bits
+        } else {
+            len -= 32; // crc32c costs 8 * 4 = 32bits
+        }
     }
     EntropyBits bits = {
         (byte_t*)m_content.data(), BegEnd[0], len, {}
@@ -345,11 +362,20 @@ const {
 
     const auto& data = ctx_data.get();
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
-        uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
-        if (crc2 != crc1) {
-             throw BadCrc32cException(
-                    "EntropyZipBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            uint16_t crc1 = load_uint16_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
+            uint16_t crc2 = Crc16c_update(0, data.data(), data.size());
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "EntropyZipBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+            }
+        } else {
+            uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
+            uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
+            if (crc2 != crc1) {
+                 throw BadCrc32cException(
+                        "EntropyZipBlobStore::get_record_append_CacheOffsets", crc1, crc2);
+            }
         }
     }
     co->recData.append(data);
@@ -375,7 +401,11 @@ const {
     auto ctx = GetTlsTerarkContext();
     size_t len = BegEnd[1] - BegEnd[0];
     if (2 == m_checksumLevel) {
-        len -= 32; // crc32c costs 8 * 4 = 32 bits
+        if (kCRC16C == m_checksumType) {
+            len -= 16; // crc16c costs 8 * 2 = 16bits
+        } else {
+            len -= 32; // crc32c costs 8 * 4 = 32bits
+        }
     }
     EntropyBits bits = {
         (byte_t*)pData, BegEnd[0] - byte_beg * 8, len, {}
@@ -393,11 +423,20 @@ const {
 
     const auto& data = ctx_data.get();
     if (2 == m_checksumLevel) {
-        uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
-        uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
-        if (crc2 != crc1) {
-             throw BadCrc32cException(
-                    "EntropyZipBlobStore::fspread_record_append_imp", crc1, crc2);
+        if (kCRC16C == m_checksumType) {
+            uint16_t crc1 = load_uint16_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
+            uint16_t crc2 = Crc16c_update(0, data.data(), data.size());
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "EntropyZipBlobStore::fspread_record_append_imp", crc1, crc2);
+            }
+        } else {
+            uint32_t crc1 = load_uint32_from_bits((byte_t*)m_content.data(), BegEnd[0] + len);
+            uint32_t crc2 = Crc32c_update(0, data.data(), data.size());
+            if (crc2 != crc1) {
+                 throw BadCrc32cException(
+                        "EntropyZipBlobStore::fspread_record_append_imp", crc1, crc2);
+            }
         }
     }
     recData->append(data);
@@ -561,11 +600,19 @@ public:
         m_raw_size += rec.size();
         m_entropy_bits += bits.size;
         if (2 == m_checksumLevel) {
-            uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-            bits = {reinterpret_cast<byte*>(&crc), 0, 32, {}};
-            m_bitWriter.write(bits);
-            m_raw_size += sizeof(crc);
-            m_entropy_bits += bits.size;
+            if (kCRC16C == m_checksumType) {
+                uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
+                bits = {reinterpret_cast<byte*>(&crc), 0, 16, {}};
+                m_bitWriter.write(bits);
+                m_raw_size += sizeof(crc);
+                m_entropy_bits += bits.size;
+            } else {
+                uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+                bits = {reinterpret_cast<byte*>(&crc), 0, 32, {}};
+                m_bitWriter.write(bits);
+                m_raw_size += sizeof(crc);
+                m_entropy_bits += bits.size;
+            }
         }
     }
     void finish() {
