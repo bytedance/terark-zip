@@ -5,7 +5,6 @@
 
 #include <boost/fiber/context.hpp>
 #include <boost/fiber/scheduler.hpp>
-#include <boost/noncopyable.hpp>
 #include <terark/valvec.hpp>
 
 namespace terark {
@@ -48,7 +47,7 @@ public:
 
 // allowing multiple fibers running submit/reap pair
 class RunOnceFiberPool {
-    class Worker : boost::noncopyable {
+    class Worker {
     public:
         void*  m_stack_base;
         size_t m_stack_size;
@@ -72,6 +71,11 @@ class RunOnceFiberPool {
                 std::terminate();
             }
         }
+
+        Worker(const Worker&) = delete;
+        Worker(Worker&&) = delete;
+        Worker&operator=(const Worker&) = delete;
+        Worker&operator=(Worker&&) = delete;
 
         ~Worker() {
             assert(!m_fiber);
