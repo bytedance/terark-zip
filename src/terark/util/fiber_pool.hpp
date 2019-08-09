@@ -49,7 +49,7 @@ public:
 class RunOnceFiberPool {
     class Worker : boost::noncopyable {
     public:
-        void* m_stack_base;
+        void*  m_stack_base;
         size_t m_stack_size;
         boost::intrusive_ptr<boost::fibers::context> m_fiber;
         int m_next = -1;
@@ -64,9 +64,9 @@ class RunOnceFiberPool {
             return m_fiber.get();
         }
 
-        Worker() {
-            m_stack_size = ReuseStack::traits_type::default_size();
-            m_stack_base = malloc(m_stack_size);
+        Worker(size_t stack_size) {
+            m_stack_size = stack_size;
+            m_stack_base = malloc(stack_size);
             if (!m_stack_base) {
                 std::terminate();
             }
@@ -83,11 +83,16 @@ class RunOnceFiberPool {
     boost::fibers::scheduler* m_sched;
     int m_freehead = -1;
 public:
-    explicit RunOnceFiberPool(size_t num) : m_workers(num) {
+    explicit
+    RunOnceFiberPool(size_t num,
+                     size_t stack_size = ReuseStack::traits_type::default_size())
+    {
         using namespace boost::fibers;
         m_active_pp = context::active_pp();
         m_sched = (*m_active_pp)->get_scheduler();
+        m_workers.reserve(num);
         for (size_t i = 0; i < num; ++i) {
+            m_workers.emplace_back(stack_size);
             auto& w = m_workers[i];
             w.m_next = int(i + 1);
         }
@@ -95,15 +100,20 @@ public:
         m_freehead = 0;
     }
     ~RunOnceFiberPool() {
+#if !defined(NDEBUG)
         for (auto& w : m_workers) {
             assert(!w.m_fiber);
         }
+#endif
     }
+
+    size_t capacity() const { return m_workers.size(); }
 
     ///@param myhead must be initialized to -1
     /// can be called multiple times with same 'myhead'
     template<class Fn, class... Arg>
     void submit(int& myhead, Fn&& fn, Arg... arg) {
+        using namespace boost::fibers;
         assert(-1 == myhead || size_t(myhead) < m_workers.size());
         if (-1 != m_freehead) {
             int oldfree_idx = m_freehead;
@@ -111,7 +121,16 @@ public:
             m_freehead = oldfree.m_next;
             oldfree.m_next = myhead;
             myhead = oldfree_idx;
-            auto ctx = oldfree.setup(std::forward<Fn>(fn), std::forward<Arg>(arg)...);
+
+            //auto ctx = oldfree.setup(std::forward<Fn>(fn), std::forward<Arg>(arg)...);
+            //manually inline as below is faster
+
+            assert(!oldfree.m_fiber);
+            oldfree.m_fiber = make_worker_context(launch::post,
+                          ReuseStack(oldfree.m_stack_base, oldfree.m_stack_size),
+                          std::forward<Fn>(fn), std::forward<Arg>(arg)...);
+            auto ctx = oldfree.m_fiber.get();
+
             m_sched->attach_worker_context(ctx);
             m_sched->schedule(ctx);
         }
@@ -119,6 +138,38 @@ public:
             // run in active fiber
             fn(std::forward<Arg>(arg)...);
         }
+    }
+
+    // never run fn in calling fiber
+    template<class Fn, class... Arg>
+    void submit_bench(int& myhead, Fn&& fn, Arg... arg) {
+        using namespace boost::fibers;
+        assert(-1 == myhead || size_t(myhead) < m_workers.size());
+        if (BOOST_UNLIKELY(-1 == m_freehead)) {
+            yield();
+            reap(myhead);
+            myhead = -1;
+        }
+        while (BOOST_UNLIKELY(-1 == m_freehead)) {
+            yield();
+        }
+        int oldfree_idx = m_freehead;
+        auto& oldfree = m_workers[oldfree_idx];
+        m_freehead = oldfree.m_next;
+        oldfree.m_next = myhead;
+        myhead = oldfree_idx;
+
+        //auto ctx = oldfree.setup(std::forward<Fn>(fn), std::forward<Arg>(arg)...);
+        //manually inline as below is faster
+
+        assert(!oldfree.m_fiber);
+        oldfree.m_fiber = make_worker_context(launch::post,
+                      ReuseStack(oldfree.m_stack_base, oldfree.m_stack_size),
+                      std::forward<Fn>(fn), std::forward<Arg>(arg)...);
+        auto ctx = oldfree.m_fiber.get();
+
+        m_sched->attach_worker_context(ctx);
+        m_sched->schedule(ctx);
     }
 
     void yield() {
