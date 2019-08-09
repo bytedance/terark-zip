@@ -215,13 +215,23 @@ const {
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* p = m_content.data() + BegEnd[0];
     if (2 == m_checksumLevel){
-        len -=  sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(p + len);
-		uint32_t crc2 = Crc32c_update(0, p, len);
-		if (crc2 != crc1) {
-			throw BadCrc32cException(
-				"PlainBlobStore::get_record_append_imp", crc1, crc2);
-		}
+        if (kCRC16C == m_checksumType) {
+            len -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(p + len);
+            uint16_t crc2 = Crc16c_update(0, p, len);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "PlainBlobStore::get_record_append_imp", crc1, crc2);
+            }
+        } else { // kCRC32C
+            len -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(p + len);
+            uint32_t crc2 = Crc32c_update(0, p, len);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "PlainBlobStore::get_record_append_imp", crc1, crc2);
+            }
+        }
     }
     recData->append(p, len);
 }
@@ -242,13 +252,23 @@ const {
     auto pData = fspread(lambda, baseOffset + offset, len, rdbuf);
     assert(NULL != pData);
     if (2 == m_checksumLevel){
-        len -=  sizeof(uint32_t);
-        uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-		uint32_t crc2 = Crc32c_update(0, pData, len);
-		if (crc2 != crc1) {
-			throw BadCrc32cException(
-				"PlainBlobStore::fspread_record_append_imp", crc1, crc2);
-		}
+        if (kCRC16C == m_checksumType) {
+            len -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
+            uint16_t crc2 = Crc16c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc16cException(
+                        "PlainBlobStore::fspread_record_append_imp", crc1, crc2);
+            }
+        } else { // kCRC32C
+            len -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
+            uint32_t crc2 = Crc32c_update(0, pData, len);
+            if (crc2 != crc1) {
+                throw BadCrc32cException(
+                        "PlainBlobStore::fspread_record_append_imp", crc1, crc2);
+            }
+        }
     }
     recData->append(pData, len);
 }
@@ -372,9 +392,15 @@ public:
         m_writer.ensureWrite(rec.data(), rec.size());
         m_content_size += rec.size();
         if (2 == m_checksumLevel) {
-            uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
-            m_writer.ensureWrite(&crc, sizeof(crc));
-            m_content_size += sizeof(crc);
+            if (kCRC16C == m_checksumType) {
+                uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
+                m_writer.ensureWrite(&crc, sizeof(crc));
+                m_content_size += sizeof(crc);
+            } else { // kCRC32C
+                uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
+                m_writer.ensureWrite(&crc, sizeof(crc));
+                m_content_size += sizeof(crc);
+            }
         }
         ++m_num_records;
     }
@@ -420,8 +446,12 @@ PlainBlobStore::MyBuilder::~MyBuilder() {
 }
 PlainBlobStore::MyBuilder::MyBuilder(size_t contentSize, size_t contentCnt, fstring fpath, size_t offset,
                                      int checksumLevel, int checksumType) {
-    if (2 == checksumLevel) { // record level crc, 32bits per record
-        contentSize += sizeof(uint32_t) * contentCnt;
+    if (2 == checksumLevel) { // record level crc
+        if (kCRC16C == checksumType) {
+            contentSize += sizeof(uint16_t) * contentCnt;
+        } else { // kCRC32C
+            contentSize += sizeof(uint32_t) * contentCnt;
+        }
     }
     impl = new Impl(contentSize, fpath, offset, checksumLevel, checksumType);
 }
