@@ -21,32 +21,32 @@ int main(int argc, char* argv[]) {
     size_t per_fp2 = fp2.capacity()/fp1.capacity();
     size_t loop_cnt = getEnvLong("loop_cnt", 10000);
     long long t0, t1;
-    int h1 = -1;
+    RunOnceFiberPool::Worker h1;
 
     t0 = pf.now();
     for (size_t i = 0; i < loop_cnt; ++i) {
         fp2.async(h1, [&](){cnt++;});
     }
     fp2.reap(h1);
+    assert(fp2.capacity() == fp2.freesize());
     t1 = pf.now();
     printf("test_fiber_pool-async : time = %f sec, cnt = %zd, ops = %f M/sec, latency = %f ns\n",
             pf.sf(t0,t1), cnt, cnt/pf.uf(t0,t1), pf.nf(t0,t1)/cnt);
 
     cnt = 0;
-    h1 = -1;
     t0 = pf.now();
     for (size_t i = 0; i < loop_cnt; ++i) {
         fp1.submit(h1, [&]() {
-        int h2 = -1;
-        for (size_t i = 0; i < per_fp2; ++i) {
-            fp2.submit(h2, [&]() {
-                cnt++;
-            });
-        }
-        fp2.reap(h2);
-    });
+            RunOnceFiberPool::Worker h2;
+            for (size_t i = 0; i < per_fp2; ++i) {
+                fp2.submit(h2, [&]() {cnt++;});
+            }
+            fp2.reap(h2);
+        });
     }
     fp1.reap(h1);
+    assert(fp1.capacity() == fp1.freesize());
+    assert(fp2.capacity() == fp2.freesize());
     t1 = pf.now();
 
     printf("test_fiber_pool-submit: time = %f sec, cnt = %zd, ops = %f M/sec, latency = %f ns\n",

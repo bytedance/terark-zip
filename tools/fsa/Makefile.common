@@ -21,6 +21,7 @@ endif
 
 override INCS := -I${TERARK_HOME}/src ${INCS} ${BOOST_INC}
 #override CXXFLAGS += -pipe
+override CXXFLAGS += -g3
 override CXXFLAGS += -Wall -Wextra
 override CXXFLAGS += -Wno-unused-parameter
 override CXXFLAGS += -D_GNU_SOURCE
@@ -31,7 +32,7 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 #override CXXFLAGS += -Wfatal-errors
 AFR_FLAGS = -O2
 DBG_FLAGS = -O0
-RLS_FLAGS = -O2 -DNDEBUG
+RLS_FLAGS = -Ofast -DNDEBUG
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
@@ -145,15 +146,19 @@ DLL_BINS_A := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_A}))
 DLL_BINS_D := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_D}))
 DLL_BINS_R := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_R}))
 
+ALL_OBJ := ${OBJS_A} ${OBJS_D} ${OBJS_R} ${DLL_OBJS_A} ${DLL_OBJS_D} ${DLL_OBJS_R}
+ALL_EXE := ${BINS_A} ${BINS_D} ${BINS_R}
+ALL_DLL := ${DLL_BINS_A} ${DLL_BINS_D} ${DLL_BINS_R}
+ALL_BIN := ${ALL_EXE} ${ALL_DLL}
+
 ext_ldflags = $(strip $(shell sed -n 's,.*//Makefile\s*:\s*LDFLAGS\s*:\s*\(.*\),\1,p' $(subst .exe,.cpp,$(subst ${RLS_DIR}/,,$(subst ${DBG_DIR}/,,$@)))))
 ext_cxxflags = $(strip $(shell sed -n 's,.*//Makefile\s*:\s*CXXFLAGS\s*:\s*\(.*\),\1,p' $<))
+ext_cxxflags_delay = $$(strip $$(shell sed -n 's,.*//Makefile\s*:\s*CXXFLAGS\s*:\s*\(.*\),\1,p' $$<))
 
 .PHONY : all clean link
 
 all : link
-link: ${BINS_A} ${DLL_BINS_A} \
-      ${BINS_D} ${DLL_BINS_D} \
-      ${BINS_R} ${DLL_BINS_R}
+link: ${ALL_BIN}
 	@mkdir -p dbg; cd dbg; \
 	for f in `find ../${DBG_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
 		ln -sf $$f .; \
@@ -236,11 +241,19 @@ ${UNIT_TESTS_RLS} : %.test_rls : %
 #@PARAM ${2} build dir       : ddir | rdir | adir
 #@param ${3} debug flag      : DBG_FLAGS | RLS_FLAGS | AFR_FLAGS
 define COMPILE_CXX
+${2}/%.o : %.${1}
+	@echo file: $$< "->" $$@
+	@echo TERARK_INC=${TERARK_INC} BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	@mkdir -p $$(dir $$@)
+	${CXX} ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} ${ext_cxxflags_delay} $$< -o $$@ -c
+${2}/%.s : %.${1}
+	@echo file: $$< "->" $$@
+	${CXX} ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} ${ext_cxxflags_delay} $$< -o $$@ -S -fverbose-asm
 ${2}/%.dep : %.${1}
 	@echo file: $$< "->" $$@
 	@echo INCS = ${INCS}
 	mkdir -p $$(dir $$@)
-	-${CXX} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+	-${CXX} ${CXX_STD} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
 endef
 
 $(eval $(call COMPILE_CXX,cpp,${AFR_DIR},${AFR_FLAGS}))
@@ -250,31 +263,6 @@ $(eval $(call COMPILE_CXX,cpp,${RLS_DIR},${RLS_FLAGS}))
 $(eval $(call COMPILE_CXX,cxx,${AFR_DIR},${AFR_FLAGS}))
 $(eval $(call COMPILE_CXX,cxx,${DBG_DIR},${DBG_FLAGS}))
 $(eval $(call COMPILE_CXX,cxx,${RLS_DIR},${RLS_FLAGS}))
-
-${AFR_DIR}/%.o : %.cpp
-	@mkdir -p $(dir $@)
-	${CXX} ${AFR_FLAGS} -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags)
-
-${DBG_DIR}/%.o : %.cpp
-	@mkdir -p $(dir $@)
-	${CXX} -O0 -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags)
-
-#${RLS_DIR}/%.o : CXXFLAGS += -funsafe-loop-optimizations -fgcse-sm -fgcse-las -fgcse-after-reload
-${RLS_DIR}/%.o : %.cpp
-	@mkdir -p $(dir $@)
-	${CXX} -Ofast -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags) -DNDEBUG
-
-${AFR_DIR}/%.o : %.cxx
-	@mkdir -p $(dir $@)
-	${CXX} -O0 -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags) ${FPIC}
-
-${DBG_DIR}/%.o : %.cxx
-	@mkdir -p $(dir $@)
-	${CXX} -O0 -g3 -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags) ${FPIC}
-
-${RLS_DIR}/%.o : %.cxx
-	@mkdir -p $(dir $@)
-	${CXX} -Ofast  -c ${INCS} ${CXXFLAGS} -o $@ $< $(ext_cxxflags) ${FPIC} -DNDEBUG
 
 %.exe : %.o
 	@echo Linking ... $@
@@ -291,4 +279,11 @@ ${RLS_DIR}/%.o : %.cxx
 	@${LD} -shared $(sort $(filter %.o,$^)) ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
+endif
+
+ifneq ($(MAKECMDGOALS),cleanall)
+ifneq ($(MAKECMDGOALS),clean)
+alldep := ${ALL_OBJ:.o=.dep}
+-include ${alldep}
+endif
 endif
