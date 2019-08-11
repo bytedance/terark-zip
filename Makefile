@@ -185,7 +185,8 @@ core_src := \
 
 core_src := $(filter-out ${zip_src}, ${core_src})
 
-ifeq (${UNAME_System},"DarwinWithoutC++11")
+#ifeq (${UNAME_System},"DarwinWithoutC++11")
+ifeq (1,1)
 # lib boost-fiber can not be built by boost build
 # include the source
 core_src += \
@@ -205,7 +206,7 @@ core_src += \
   boost-include/libs/fiber/src/timed_mutex.cpp \
   boost-include/libs/fiber/src/scheduler.cpp
 
-  BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_thread.a
+  #BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_thread.a
 else
   BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_fiber.a
 endif
