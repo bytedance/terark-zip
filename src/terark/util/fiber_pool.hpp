@@ -47,9 +47,9 @@ public:
 };
 
 // allowing multiple fibers running submit/reap pair
-class RunOnceFiberPool {
+class TERARK_DLL_EXPORT RunOnceFiberPool {
 public:
-    class Worker {
+    class TERARK_DLL_EXPORT Worker {
         friend class RunOnceFiberPool;
         Worker* m_next = NULL;
         Worker* m_prev = NULL;
@@ -97,18 +97,16 @@ public:
             m_stack_base = NULL;
             m_stack_size = 0;
         }
-        ~Worker() {
-            if (m_stack_base) {
-                //assert(!m_fiber || m_fiber->is_terminated());
-            } else {
-                assert(is_empty_list()); // user land list head
-            }
-            free(m_stack_base);
-        }
+        ~Worker();
     };
     friend class Worker;
 
 private:
+    RunOnceFiberPool(const RunOnceFiberPool&) = delete;
+    RunOnceFiberPool(RunOnceFiberPool&&) = delete;
+    RunOnceFiberPool&operator=(const RunOnceFiberPool&) = delete;
+    RunOnceFiberPool&operator=(RunOnceFiberPool&&) = delete;
+
     valvec<Worker> m_workers;
     boost::fibers::context** m_active_pp;
     boost::fibers::scheduler* m_sched;
@@ -116,39 +114,9 @@ private:
     size_t m_freesize;
 public:
     explicit
-    RunOnceFiberPool(size_t num,
-                     size_t stack_size = ReuseStack::traits_type::default_size())
-    {
-        using namespace boost::fibers;
-        m_active_pp = context::active_pp();
-        m_sched = (*m_active_pp)->get_scheduler();
-        m_workers.resize_no_init(num);
-        for (size_t i = 0; i < num; ++i) {
-            auto w = m_workers.ptr(i);
-            new(w)Worker(stack_size);
-            w->m_next = w + 1;
-            w->m_prev = w - 1;
-        }
-        size_t t = num-1;
-        m_workers[t].m_next = &m_freehead;
-        m_workers[0].m_prev = &m_freehead;
-        m_freehead.m_next = m_workers.ptr(0);
-        m_freehead.m_prev = m_workers.ptr(t);
-        m_freesize = num;
-    }
-    ~RunOnceFiberPool() {
-#if !defined(NDEBUG)
-        assert(m_workers.size() == m_freesize);
-        assert(!m_freehead.m_fiber);
-        for (size_t i = 0; i < m_workers.size(); ++i) {
-            auto& w = m_workers[i];
-            //assert(!w.m_fiber || w.m_fiber->is_terminated());
-            assert(NULL != w.m_stack_base);
-        }
-        m_workers.clear();
-        m_freehead.m_prev = m_freehead.m_next = &m_freehead;
-#endif
-    }
+    RunOnceFiberPool(size_t num);
+    RunOnceFiberPool(size_t num, size_t stack_size);
+    ~RunOnceFiberPool();
 
     size_t capacity() const { return m_workers.size(); }
     size_t freesize() const { return m_freesize; }
@@ -221,11 +189,7 @@ public:
         //boost::this_fiber::yield();
     }
 
-    void reap(Worker& myhead) {
-        while (!myhead.is_empty_list()) {
-            yield();
-        }
-    }
+    void reap(Worker& myhead);
 };
 
 }

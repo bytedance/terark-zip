@@ -278,6 +278,12 @@ DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d}
 RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r}
 AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a}
 
+ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
+  TERARK_BIN_DEP_LIB := ${static_core_d} ${static_fsa_d} ${static_zbs_d}
+else
+  TERARK_BIN_DEP_LIB := ${core_d} ${fsa_d} ${zbs_d}
+endif
+
 .PHONY : default all core fsa zbs
 
 default : fsa core zbs
@@ -547,17 +553,17 @@ ${TarBall}.tgz: ${TarBall}
 .PONY: test_rls
 test: test_dbg test_afr test_rls
 
-test_dbg: ${zbs_d} ${fsa_d} ${core_d}
+test_dbg: ${TERARK_BIN_DEP_LIB}
 	+$(MAKE) -C tests/core        test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/tries       test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/succinct    test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
 
-test_afr: ${zbs_a} ${fsa_a} ${core_a}
+test_afr: ${TERARK_BIN_DEP_LIB}
 	+$(MAKE) -C tests/core        test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/tries       test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/succinct    test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
 
-test_rls: ${zbs_r} ${fsa_r} ${core_r}
+test_rls: ${TERARK_BIN_DEP_LIB}
 	+$(MAKE) -C tests/core        test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/tries       test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
 	+$(MAKE) -C tests/succinct    test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
