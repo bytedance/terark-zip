@@ -113,10 +113,11 @@ void RunOnceFiberPool::Schedualer::run_one_round() {
        old_active->m_fiber = std::move(c);
        return fiber{}; //std::move(new_active->m_next_ready->m_fiber);
     });
-*/
+
     assert(!old_active->m_next_ready->m_fiber);
     assert(get_active() == old_active);
     old_active->m_next_ready->m_fiber = std::move(target);
+*/
 }
 
 void RunOnceFiberPool::Schedualer::join() {
