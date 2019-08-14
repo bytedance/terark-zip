@@ -1,3 +1,7 @@
 cmake-build-debug
 .idea
 build
+tools/*/dbg
+tools/*/rls
+pkg
+output
