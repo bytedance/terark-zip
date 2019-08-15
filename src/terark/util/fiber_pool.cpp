@@ -106,18 +106,12 @@ void RunOnceFiberPool::Schedualer::run_one_round() {
     set_active(new_active);
     assert(new_active->m_fiber);
     printf("run_one_round: o.idx = %zd, n.idx = %zd, yield_cnt = %zd\n", old_active->index(), new_active->index(), m_yield_cnt);
-//  auto target = std::move(new_active->m_fiber).resume();
-/*
-    auto target = std::move(new_active->m_fiber).resume_with(
-            [old_active](fiber&& c) {
+    std::move(new_active->m_fiber).resume_with([old_active](fiber&& c) {
        old_active->m_fiber = std::move(c);
-       return fiber{}; //std::move(new_active->m_next_ready->m_fiber);
+       return fiber{};
     });
-
-    assert(!old_active->m_next_ready->m_fiber);
+    assert(!old_active->m_fiber);
     assert(get_active() == old_active);
-    old_active->m_next_ready->m_fiber = std::move(target);
-*/
 }
 
 void RunOnceFiberPool::Schedualer::join() {

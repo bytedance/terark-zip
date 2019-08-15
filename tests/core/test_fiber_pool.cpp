@@ -11,7 +11,25 @@
 #include <terark/util/profiling.hpp>
 #include <terark/fstring.hpp>
 
+#include <boost/fiber/fiber.hpp>
+
 int main(int argc, char* argv[]) {
+    {
+        using namespace boost::fibers;
+        fiber(launch::dispatch, []() {
+            printf("boost::fibers::fiber launched\n");
+        }).detach();
+    }
+    if (0){
+        using namespace boost::context;
+        fiber m;
+        fiber([&](fiber&& c) {
+            m = std::move(c);
+            printf("boost::context::fiber resumed\n");
+            return fiber{};
+        }).resume();
+        // m becomes valid ??
+    }
     using namespace terark;
     return 0;
     RunOnceFiberPool fp1( 8);

@@ -206,16 +206,19 @@ public:
         w->list_delete();
         myhead.list_append(w);
         const auto old_active = m_sched->get_active();
+        assert(old_active != w);
         assert(!old_active->m_fiber);
         m_sched->m_ready_size++;
         old_active->ready_insert_as_next(w);
         m_sched->set_active(w);
         auto fib = fiber(std::allocator_arg, ReuseStack(w),
         [&myhead,this,w,old_active,fn,arg...](boost::context::fiber&& c) {
+            assert(!w->m_fiber);
             old_active->m_fiber = std::move(c);
             assert(m_sched->get_active() == w);
             assert(!w->m_fiber);
             assert(!w->ready_is_empty());
+            assert(w->m_prev_ready == old_active);
             printf("fiber_enter: workers = %zd, freesize = %zd, w.idx = %zd, o.idx = %zd, n.idx = %zd, ready_size = %zd, yield_cnt = %zd, fiber-living: ",
                     m_workers.size(), m_freesize, w->index(), old_active->index(), w->m_next_ready->index(), m_sched->m_ready_size, yield_cnt());
             fn(arg...);
@@ -237,23 +240,25 @@ public:
             }
             printf("\n");
             assert(wnext->m_fiber);
+            assert(w->m_prev_ready->m_fiber);
             assert(m_sched->m_ready_size > 0);
             assert(!m_sched->m_head.ready_is_empty());
             assert(!w->ready_is_empty());
             assert(w != &m_sched->m_head); // not main context
+
+            auto wprev = w->m_prev_ready;
+            m_sched->set_active(wprev);
+            assert(wprev->m_fiber);
 
             w->list_delete();
             w->ready_delete();
             m_freehead.list_append(w);
             m_freesize++;
             m_sched->m_ready_size--;
-
-            m_sched->set_active(wnext);
-            return std::move(wnext->m_fiber);
+            return std::move(wprev->m_fiber);
         });
-        fib = std::move(fib).resume();
+        std::move(fib).resume();
         assert(m_sched->get_active() == old_active);
-        old_active->m_next_ready->m_fiber = std::move(fib); // whatever target is null or not
         m_sched->m_yield_cnt++;
     }
 
