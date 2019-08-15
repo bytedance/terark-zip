@@ -14,6 +14,7 @@
 #include <boost/fiber/fiber.hpp>
 
 int main(int argc, char* argv[]) {
+#if 0
     {
         using namespace boost::fibers;
         fiber(launch::dispatch, []() {
@@ -75,6 +76,6 @@ int main(int argc, char* argv[]) {
 
     printf("test_fiber_pool-submit: time = %f sec, cnt = %zd, ops = %f M/sec, latency = %f ns\n",
             pf.sf(t0,t1), cnt, cnt/pf.uf(t0,t1), pf.nf(t0,t1)/cnt);
-
+#endif
     return 0;
 }
