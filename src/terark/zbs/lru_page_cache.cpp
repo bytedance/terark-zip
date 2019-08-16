@@ -10,6 +10,7 @@
 #include <terark/num_to_str.hpp>
 #include <atomic>
 #include <boost/preprocessor/cat.hpp>
+#include <terark/thread/fiber_mutex.hpp>
 
 #if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
 	#define WIN32_LEAN_AND_MEAN
@@ -1035,7 +1036,8 @@ void SingleLruReadonlyCache::print_stat_cnt_impl(FILE* fp, const size_t cnt[6], 
 class MultiLruReadonlyCache final : public LruReadonlyCache {
 public:
 	valvec<std::unique_ptr<SingleLruReadonlyCache> > m_shards;
-	std::mutex m_mutex;
+	FiberMutex m_mutex;
+	typedef std::lock_guard<FiberMutex> MutexGuard;
 
 	explicit MultiLruReadonlyCache(size_t capacityBytes, size_t shards, size_t maxFiles) {
 		m_shards.reserve(shards);
@@ -1092,7 +1094,7 @@ public:
 		return unibuf->data();
 	}
 	intptr_t open(intptr_t fd) override {
-	    std::lock_guard<std::mutex> lock(m_mutex);
+	    MutexGuard lock(m_mutex);
 		intptr_t fi = m_shards[0]->open(fd);
 		for (size_t i = 1; i < m_shards.size(); ++i) {
 			intptr_t fii = m_shards[i]->open(fd);
@@ -1101,13 +1103,13 @@ public:
 		return fi;
 	}
 	void close(intptr_t fi) override {
-	    std::lock_guard<std::mutex> lock(m_mutex);
+	    MutexGuard lock(m_mutex);
 		for (auto& p : m_shards) {
 			p->close(fi);
 		}
 	}
 	bool safe_close(intptr_t fi) override {
-	    std::lock_guard<std::mutex> lock(m_mutex);
+	    MutexGuard lock(m_mutex);
 		bool bRet = false;
 		for (auto& p : m_shards) {
 			bRet = p->safe_close(fi);
