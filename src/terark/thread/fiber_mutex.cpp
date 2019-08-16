@@ -8,12 +8,8 @@
 namespace terark {
 
 void FiberMutex::lock() {
-    while (terark_unlikely(!m_mutex.try_lock())) {
-        if (std::this_thread::get_id() == m_lock_owner_thread_id) {
-            boost::this_fiber::yield();
-        } else {
-            break;
-        }
+    while (std::this_thread::get_id() == m_lock_owner_thread_id) {
+        boost::this_fiber::yield();
     }
     m_mutex.lock();
     m_lock_owner_thread_id = std::this_thread::get_id();
