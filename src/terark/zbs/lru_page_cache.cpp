@@ -10,7 +10,7 @@
 #include <terark/num_to_str.hpp>
 #include <atomic>
 #include <boost/preprocessor/cat.hpp>
-#include <terark/thread/fiber_mutex.hpp>
+#include <boost/fiber/mutex.hpp>
 
 #if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
 	#define WIN32_LEAN_AND_MEAN
@@ -1036,8 +1036,8 @@ void SingleLruReadonlyCache::print_stat_cnt_impl(FILE* fp, const size_t cnt[6], 
 class MultiLruReadonlyCache final : public LruReadonlyCache {
 public:
 	valvec<std::unique_ptr<SingleLruReadonlyCache> > m_shards;
-	FiberMutex m_mutex;
-	typedef std::lock_guard<FiberMutex> MutexGuard;
+	boost::fibers::mutex m_mutex;
+	typedef std::lock_guard<boost::fibers::mutex> MutexGuard;
 
 	explicit MultiLruReadonlyCache(size_t capacityBytes, size_t shards, size_t maxFiles) {
 		m_shards.reserve(shards);
