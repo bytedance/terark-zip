@@ -42,9 +42,6 @@ UNAME_System := $(shell uname | sed 's/^\([0-9a-zA-Z]*\).*/\1/')
 ifeq (${UNAME_System},Linux)
   override LIBS += -lrt
 endif
-ifeq (${UNAME_System},Darwin)
-  override LIBS += ${TERARK_HOME}/boost-include/stage/lib/libboost_{fiber,system,context}.a
-endif
 override LIBS += -lpthread
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:5})" "clang"
