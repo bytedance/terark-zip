@@ -777,6 +777,7 @@ PipelineProcessor::PipelineProcessor()
 	m_keepSerial = false;
 	m_run = false;
 	m_logLevel = 1;
+	m_EUType = EUType::thread;
 }
 
 PipelineProcessor::~PipelineProcessor()

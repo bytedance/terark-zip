@@ -569,6 +569,7 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bo
 			, offset, maxlen, rdlen, err, err);
 	}
 #else
+	assert(!aio || offset % 4096 == 0);
 	ssize_t rdlen;
 	if (aio)
 	    rdlen = fiber_aio_read(fd, buf, maxlen, offset);
