@@ -11,6 +11,8 @@
 #include <atomic>
 #include <boost/preprocessor/cat.hpp>
 #include <boost/fiber/mutex.hpp>
+#include <boost/fiber/operations.hpp>
+#include <terark/thread/fiber_aio.hpp>
 
 #if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
 	#define WIN32_LEAN_AND_MEAN
@@ -551,7 +553,7 @@ SingleLruReadonlyCache::~SingleLruReadonlyCache() {
 }
 
 static void
-do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen) {
+do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bool aio) {
 #if defined(_MSC_VER)
 	OVERLAPPED ol; memset(&ol, 0, sizeof(ol));
 	ol.Offset = (DWORD)offset;
@@ -565,7 +567,12 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen) {
 			, offset, maxlen, rdlen, err, err);
 	}
 #else
-	ssize_t rdlen = pread(fd, buf, maxlen, offset);
+	ssize_t rdlen;
+	if (aio)
+	    rdlen = fiber_aio_read(fd, buf, maxlen, offset);
+	else
+	    rdlen = pread(fd, buf, maxlen, offset);
+
 	if (rdlen < ssize_t(minlen)) {
 		THROW_STD(logic_error
 			, "pread(offset = %zd, len = %zd) = %zd (minlen = %zd), err = %s"
@@ -581,7 +588,7 @@ static inline uint64_t MyHash(uint64_t fi_page_id) {
 
 TERARK_DLL_EXPORT
 void fdpread(intptr_t fd, void* buf, size_t len, size_t offset) {
-	do_pread(fd, buf, offset, len, len);
+	do_pread(fd, buf, offset, len, len, false);
 }
 
 // already in m_mutex lock
@@ -788,7 +795,7 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		TERARK_SCOPE_EXIT(if (!isOK) nodes[p].ref_count--);
 		do_pread(fd, bufptr
 				   , align_down(offset, PAGE_SIZE)
-				   , pg_offset + len, PAGE_SIZE);
+				   , pg_offset + len, PAGE_SIZE, b->use_aio_read);
 		nodes[p].is_loaded = true;
 		isOK = true;
         b->index = p;
@@ -803,7 +810,12 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		size_t first_page =  offset >> PAGE_BITS;
 		size_t plast_page = (offset + len + PAGE_SIZE - 1) >> PAGE_BITS;
 		assert(first_page + 2 <= plast_page);
-		static thread_local valvec<MyPageEntry>  pgvec_obj;
+		static thread_local valvec<valvec<MyPageEntry> > tss;
+		valvec<MyPageEntry> pgvec_obj;
+		if (tss.size()) {
+		    tss.back().swap(pgvec_obj);
+		    tss.pop_back();
+		}
 		pgvec_obj.resize_no_init(plast_page - first_page);
 		auto pgvec = pgvec_obj.data();
 		for (size_t pg = first_page; pg < plast_page; ++pg) {
@@ -849,17 +861,20 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 			}
 		}
 		// read data no lock...
-		auto readpage = [this,first_page,fd,nodes,pgvec,unibuf,fi]
+		auto readpage = [this,first_page,fd,nodes,pgvec,unibuf,fi,b]
 		(size_t fpg, size_t minlen, size_t pg_offset) {
 			auto p = pgvec[fpg - first_page].page_id;
 			byte_t* bufptr = this->m_bufmem + PAGE_SIZE*(p-1);
 			if (!nodes[p].is_loaded) {
 				if (pgvec[fpg - first_page].alloc_by_me) {
 					assert(fd >= 0);
-					do_pread(fd, bufptr, fpg*PAGE_SIZE, minlen, PAGE_SIZE);
+					do_pread(fd, bufptr, fpg*PAGE_SIZE, minlen, PAGE_SIZE, b->use_aio_read);
 					nodes[p].is_loaded = true;
 				} else {
 					while (!nodes[p].is_loaded) {
+					    boost::this_fiber::yield();
+					    if (nodes[p].is_loaded)
+					        break;
 						std::this_thread::yield();
 					}
 					ScopeLock lock(m_mutex);
@@ -895,6 +910,9 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
             }
 		}
         b->index = 0;
+		if (pgvec_obj.capacity()) {
+		    tss.emplace_back(std::move(pgvec_obj));
+		}
 		return unibuf->data();
 	}
 }
@@ -1036,8 +1054,10 @@ void SingleLruReadonlyCache::print_stat_cnt_impl(FILE* fp, const size_t cnt[6], 
 class MultiLruReadonlyCache final : public LruReadonlyCache {
 public:
 	valvec<std::unique_ptr<SingleLruReadonlyCache> > m_shards;
-	boost::fibers::mutex m_mutex;
-	typedef std::lock_guard<boost::fibers::mutex> MutexGuard;
+	//typedef boost::fibers::mutex MutexType;
+	typedef std::mutex MutexType;
+	typedef std::lock_guard<MutexType> MutexGuard;
+	MutexType m_mutex;
 
 	explicit MultiLruReadonlyCache(size_t capacityBytes, size_t shards, size_t maxFiles) {
 		m_shards.reserve(shards);

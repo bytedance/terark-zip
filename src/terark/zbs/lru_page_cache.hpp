@@ -25,12 +25,17 @@ public:
         valvec<byte_t>*         rdbuf;
 		uint32_t  index; // index == 0 indicate not ref any page
 		CacheType cache_type;
-	//	byte_t    reserved;
+		byte_t    use_aio_read : 1;
 	//	uint16_t  missed_pages;
         void discard_impl();
     public:
         explicit
-         Buffer(valvec<byte_t>* rb) : rdbuf(rb), index(0) { assert(rb); }
+        Buffer(valvec<byte_t>* rb, bool use_aio_read_ = false) {
+            rdbuf = rb;
+            index = 0;
+            use_aio_read = use_aio_read_;
+            assert(rb);
+        }
         ~Buffer() { discard(); }
         void discard() { if (index) discard_impl(); }
 	};
