@@ -213,8 +213,9 @@ PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, function<void()>&& func) {
         return new ThreadExecUnit(std::move(func));
 }
 
-PipelineStage::ThreadData::ThreadData() : m_run(false) {
+PipelineStage::ThreadData::ThreadData() {
 	m_thread = NULL;
+    m_live_fibers = 0;
 }
 PipelineStage::ThreadData::~ThreadData() {
 	delete m_thread;
@@ -402,7 +403,7 @@ void PipelineStage::clean(int threadno)
 void PipelineStage::run_wrapper(int threadno)
 {
 	as_atomic(m_running_exec_units)++;
-	m_threads[threadno].m_run = true;
+	m_threads[threadno].m_live_fibers++;
 	bool setup_successed = false;
 	try {
 		setup(threadno);
@@ -433,7 +434,7 @@ void PipelineStage::run_wrapper(int threadno)
 		}
 	}
 	m_owner->stop();
-	m_threads[threadno].m_run = false;
+	m_threads[threadno].m_live_fibers--;
 	as_atomic(m_running_exec_units)--;
 }
 
@@ -511,7 +512,7 @@ void PipelineStage::run_step_last(int threadno)
 		}
 		else {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: last_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: last_step(%s): tno=%d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 		}
 	}
@@ -604,7 +605,7 @@ void PipelineStage::run_serial_step_slow(int threadno,
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
         {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: serial_step_slow(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: serial_step_slow(%s): tno=%d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 			continue;
 		}
@@ -655,7 +656,7 @@ void PipelineStage::run_serial_step_fast(int threadno,
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
         {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 			continue;
 		}

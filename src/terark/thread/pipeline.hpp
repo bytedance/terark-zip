@@ -82,7 +82,7 @@ protected:
 	struct ThreadData : boost::noncopyable {
 		std::string m_err_text;
 		ExecUnit*  m_thread;
-		volatile size_t m_run; // size_t is a CPU word, should be bool
+		volatile size_t m_live_fibers; // size_t is a CPU word, should be bool
 		ThreadData();
 		~ThreadData();
 	};
