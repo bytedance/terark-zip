@@ -10,7 +10,7 @@ fi
 git submodule update --init
 
 sudo apt-get update
-sudo apg-get install libaio-dev
+sudo apt-get install libaio-dev
 
 rm -rf pkg
 
