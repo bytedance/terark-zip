@@ -11,9 +11,9 @@ BOOST_INC ?= -Iboost-include
 ifeq "$(origin LD)" "default"
   LD := ${CXX}
 endif
-ifeq "$(origin CC)" "default"
-  CC := ${CXX}
-endif
+#ifeq "$(origin CC)" "default"
+#  CC := ${CXX}
+#endif
 
 # Makefile is stupid to parsing $(shell echo ')')
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
@@ -327,6 +327,9 @@ define BOOST_OBJS
   fi)
 endef
 
+# must use '=' for lazy evaluation, do not use ':='
+THIS_LIB_OBJS = $(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT}))
+
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
 ${1}/git-version-fsa.cpp: ${fsa_src}
@@ -379,11 +382,11 @@ boost-include/build-lib-for-terark.done:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating dynamic library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	@echo -e "OBJS:" $(addprefix "\n  ",$(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT})))
+	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	mkdir -p ${BUILD_ROOT}/lib
 	@rm -f $@
-	${LD} -shared $(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT})) ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
+	${LD} -shared ${THIS_LIB_OBJS} ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
@@ -393,11 +396,11 @@ endif
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating static library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	@echo -e "OBJS:" $(addprefix "\n  ",$(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT})))
+	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	${AR} rcs $@ $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT});
+	${AR} rcs $@ ${THIS_LIB_OBJS};
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 
 .PHONY : install
