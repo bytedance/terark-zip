@@ -17,6 +17,9 @@
 
 namespace terark {
 
+#if defined(__GNUC__)
+    #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
+#endif
 
 #if BOOST_OS_LINUX
 
