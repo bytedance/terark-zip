@@ -183,12 +183,24 @@ public:
     MixedExecUnit(int nfib, MakeFunc mkfn) {
         assert(nfib > 0);
         new(&thr)std::thread([=]() {
-            fibs.reserve(nfib-1);
-            for (int i = 0; i < nfib-1; ++i) {
+          //const int spawn_num = nfib-1;
+            const int spawn_num = nfib;
+            fibs.reserve(spawn_num);
+            for (int i = 0; i < spawn_num; ++i) {
                 fibs.unchecked_emplace_back(mkfn());
             }
-            auto fn = mkfn();
-            fn();
+            if (spawn_num == nfib) {
+                // seems boost::fibers has some bugs
+                for (int i = 0; i < spawn_num; ++i) {
+                    while (fibs[i].joinable()) {
+                        boost::this_fiber::yield();
+                    }
+                }
+            }
+            else {
+                auto fn = mkfn();
+                fn();
+            }
         });
     }
     ~MixedExecUnit() {
