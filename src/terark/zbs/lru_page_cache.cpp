@@ -872,9 +872,11 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 					nodes[p].is_loaded = true;
 				} else {
 					while (!nodes[p].is_loaded) {
-					    boost::this_fiber::yield();
-					    if (nodes[p].is_loaded)
-					        break;
+					    if (b->use_aio_read) {
+                            boost::this_fiber::yield();
+                            if (nodes[p].is_loaded)
+                                break;
+                        }
 						std::this_thread::yield();
 					}
 					ScopeLock lock(m_mutex);
