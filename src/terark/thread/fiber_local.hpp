@@ -9,8 +9,8 @@ namespace terark {
     template<class T>
     class recycle_pool {
         valvec<T> m_free;
-        static_assert(std::is_move_constructible<valvec<T> >::value, "valvec<T> must be move constructible")
-        static_assert(std::is_move_constructible<T>::value, "T must be move constructible")
+        static_assert(std::is_move_constructible<valvec<T> >::value, "valvec<T> must be move constructible");
+        static_assert(std::is_move_constructible<T>::value, "T must be move constructible");
     public:
         T get() {
             if (m_free.size()) {
