@@ -13,6 +13,7 @@
 #include <boost/fiber/mutex.hpp>
 #include <boost/fiber/operations.hpp>
 #include <terark/thread/fiber_aio.hpp>
+#include <terark/thread/fiber_local.hpp>
 
 #if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
 	#define WIN32_LEAN_AND_MEAN
@@ -818,12 +819,8 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		size_t first_page =  offset >> PAGE_BITS;
 		size_t plast_page = (offset + len + PAGE_SIZE - 1) >> PAGE_BITS;
 		assert(first_page + 2 <= plast_page);
-		static thread_local valvec<valvec<MyPageEntry> > tss;
-		valvec<MyPageEntry> pgvec_obj;
-		if (tss.size()) {
-		    tss.back().swap(pgvec_obj);
-		    tss.pop_back();
-		}
+		static thread_local recycle_pool<valvec<MyPageEntry> > tss;
+		valvec<MyPageEntry> pgvec_obj = tss.get();
 		pgvec_obj.resize_no_init(plast_page - first_page);
 		auto pgvec = pgvec_obj.data();
 		for (size_t pg = first_page; pg < plast_page; ++pg) {
@@ -920,9 +917,7 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
             }
 		}
         b->index = 0;
-		if (pgvec_obj.capacity()) {
-		    tss.emplace_back(std::move(pgvec_obj));
-		}
+		tss.put(std::move(pgvec_obj));
 		return unibuf->data();
 	}
 }
