@@ -781,6 +781,11 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		if (0) {
 	OnHitOthersLoad:
 			while (!nodes[p].is_loaded) {
+                if (m_use_aio) {
+                    boost::this_fiber::yield();
+                    if (nodes[p].is_loaded)
+                        break;
+                }
 				// waiting for other threads to load the page
 				std::this_thread::yield();
 			}
