@@ -522,6 +522,10 @@ void PipelineStage::run_step_mid(int threadno)
 {
 	assert(ple_none == m_pl_enum || (ple_generate == m_pl_enum && m_threads.size() == 1));
 
+	if (m_owner->m_logLevel >= 4) {
+			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd\n", threadno, m_threads[threadno].m_live_fibers);
+	}
+
 	while (isPrevRunning())
 	{
 		PipelineQueueItem item;
@@ -656,7 +660,7 @@ void PipelineStage::run_serial_step_fast(int threadno,
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
         {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, prev.live_exec = %d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno, m_prev->m_running_exec_units);
 		    }
 			continue;
 		}
