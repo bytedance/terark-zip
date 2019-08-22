@@ -523,7 +523,7 @@ void PipelineStage::run_step_mid(int threadno)
 	assert(ple_none == m_pl_enum || (ple_generate == m_pl_enum && m_threads.size() == 1));
 
 	if (m_owner->m_logLevel >= 4) {
-			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd\n", threadno, m_threads[threadno].m_live_fibers);
+			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd, enter\n", threadno, m_threads[threadno].m_live_fibers);
 	}
 
 	while (isPrevRunning())
@@ -547,6 +547,10 @@ void PipelineStage::run_step_mid(int threadno)
 		        fprintf(stderr, "Pipeline: mid_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 		}
+	}
+
+	if (m_owner->m_logLevel >= 4) {
+			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd, leave\n", threadno, m_threads[threadno].m_live_fibers);
 	}
 }
 
