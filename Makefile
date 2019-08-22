@@ -276,7 +276,7 @@ rls: ${RLS_TARGETS}
 afr: ${AFR_TARGETS}
 
 ifneq (${UNAME_System},Darwin)
-${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread
+${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread -laio
 endif
 ${core_d} : LIBS := $(filter-out -lterark-core-${COMPILER}-d, ${LIBS})
 ${core_r} : LIBS := $(filter-out -lterark-core-${COMPILER}-r, ${LIBS})
