@@ -382,20 +382,22 @@ void PipelineStage::onException(int threadno, const std::exception& exp)
 void PipelineStage::setup(int threadno)
 {
 	if (m_owner->m_logLevel >= 1) {
-		printf("start step[ordinal=%d, threadno=%d]: %s\n",
-		        step_ordinal(), threadno, m_step_name.c_str());
+        size_t live_fibers = m_threads[threadno].m_live_fibers;
+		printf("start step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n",
+		        step_ordinal(), threadno, live_fibers, m_step_name.c_str());
 	}
 }
 
 void PipelineStage::clean(int threadno)
 {
+    size_t live_fibers = m_threads[threadno].m_live_fibers;
 	if (err(threadno).empty()) {
 		if (m_owner->m_logLevel >= 1)
-			printf("ended step[ordinal=%d, threadno=%d]: %s\n"
-				, step_ordinal(), threadno, m_step_name.c_str());
+			printf("ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n"
+				, step_ordinal(), threadno, live_fibers, m_step_name.c_str());
 	} else {
-		fprintf(stderr, "ended step[ordinal=%d, threadno=%d]: %s; error: %s\n"
-				, step_ordinal(), threadno, m_step_name.c_str()
+		fprintf(stderr, "ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s; error: %s\n"
+				, step_ordinal(), threadno, live_fibers, m_step_name.c_str()
 				, err(threadno).c_str());
 	}
 }
