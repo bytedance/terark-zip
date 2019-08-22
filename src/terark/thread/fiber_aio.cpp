@@ -164,7 +164,7 @@ public:
       }
     }
     else {
-        while (UNLIKELY(io_reqnum >= io_batch)) {
+        while (terark_unlikely(io_reqnum >= io_batch)) {
           fprintf(stderr, "WARN: ft_num = %zd, io_reqnum = %zd >= io_batch = %d, yield fiber\n", ft_num, io_reqnum, io_batch);
           boost::this_fiber::yield();
         }
