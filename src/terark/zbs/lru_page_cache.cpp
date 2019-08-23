@@ -41,6 +41,8 @@
 
 namespace terark {
 
+static long g_lruLogLevel = getEnvLong("Terark_lruLogLevel", 0);
+
 template<class T>
 class SimplePermanentID {
 	valvec<T> m_objects;
@@ -1165,6 +1167,11 @@ public:
 
 LruReadonlyCache*
 LruReadonlyCache::create(size_t totalcapacityBytes, size_t shards, size_t maxFiles, bool aio) {
+    if (g_lruLogLevel >= 3) {
+        fprintf(stderr,
+          "INFO: LruReadonlyCache::create(cap=%zd, shards=%zd, files=%zd, aio=%d\n",
+          totalcapacityBytes, shards, maxFiles, aio);
+    }
 	if (shards <= 1) {
 		return new SingleLruReadonlyCache(totalcapacityBytes, maxFiles, aio);
 	}
