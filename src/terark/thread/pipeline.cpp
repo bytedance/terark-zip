@@ -160,65 +160,43 @@ public:
     virtual bool joinable() const = 0;
 };
 class ThreadExecUnit : public PipelineStage::ExecUnit {
-public:
     thread thr;
-    ThreadExecUnit(function<void()>&& f) : thr(std::move(f)) {}
+public:
+    template<class Func>
+    ThreadExecUnit(Func&& f) : thr(std::move(f)) {}
 
     void join() final { thr.join(); }
     bool joinable() const final { return thr.joinable(); }
 };
 class FiberExecUnit : public PipelineStage::ExecUnit {
-public:
     boost::fibers::fiber fib;
-    FiberExecUnit(function<void()>&& f) : fib(std::move(f)) {}
+public:
+    template<class Func>
+    FiberExecUnit(Func&& f) : fib(std::move(f)) {}
 
     void join() final { fib.join(); }
     bool joinable() const final { return fib.joinable(); }
 };
-class MixedExecUnit : public PipelineStage::ExecUnit {
+class MixedExecUnit : public ThreadExecUnit {
 public:
-    union { std::thread thr; };
-    valvec<boost::fibers::fiber> fibs;
     template<class MakeFunc>
-    MixedExecUnit(int nfib, MakeFunc mkfn) {
-        assert(nfib > 0);
-        new(&thr)std::thread([=]() {
-          //const int spawn_num = nfib-1;
-            const int spawn_num = nfib;
-            fibs.reserve(spawn_num);
-            for (int i = 0; i < spawn_num; ++i) {
-                fibs.unchecked_emplace_back(mkfn());
-            }
-            if (spawn_num == nfib) {
-                // seems boost::fibers has some bugs
-                for (int i = 0; i < spawn_num; ++i) {
-                    while (fibs[i].joinable()) {
-                        boost::this_fiber::yield();
-                    }
-                }
-            }
-            else {
-                auto fn = mkfn();
-                fn();
-            }
-        });
-    }
-    ~MixedExecUnit() {
-        assert(!thr.joinable());
-        fibs.clear();
-        thr.~thread();
-    }
-
-    void join() final {
-        for (size_t i = 0; i < fibs.size(); ++i) {
+    MixedExecUnit(int nfib, MakeFunc mkfn)
+ : ThreadExecUnit([=]() {
+        const int spawn_num = nfib-1;
+        valvec<boost::fibers::fiber> fibs(spawn_num, valvec_reserve());
+        for (int i = 0; i < spawn_num; ++i) {
+            fibs.unchecked_emplace_back(mkfn());
+        }
+        mkfn()(); // use main fiber as last worker
+        for (int i = 0; i < spawn_num; ++i) {
             fibs[i].join();
         }
-        thr.join();
+    }){
+        assert(nfib > 0);
     }
-
-    bool joinable() const final { return thr.joinable(); }
 };
-PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, function<void()>&& func) {
+template<class Function>
+PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, Function&& func) {
     if (fiberMode)
         return new FiberExecUnit(std::move(func));
     else
