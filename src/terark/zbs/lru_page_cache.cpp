@@ -1169,7 +1169,7 @@ LruReadonlyCache*
 LruReadonlyCache::create(size_t totalcapacityBytes, size_t shards, size_t maxFiles, bool aio) {
     if (g_lruLogLevel >= 3) {
         fprintf(stderr,
-          "INFO: LruReadonlyCache::create(cap=%zd, shards=%zd, files=%zd, aio=%d\n",
+          "INFO: LruReadonlyCache::create(cap=%zd, shards=%zd, files=%zd, aio=%d)\n",
           totalcapacityBytes, shards, maxFiles, aio);
     }
 	if (shards <= 1) {

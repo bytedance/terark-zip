@@ -3,7 +3,6 @@
 //
 
 #include "fiber_aio.hpp"
-#include "fiber_yield.hpp"
 #include <boost/fiber/all.hpp>
 
 #if BOOST_OS_LINUX
@@ -22,6 +21,8 @@ namespace terark {
     #pragma GCC diagnostic ignored "-Wmissing-field-initializers"
 #endif
 
+#if BOOST_OS_LINUX
+
 ///@returns
 //  0: posix aio
 //  1: linux aio immediate mode (default)
@@ -37,19 +38,9 @@ static int get_aio_method() {
 }
 static int g_aio_method = get_aio_method();
 
-#if BOOST_OS_LINUX
 static std::atomic<size_t> g_ft_num;
-#endif
 
-class fiber_aio {
-  FiberYield m_fiber_yield;
-public:
-  void fiber_yield() {
-    // boost::this_fiber::yield();
-    m_fiber_yield.unchecked_yield(); // faster
-  }
-#if BOOST_OS_LINUX
-private:
+class io_fiber_context {
   static const int io_batch = 128;
   static const int reap_batch = 32;
   enum class state {
@@ -74,12 +65,12 @@ private:
     bool done;
   };
 
-  void entry() {
+  void fiber_proc() {
     m_state = state::running;
     if (1 == g_aio_method)
-      entry_immediate_mode();
+      fiber_proc_immediate_mode();
     else if (2 == g_aio_method)
-      entry_batch_mode();
+      fiber_proc_batch_mode();
     else {
       fprintf(stderr, "ERROR: bad aio_method = %d\n", g_aio_method);
       exit(1);
@@ -87,21 +78,21 @@ private:
     assert(state::stopping == m_state);
     m_state = state::stopped;
   }
-  void entry_immediate_mode() {
+  void fiber_proc_immediate_mode() {
     while (state::running == m_state) {
       io_reap();
-      fiber_yield();
+      boost::this_fiber::yield();
       counter++;
     }
   }
-  void entry_batch_mode() {
+  void fiber_proc_batch_mode() {
     for (; state::running == m_state; counter++) {
       if (counter % 2 == 0) {
         batch_submit();
       } else {
         io_reap();
       }
-      fiber_yield();
+      boost::this_fiber::yield();
     }
   }
   void batch_submit() {
@@ -127,7 +118,7 @@ private:
     else {
       idle_cnt++;
       if (idle_cnt > 128) {
-        //fprintf(stderr, "INFO: fiber_aio::entry: ft_num = %zd, idle_cnt = %zd, counter = %llu\n", ft_num, idle_cnt, counter);
+        //fprintf(stderr, "INFO: fiber_proc: ft_num = %zd, idle_cnt = %zd, counter = %llu\n", ft_num, idle_cnt, counter);
         //std::this_thread::yield();
         usleep(100); // 100 us
         idle_cnt = 0;
@@ -178,13 +169,13 @@ public:
     else {
         while (terark_unlikely(io_reqnum >= io_batch)) {
           fprintf(stderr, "WARN: ft_num = %zd, io_reqnum = %zd >= io_batch = %d, yield fiber\n", ft_num, io_reqnum, io_batch);
-          fiber_yield();
+          boost::this_fiber::yield();
         }
         io_reqvec[io_reqnum++] = &io; // submit to user space queue
         //fprintf(stderr, "INFO: ft_num = %zd, io_reqnum = %zd, yield for io fiber submit\n", ft_num, io_reqnum);
     }
     do {
-      fiber_yield();
+      boost::this_fiber::yield();
     } while (!io_ret.done);
 
     if (io_ret.err) {
@@ -193,11 +184,11 @@ public:
     return io_ret.len;
   }
 
-  fiber_aio()
-    : io_fiber(std::bind(&fiber_aio::entry, this))
+  io_fiber_context()
+    : io_fiber(std::bind(&io_fiber_context::fiber_proc, this))
   {
     ft_num = g_ft_num++;
-    //fprintf(stderr, "INFO: fiber_aio::fiber_aio(): ft_num = %zd\n", ft_num);
+    //fprintf(stderr, "INFO: io_fiber_context::io_fiber_context(): ft_num = %zd\n", ft_num);
     int maxevents = io_batch*2 - 1;
     int err = io_setup(maxevents, &io_ctx);
     if (err) {
@@ -206,30 +197,29 @@ public:
     }
     m_state = state::ready;
     counter = 0;
-    m_fiber_yield.init_in_fiber_thread();
   }
 
-  ~fiber_aio() {
+  ~io_fiber_context() {
 #if 0
     fprintf(stderr,
-            "INFO: fiber_aio::~fiber_aio(): ft_num = %zd, counter = %llu ...\n",
+            "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu ...\n",
             ft_num, counter);
 #endif
     m_state = state::stopping;
     while (state::stopping == m_state) {
 #if 0
       fprintf(stderr,
-            "INFO: fiber_aio::~fiber_aio(): ft_num = %zd, counter = %llu, yield ...\n",
+            "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu, yield ...\n",
             ft_num, counter);
 #endif
-      fiber_yield();
+      boost::this_fiber::yield();
     }
     assert(state::stopped == m_state);
     io_fiber.join();
 
 #if 0
     fprintf(stderr,
-            "INFO: fiber_aio::~fiber_aio(): ft_num = %zd, counter = %llu, done\n",
+            "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu, done\n",
             ft_num, counter);
 #endif
     int err = io_destroy(io_ctx);
@@ -237,19 +227,15 @@ public:
       perror("io_destroy");
     }
   }
-#else
-  fiber_aio() {
-    m_fiber_yield.init_in_fiber_thread();
-  }
-#endif // BOOST_OS_LINUX
 };
+#endif
 
 TERARK_DLL_EXPORT
 ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
-  static thread_local fiber_aio aio;
 #if BOOST_OS_LINUX
   if (1 == g_aio_method || 2 == g_aio_method) {
-    return aio.io_pread(fd, buf, len, offset);
+    static thread_local io_fiber_context io_fiber;
+    return io_fiber.io_pread(fd, buf, len, offset);
   }
 #endif
 #if BOOST_OS_WINDOWS
@@ -265,7 +251,7 @@ ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
     return -1;
   }
   do {
-    aio.fiber_yield();
+    boost::this_fiber::yield();
     err = aio_error(&acb);
   } while (EINPROGRESS == err);
 

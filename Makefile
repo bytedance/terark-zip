@@ -1,6 +1,6 @@
 export SHELL=bash
 DBG_FLAGS ?= -g3 -D_DEBUG
-RLS_FLAGS ?= -O3 -DNDEBUG -g3 -DBOOST_DISABLE_ASSERTS
+RLS_FLAGS ?= -O3 -DNDEBUG -g3
 # 'AFR' means Assert For Release
 AFR_FLAGS ?= -O2 -g3
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
