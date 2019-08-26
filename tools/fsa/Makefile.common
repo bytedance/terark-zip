@@ -32,7 +32,7 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 #override CXXFLAGS += -Wfatal-errors
 AFR_FLAGS = -O2
 DBG_FLAGS = -O0
-RLS_FLAGS = -Ofast -DNDEBUG
+RLS_FLAGS = -Ofast -DNDEBUG -DBOOST_DISABLE_ASSERTS
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)

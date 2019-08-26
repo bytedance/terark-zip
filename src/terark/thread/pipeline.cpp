@@ -12,6 +12,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <boost/fiber/all.hpp>
+#include "fiber_yield.hpp"
 
 // http://predef.sourceforge.net/
 
@@ -77,11 +78,14 @@ public:
 
 class FiberQueue : public PipelineStage::queue_t {
     circular_queue<PipelineQueueItem> q;
+    FiberYield fy_push;
+    FiberYield fy_pop;
 public:
     FiberQueue(size_t size) : q(size) {}
 	void push_back(const PipelineQueueItem& x) final {
         while (q.full()) {
-            boost::this_fiber::yield();
+            //boost::this_fiber::yield();
+            fy_push.yield();
         }
         q.push_back(x);
 	}
@@ -92,7 +96,8 @@ public:
                 q.push_back(x);
                 return true;
             }
-            boost::this_fiber::yield();
+            //boost::this_fiber::yield();
+            fy_push.yield();
         }
         return false;
     }
@@ -104,7 +109,8 @@ public:
                 q.pop_front();
                 return true;
             }
-            boost::this_fiber::yield();
+            //boost::this_fiber::yield();
+            fy_pop.yield();
         }
         return false;
     }
@@ -115,25 +121,30 @@ public:
 
 class MixedQueue : public PipelineStage::queue_t {
     base_queue q;
+    FiberYield fy_push;
+    FiberYield fy_pop;
 public:
 	MixedQueue(size_t size) : q(size) {
 		q.queue().init(size + 1);
 	}
 	void push_back(const PipelineQueueItem& x) final {
 		if (q.peekFull()) {
-			boost::this_fiber::yield();
+			//boost::this_fiber::yield();
+			fy_push.yield();
 		}
 	    q.push_back(x);
 	}
     bool push_back(const PipelineQueueItem& x, int timeout) final {
 		if (q.peekFull()) {
-			boost::this_fiber::yield();
+			//boost::this_fiber::yield();
+			fy_push.yield();
 		}
         return q.push_back(x, timeout);
 	}
     bool pop_front(PipelineQueueItem& x, int timeout) final {
 		if (q.peekEmpty()) {
-			boost::this_fiber::yield();
+			//boost::this_fiber::yield();
+			fy_pop.yield();
 		}
         return q.pop_front(x, timeout);
     }
