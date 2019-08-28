@@ -2662,7 +2662,7 @@ const {
         TERARK_IF_DEBUG(zlen = zlen, ;);
     }
     else {
-    	  const byte_t* dic = m_strDict.data();
+        const byte_t* dic = m_strDict.data();
         const byte_t* end = zpos + zlen;
         m_unzip(zpos, end, recData, dic, m_gOffsetBits, m_reserveOutputMultiplier);
     }
