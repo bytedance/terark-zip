@@ -51,7 +51,11 @@ static profiling g_pf;
 static std::atomic<uint64_t> g_dataThroughBytes(0);
 extern int g_useDivSufSort;
 
-#if !defined(NDEBUG)
+#if !defined(NDEBUG) && 0
+    #define DEBUG_CHECK_UNZIP 1
+#endif
+
+#if defined(DEBUG_CHECK_UNZIP)
 static void DoUnzip(const byte_t* pos, const byte_t* end, valvec<byte_t>* recData, const byte_t* dic, size_t dicLen, size_t reserveOutputMultiplier);
 #endif
 
@@ -1007,7 +1011,7 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
                    valvec<uint32_t>& hashTabl,
                    valvec<uint32_t>& hashLink,
                    NativeDataOutput<AutoGrownMemIO>& dio) {
-#if !defined(NDEBUG)
+#if defined(DEBUG_CHECK_UNZIP)
     size_t old_dio_pos = dio.tell();
 #endif
     size_t MAX_PROBE = m_opt.maxMatchProbe;
@@ -1233,7 +1237,7 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
     }
     emitLiteral(rSize);
     DzType_Flush(stdout);
-#if !defined(NDEBUG) && 0
+#if defined(DEBUG_CHECK_UNZIP)
     valvec<byte_t> tmpBuf(rSize, valvec_reserve());
     DoUnzip(dio.begin() + old_dio_pos, dio.current(),
         &tmpBuf, m_strDict.data(), m_strDict.size(), 1);
@@ -2561,7 +2565,7 @@ static int init_get_UnzipImp() {
 }
 static const int g_DictZipUnzipImp = init_get_UnzipImp();
 
-#if !defined(NDEBUG)
+#if defined(DEBUG_CHECK_UNZIP)
 template<int gOffsetBytes>
 static inline void
 DoUnzipImp(const byte_t* pos, const byte_t* end, valvec<byte_t>* recData,
