@@ -13,6 +13,8 @@
   // not supported now
 #else
   #include <aio.h> // posix aio
+  #include <sys/types.h>
+  #include <sys/mman.h>
 #endif
 
 namespace terark {
@@ -259,6 +261,35 @@ ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
     return -1;
   }
   return aio_return(&acb);
+#endif
+}
+
+static const size_t PAGE_SIZE = 4096;
+
+TERARK_DLL_EXPORT
+void fiber_aio_need(const void* buf, size_t len) {
+#if BOOST_OS_WINDOWS
+#else
+    len += size_t(buf) & (PAGE_SIZE-1);
+    buf  = (const void*)(size_t(buf) & ~(PAGE_SIZE-1));
+    size_t len2 = std::min<size_t>(len, 8*PAGE_SIZE);
+    union {
+        uint64_t val;
+    #if BOOST_OS_LINUX
+        unsigned char  vec[8];
+    #else
+        char  vec[8];
+    #endif
+    } uv;  uv.val = 0x0101010101010101ULL;
+    int err = mincore((void*)buf, len2, uv.vec);
+    if (0 == err) {
+        if (0x0101010101010101ULL != uv.val) {
+            posix_madvise((void*)buf, len, POSIX_MADV_WILLNEED);
+        }
+        if (0 == uv.vec[0]) {
+            boost::this_fiber::yield(); // just yield once
+        }
+    }
 #endif
 }
 
