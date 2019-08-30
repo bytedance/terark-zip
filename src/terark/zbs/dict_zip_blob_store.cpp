@@ -17,6 +17,7 @@
 #include <zstd/dictBuilder/divsufsort.h>
 #include "sufarr_inducedsort.h"
 #include <terark/thread/pipeline.hpp>
+#include <terark/thread/fiber_aio.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/profiling.hpp>
 #include <terark/util/sortable_strvec.hpp>
@@ -2422,7 +2423,11 @@ terark_flatten void
 DictZipBlobStore::get_record_append_tpl(size_t recId, valvec<byte_t>* recData)
 const {
     auto readRaw = [this](size_t offset, size_t length) {
-        return (const byte_t*)this->m_mmapBase + offset;
+        auto base = (const byte_t*)this->m_mmapBase;
+        if (this->m_mmap_aio) {
+            fiber_aio_need(base + offset, length);
+        }
+        return base + offset;
     };
     read_record_append_tpl<ZipOffset, CheckSumLevel,
         Entropy, EntropyInterLeave>(recId, recData, readRaw);
@@ -2435,7 +2440,11 @@ terark_flatten void
 DictZipBlobStore::get_record_append_CacheOffsets_tpl(size_t recId, CacheOffsets* co)
 const {
     auto readRaw = [this](size_t offset, size_t length) {
-        return (const byte_t*)this->m_mmapBase + offset;
+        auto base = (const byte_t*)this->m_mmapBase;
+        if (this->m_mmap_aio) {
+            fiber_aio_need(base + offset, length);
+        }
+        return base + offset;
     };
     read_record_append_CacheOffsets_tpl<CheckSumLevel,
         Entropy, EntropyInterLeave>(recId, co, readRaw);

@@ -1,6 +1,7 @@
 #include "mixed_len_blob_store.hpp"
 #include "blob_store_file_header.hpp"
 #include <terark/io/FileStream.hpp>
+#include <terark/thread/fiber_aio.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/checksum_exception.hpp>
 #include <terark/zbs/xxhash_helper.hpp>
@@ -183,8 +184,12 @@ const {
 	assert(size_t(-1) != m_fixedLen);
 	assert(m_fixedLen == 0 || m_fixedLenValues.size() % m_fixedLen == 0);
 	assert((fixLenRecID + 1) * m_fixedLen <= m_fixedLenValues.size());
-	const byte_t* pData = m_fixedLenValues.data() + m_fixedLen * fixLenRecID;
-	recData->append(pData, m_fixedLen);
+	size_t fixlen = m_fixedLen;
+	const byte_t* pData = m_fixedLenValues.data() + fixlen * fixLenRecID;
+	if (this->m_mmap_aio) {
+	    fiber_aio_need(pData, fixlen);
+	}
+	recData->append(pData, fixlen);
 }
 
 template<class rank_select_t>
@@ -196,7 +201,12 @@ const {
 	size_t offset1 = m_varLenOffsets[varLenRecID + 1];
 	assert(offset1 <= m_varLenValues.size());
 	assert(offset0 <= offset1);
-	recData->append(basePtr + offset0, offset1 - offset0);
+	const byte_t* pData = basePtr + offset0;
+	const size_t  nData = offset1 - offset0;
+	if (this->m_mmap_aio) {
+	    fiber_aio_need(pData, nData);
+	}
+	recData->append(pData, nData);
 }
 
 template<class rank_select_t>

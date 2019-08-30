@@ -130,9 +130,13 @@ public:
         fspread_record_append(fspread, lambda, baseOffset, recID, recData);
     }
 
+    bool is_mmap_aio() const { return m_mmap_aio; }
+    void set_mmap_aio(bool mmap_aio) { m_mmap_aio = mmap_aio; }
+
 protected:
     size_t      m_numRecords;
     uint64_t    m_unzipSize;
+    bool        m_mmap_aio;
 
     typedef void (BlobStore::*get_record_append_func_t)(size_t recID, valvec<byte_t>* recData) const;
     get_record_append_func_t m_get_record_append;
