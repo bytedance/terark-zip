@@ -17,6 +17,7 @@
 #include <zstd/dictBuilder/divsufsort.h>
 #include "sufarr_inducedsort.h"
 #include <terark/thread/pipeline.hpp>
+#include <terark/thread/fiber_aio.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/profiling.hpp>
 #include <terark/util/sortable_strvec.hpp>
@@ -51,7 +52,11 @@ static profiling g_pf;
 static std::atomic<uint64_t> g_dataThroughBytes(0);
 extern int g_useDivSufSort;
 
-#if !defined(NDEBUG)
+#if !defined(NDEBUG) && 0
+    #define DEBUG_CHECK_UNZIP 1
+#endif
+
+#if defined(DEBUG_CHECK_UNZIP)
 static void DoUnzip(const byte_t* pos, const byte_t* end, valvec<byte_t>* recData, const byte_t* dic, size_t dicLen, size_t reserveOutputMultiplier);
 #endif
 
@@ -597,7 +602,12 @@ public:
             m_fpWriter.ensureWrite(m_dio.begin(), m_dio.tell());
 		}
         if (m_freq_hist) {
-            m_freq_hist->add_record(fstring(m_dio.begin(), m_dio.tell()));
+            if (m_opt.checksumLevel == 2) {
+                assert(m_dio.tell() >= 4);
+                m_freq_hist->add_record(fstring(m_dio.begin(), m_dio.tell() - 4));
+            } else {
+                m_freq_hist->add_record(fstring(m_dio.begin(), m_dio.tell()));
+            }
         }
 		m_zipDataSize += m_dio.tell();
 		m_unzipSize += rSize;
@@ -859,10 +869,13 @@ MyWriteStage::process(int tno, PipelineQueueItem* item) {
 #endif
     if (builder->m_freq_hist) {
         auto freq_hist = builder->m_freq_hist;
-        freq_hist->add_record(fstring(task->obuf.begin(), taskOffsets[0]));
+        size_t crc_size = builder->m_opt.checksumLevel == 2 ? 4 : 0;
+        assert(taskOffsets[0] >= crc_size);
+        freq_hist->add_record(fstring(task->obuf.begin(), taskOffsets[0] - crc_size));
         for (size_t i = 1; i < taskRecNum; ++i) {
+            assert(taskOffsets[i] - taskOffsets[i - 1] >= crc_size);
             freq_hist->add_record(fstring(task->obuf.begin() + taskOffsets[i - 1],
-                taskOffsets[i] - taskOffsets[i - 1]));
+                taskOffsets[i] - taskOffsets[i - 1] - crc_size));
         }
     }
     builder->m_lengthWriter << var_uint64_t(taskOffsets[0]);
@@ -999,7 +1012,7 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
                    valvec<uint32_t>& hashTabl,
                    valvec<uint32_t>& hashLink,
                    NativeDataOutput<AutoGrownMemIO>& dio) {
-#if !defined(NDEBUG)
+#if defined(DEBUG_CHECK_UNZIP)
     size_t old_dio_pos = dio.tell();
 #endif
     size_t MAX_PROBE = m_opt.maxMatchProbe;
@@ -1225,7 +1238,7 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
     }
     emitLiteral(rSize);
     DzType_Flush(stdout);
-#if !defined(NDEBUG) && 0
+#if defined(DEBUG_CHECK_UNZIP)
     valvec<byte_t> tmpBuf(rSize, valvec_reserve());
     DoUnzip(dio.begin() + old_dio_pos, dio.current(),
         &tmpBuf, m_strDict.data(), m_strDict.size(), 1);
@@ -2410,7 +2423,11 @@ terark_flatten void
 DictZipBlobStore::get_record_append_tpl(size_t recId, valvec<byte_t>* recData)
 const {
     auto readRaw = [this](size_t offset, size_t length) {
-        return (const byte_t*)this->m_mmapBase + offset;
+        auto base = (const byte_t*)this->m_mmapBase;
+        if (this->m_mmap_aio) {
+            fiber_aio_need(base + offset, length);
+        }
+        return base + offset;
     };
     read_record_append_tpl<ZipOffset, CheckSumLevel,
         Entropy, EntropyInterLeave>(recId, recData, readRaw);
@@ -2423,7 +2440,11 @@ terark_flatten void
 DictZipBlobStore::get_record_append_CacheOffsets_tpl(size_t recId, CacheOffsets* co)
 const {
     auto readRaw = [this](size_t offset, size_t length) {
-        return (const byte_t*)this->m_mmapBase + offset;
+        auto base = (const byte_t*)this->m_mmapBase;
+        if (this->m_mmap_aio) {
+            fiber_aio_need(base + offset, length);
+        }
+        return base + offset;
     };
     read_record_append_CacheOffsets_tpl<CheckSumLevel,
         Entropy, EntropyInterLeave>(recId, co, readRaw);
@@ -2553,7 +2574,7 @@ static int init_get_UnzipImp() {
 }
 static const int g_DictZipUnzipImp = init_get_UnzipImp();
 
-#if !defined(NDEBUG)
+#if defined(DEBUG_CHECK_UNZIP)
 template<int gOffsetBytes>
 static inline void
 DoUnzipImp(const byte_t* pos, const byte_t* end, valvec<byte_t>* recData,
@@ -2650,7 +2671,7 @@ const {
         TERARK_IF_DEBUG(zlen = zlen, ;);
     }
     else {
-    	  const byte_t* dic = m_strDict.data();
+        const byte_t* dic = m_strDict.data();
         const byte_t* end = zpos + zlen;
         m_unzip(zpos, end, recData, dic, m_gOffsetBits, m_reserveOutputMultiplier);
     }

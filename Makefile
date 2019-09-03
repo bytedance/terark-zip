@@ -11,9 +11,9 @@ BOOST_INC ?= -Iboost-include
 ifeq "$(origin LD)" "default"
   LD := ${CXX}
 endif
-ifeq "$(origin CC)" "default"
-  CC := ${CXX}
-endif
+#ifeq "$(origin CC)" "default"
+#  CC := ${CXX}
+#endif
 
 # Makefile is stupid to parsing $(shell echo ')')
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
@@ -185,34 +185,6 @@ core_src := \
 
 core_src := $(filter-out ${zip_src}, ${core_src})
 
-ifeq (${UNAME_System},"DarwinWithoutC++11")
-# lib boost-fiber can not be built by boost build
-# include the source
-core_src += \
-  boost-include/libs/fiber/src/algo/algorithm.cpp \
-  boost-include/libs/fiber/src/algo/round_robin.cpp \
-  boost-include/libs/fiber/src/algo/shared_work.cpp \
-  boost-include/libs/fiber/src/algo/work_stealing.cpp \
-  boost-include/libs/fiber/src/barrier.cpp \
-  boost-include/libs/fiber/src/condition_variable.cpp \
-  boost-include/libs/fiber/src/context.cpp \
-  boost-include/libs/fiber/src/fiber.cpp \
-  boost-include/libs/fiber/src/future.cpp \
-  boost-include/libs/fiber/src/mutex.cpp \
-  boost-include/libs/fiber/src/properties.cpp \
-  boost-include/libs/fiber/src/recursive_mutex.cpp \
-  boost-include/libs/fiber/src/recursive_timed_mutex.cpp \
-  boost-include/libs/fiber/src/timed_mutex.cpp \
-  boost-include/libs/fiber/src/scheduler.cpp
-
-  BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_thread.a
-else
-  BOOST_FIBER_DEP_LIBS := boost-include/stage/lib/libboost_fiber.a
-endif
-BOOST_FIBER_DEP_LIBS += \
-  boost-include/stage/lib/libboost_context.a \
-  boost-include/stage/lib/libboost_system.a
-
 fsa_src := $(wildcard src/terark/fsa/*.cpp)
 fsa_src += $(wildcard src/terark/zsrch/*.cpp)
 
@@ -277,6 +249,12 @@ DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d}
 RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r}
 AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a}
 
+ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
+  TERARK_BIN_DEP_LIB := ${static_core_d} ${static_fsa_d} ${static_zbs_d}
+else
+  TERARK_BIN_DEP_LIB := ${core_d} ${fsa_d} ${zbs_d}
+endif
+
 .PHONY : default all core fsa zbs
 
 default : fsa core zbs
@@ -298,7 +276,7 @@ rls: ${RLS_TARGETS}
 afr: ${AFR_TARGETS}
 
 ifneq (${UNAME_System},Darwin)
-${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread
+${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread -laio
 endif
 ${core_d} : LIBS := $(filter-out -lterark-core-${COMPILER}-d, ${LIBS})
 ${core_r} : LIBS := $(filter-out -lterark-core-${COMPILER}-r, ${LIBS})
@@ -335,14 +313,22 @@ ${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build
 ${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 ${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 
-ifeq (${UNAME_MachineSystem},Darwin)
-${core_d} ${core_r} ${core_a} : LIBS := -Wl,-all_load ${BOOST_FIBER_DEP_LIBS} -Wl,-noall_load ${LIBS}
-else
-${core_d} ${core_r} ${core_a} : LIBS := -Wl,--whole-archive ${BOOST_FIBER_DEP_LIBS} -Wl,--no-whole-archive ${LIBS}
-endif
+${static_core_d} ${core_d}: BOOST_VARIANT := debug
+${static_core_r} ${core_r}: BOOST_VARIANT := release
+${static_core_a} ${core_a}: BOOST_VARIANT := release
 
-${static_core_d} ${static_core_r} ${static_core_a}: STATIC_FLATTEN_LIBS := ${BOOST_FIBER_DEP_LIBS}
+#@param ${1}: release|debug
+define BOOST_OBJS
+  $(shell \
+  if test -n "${1}"; then  \
+    find boost-include/bin.v2/libs \
+        -path "*/${1}/*" -name '*.o' \
+        -not -path "boost-include/bin.v2/libs/config/*"; \
+  fi)
+endef
 
+# must use '=' for lazy evaluation, do not use ':='
+THIS_LIB_OBJS = $(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT}))
 
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
@@ -388,18 +374,19 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 boost-include/build-lib-for-terark.done:
 	cd boost-include \
 		&& bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
-		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=debug \
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=release
 	touch $@
 
 %${DLL_SUFFIX}:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating dynamic library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	@echo -e "OBJS:" $(addprefix "\n  ",$(sort $(filter %.o,$^)))
+	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	mkdir -p ${BUILD_ROOT}/lib
 	@rm -f $@
-	${LD} -shared $(sort $(filter %.o,$^)) ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
+	${LD} -shared ${THIS_LIB_OBJS} ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
@@ -409,33 +396,11 @@ endif
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating static library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
-	@echo -e "OBJS:" $(addprefix "\n  ",$(sort $(filter %.o,$^) ${EXTRA_OBJECTS}))
+	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p $(dir $@)
 	@rm -f $@
-	@echo STATIC_FLATTEN_LIBS = "${STATIC_FLATTEN_LIBS}"
-	@if test -n "${STATIC_FLATTEN_LIBS}" -a `uname` = Darwin; then \
-		echo; \
-		echo Mac OS does not support ar script, you need to add link libs:; \
-		for f in ${STATIC_FLATTEN_LIBS}; do echo "    $$f"; done; \
-	fi
-	@echo
-	@if test -n "${STATIC_FLATTEN_LIBS}" -a `uname` != Darwin; then \
-		tmp=`mktemp -u XXXXXX.tmp.a`; \
-		set -x; \
-		${AR} rcs $$tmp $(filter %.o,$^) ${EXTRA_OBJECTS}; \
-		(\
-		echo open $$tmp; \
-		for f in ${STATIC_FLATTEN_LIBS}; do \
-		  echo addlib $$f; \
-		done; \
-		echo save; \
-		echo end; \
-		) | ar -M; \
-		mv $$tmp $@; \
-	else \
-		${AR} rcs $@ $(filter %.o,$^) ${EXTRA_OBJECTS}; \
-	fi
+	${AR} rcs $@ ${THIS_LIB_OBJS};
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 
 .PHONY : install
@@ -444,6 +409,7 @@ install : core
 
 .PHONY : clean
 clean:
+	rm -rf boost-include/bin.v2 boost-include/build-lib-for-terark.done
 	@for f in `find * -name "*${BUILD_NAME}*"`; do \
 		echo rm -rf $${f}; \
 		rm -rf $${f}; \
@@ -451,6 +417,7 @@ clean:
 
 .PHONY : cleanall
 cleanall:
+	rm -rf boost-include/bin.v2 boost-include/build-lib-for-terark.done
 	@for f in `find * -name build`; do \
 		echo rm -rf $${f}; \
 		rm -rf $${f}; \
@@ -541,10 +508,25 @@ ${TarBall}.tgz: ${TarBall}
 	cd pkg; tar czf ${TarBallBaseName}.tgz ${TarBallBaseName}
 
 .PONY: test
-test: ${zbs_d} ${fsa_d} ${core_d}
-	+$(MAKE) -C tests/core        test  CHECK_TERARK_FSA_LIB_UPDATE=0
-	+$(MAKE) -C tests/tries       test  CHECK_TERARK_FSA_LIB_UPDATE=0
-	+$(MAKE) -C tests/succinct    test  CHECK_TERARK_FSA_LIB_UPDATE=0
+.PONY: test_dbg
+.PONY: test_afr
+.PONY: test_rls
+test: test_dbg test_afr test_rls
+
+test_dbg: ${TERARK_BIN_DEP_LIB}
+	+$(MAKE) -C tests/core        test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test_dbg  CHECK_TERARK_FSA_LIB_UPDATE=0
+
+test_afr: ${TERARK_BIN_DEP_LIB}
+	+$(MAKE) -C tests/core        test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test_afr  CHECK_TERARK_FSA_LIB_UPDATE=0
+
+test_rls: ${TERARK_BIN_DEP_LIB}
+	+$(MAKE) -C tests/core        test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/tries       test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
+	+$(MAKE) -C tests/succinct    test_rls  CHECK_TERARK_FSA_LIB_UPDATE=0
 
 ifneq ($(MAKECMDGOALS),cleanall)
 ifneq ($(MAKECMDGOALS),clean)

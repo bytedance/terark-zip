@@ -110,21 +110,24 @@ public:
 		printf("step6_clean: threadno=%d\n", threadno);
 	}
 
+	typedef PipelineProcessor::EUType EUType;
+
 	int main(int argc, char* argv[])
 	{
 		G_bPrint = argc >= 2 ? atoi(argv[1]) : 0;
 		maxNum = argc >= 3 ? atoi(argv[2]) : TERARK_IF_DEBUG(10000, 50000);
 		int bcompile = argc >= 4 ? atoi(argv[3]) : 1;
-		int err1 = run_test(false, 3, bcompile);
-		int err2 = run_test(true, 0, bcompile);
-		return err1 + err2;
+		int err1 = run_test(EUType::thread, 3, bcompile);
+		int err2 = run_test(EUType::fiber , 0, bcompile);
+		int err3 = run_test(EUType::mixed , 3, bcompile);
+		return err1 + err2 + err3;
     }
-    int run_test(bool fiberMode, int logLevel, int bcompile) {
+    int run_test(EUType euType, int logLevel, int bcompile) {
 		PipelineProcessor pipeline;
 		pipeline.setLogLevel(logLevel);
 		pipeline.setQueueTimeout(1);
 		pipeline.setQueueSize(4); // small queue is likely full
-		pipeline.setFiberMode(fiberMode);
+		pipeline.setEUType(euType);
 
 		std::vector<int> bindArg1;
 		// use the UNIX shell pipe denotation
@@ -146,7 +149,7 @@ public:
 		| PPL_STAGE(this, Main, step5, 1, 2.0, std::string("abcd"))
 		;
 		terark::profiling pf;
-		const char* modeName = fiberMode? "fiber" : "thread";
+		const char* modeName = pipeline.euTypeName();
 		long long t0 = pf.now();
 		if (bcompile) {
     		fprintf(stderr, "%s pipeline test with compile\n", modeName);

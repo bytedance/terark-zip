@@ -35,7 +35,7 @@ public:
         void discard() { if (index) discard_impl(); }
 	};
 	static LruReadonlyCache*
-	create(size_t totalcapacityBytes, size_t shards, size_t maxFiles = 512);
+	create(size_t totalcapacityBytes, size_t shards, size_t maxFiles, bool aio);
 
 	virtual const byte_t* pread(intptr_t fi, size_t offset, size_t len, Buffer*) = 0;
 	virtual intptr_t open(intptr_t fd) = 0;

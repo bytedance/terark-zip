@@ -79,13 +79,13 @@ protected:
 	PipelineStage *m_prev, *m_next;
 	PipelineProcessor* m_owner;
 
-    struct ThreadData {
-        std::string m_err_text;
-        ExecUnit*  m_thread;
-        volatile size_t m_run; // size_t is a CPU word, should be bool
-        ThreadData();
-        ~ThreadData();
-    };
+	struct ThreadData : boost::noncopyable {
+		std::string m_err_text;
+		ExecUnit*  m_thread;
+		volatile size_t m_live_fibers; // size_t is a CPU word, should be bool
+		ThreadData();
+		~ThreadData();
+	};
 	valvec<ThreadData> m_threads;
 	enum {
 		ple_none,
@@ -93,6 +93,8 @@ protected:
 		ple_keep
 	} m_pl_enum;
 	uintptr_t m_plserial;
+	int m_fibers_per_thread;
+	volatile int m_running_exec_units;
 
 	void run_wrapper(int threadno);
 
@@ -106,7 +108,7 @@ protected:
 	void serial_step_do_last(PipelineQueueItem& item);
 
 	bool isPrevRunning();
-	bool isRunning();
+	bool isRunning() { return 0 != m_running_exec_units; }
 	void start(int queue_size);
 	void wait();
 	void stop();
@@ -125,6 +127,7 @@ public:
 
 	//! @param thread_count 0 indicate keepSerial, -1 indicate generate serial
 	explicit PipelineStage(int thread_count);
+	PipelineStage(int thread_count, int fibers_per_thread);
 
 	virtual ~PipelineStage();
 
@@ -148,13 +151,23 @@ protected:
 
 public:
 	FunPipelineStage(int thread_count,
-					const function<void(PipelineStage*, int, PipelineQueueItem*)>& fprocess,
-					const std::string& step_name = "");
+					 const function<void(PipelineStage*, int, PipelineQueueItem*)>&,
+					 const std::string& step_name = "");
+	FunPipelineStage(int thread_count, int fibers_per_thread,
+					 const function<void(PipelineStage*, int, PipelineQueueItem*)>&,
+					 const std::string& step_name = "");
 	~FunPipelineStage(); // move destructor into libterark-thread*
 };
 
 class TERARK_DLL_EXPORT PipelineProcessor
 {
+public:
+	enum class EUType : unsigned char {
+		thread,
+		fiber,
+		mixed,
+	};
+private:
 	friend class PipelineStage;
 
 	PipelineStage *m_head;
@@ -167,7 +180,7 @@ class TERARK_DLL_EXPORT PipelineProcessor
 	bool m_is_mutex_owner;
 	bool m_keepSerial;
 	signed char m_logLevel;
-	bool m_fiberMode;
+	EUType m_EUType;
 
 protected:
 	static void defaultDestroyTask(PipelineTask* task);
@@ -188,11 +201,13 @@ public:
 
 	bool isRunning() const { return 0 != m_run; }
 
-    void setLogLevel(int level) { m_logLevel = (signed char)level; }
-    int  getLogLevel() const { return m_logLevel; }
+	void setLogLevel(int level) { m_logLevel = (signed char)level; }
+	int  getLogLevel() const { return m_logLevel; }
 
-    void setFiberMode(bool fiberMode) { m_fiberMode = fiberMode; }
-    bool isFiberMode() const { return m_fiberMode; }
+	void setEUType(EUType eut) { m_EUType = eut; }
+	EUType getEUType() const { return m_EUType; }
+
+	const char* euTypeName() const;
 
 	void setQueueSize(int queue_size) { m_queue_size = queue_size; }
 	int  getQueueSize() const { return m_queue_size; }
@@ -212,6 +227,9 @@ public:
 
 	PipelineProcessor& operator| (std::pair<intptr_t, function<void(PipelineTask*)> >&&);
 	PipelineProcessor& operator>>(std::pair<intptr_t, function<void(PipelineTask*)> >&&s) { return *this | std::move(s);}
+
+	PipelineProcessor& operator| (std::tuple<int,int, function<void(PipelineTask*)> >&&);
+	PipelineProcessor& operator>>(std::tuple<int,int, function<void(PipelineTask*)> >&&s) { return *this | std::move(s);}
 
 	void start();
 	void compile(); // input feed from external, not first step

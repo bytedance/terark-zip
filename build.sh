@@ -9,6 +9,9 @@ fi
 # make the project
 git submodule update --init
 
+sudo apt-get update
+sudo apt-get install libaio-dev
+
 rm -rf pkg
 
 make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1

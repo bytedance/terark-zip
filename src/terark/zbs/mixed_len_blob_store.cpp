@@ -2,6 +2,7 @@
 #include "blob_store_file_header.hpp"
 #include <terark/io/FileStream.hpp>
 #include <terark/util/crc.hpp>
+#include <terark/thread/fiber_aio.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/checksum_exception.hpp>
 #include <terark/zbs/xxhash_helper.hpp>
@@ -191,6 +192,9 @@ const {
 	assert(m_fixedLen == 0 || m_fixedLenValues.size() % m_fixedLen == 0);
 	assert((fixLenRecID + 1) * m_fixedLen <= m_fixedLenValues.size());
 	const byte_t* pData = m_fixedLenValues.data() + m_fixedLen * fixLenRecID;
+    if (this->m_mmap_aio) {
+        fiber_aio_need(pData, m_fixedLen);
+    }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
             uint16_t crc1 = unaligned_load<uint16_t>(pData + m_fixedLenWithoutCRC);
@@ -221,27 +225,30 @@ const {
 	assert(offset1 <= m_varLenValues.size());
 	assert(offset0 <= offset1);
     const byte_t* pData = basePtr + offset0;
-    size_t len = offset1 - offset0;
+    size_t        nData = offset1 - offset0;
+    if (this->m_mmap_aio) {
+        fiber_aio_need(pData, nData);
+    }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
-            len -= sizeof(uint16_t);
-            uint16_t crc1 = unaligned_load<uint16_t>(pData + len);
-            uint16_t crc2 = Crc16c_update(0, pData, len);
+            nData -= sizeof(uint16_t);
+            uint16_t crc1 = unaligned_load<uint16_t>(pData + nData);
+            uint16_t crc2 = Crc16c_update(0, pData, nData);
             if (crc2 != crc1) {
                 throw BadCrc16cException(
                         "MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
             }
         } else {
-            len -= sizeof(uint32_t);
-            uint32_t crc1 = unaligned_load<uint32_t>(pData + len);
-            uint32_t crc2 = Crc32c_update(0, pData, len);
+            nData -= sizeof(uint32_t);
+            uint32_t crc1 = unaligned_load<uint32_t>(pData + nData);
+            uint32_t crc2 = Crc32c_update(0, pData, nData);
             if (crc2 != crc1) {
                 throw BadCrc32cException(
                         "MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
             }
         }
     }
-	recData->append(pData, len);
+	recData->append(pData, nData);
 }
 
 template<class rank_select_t>

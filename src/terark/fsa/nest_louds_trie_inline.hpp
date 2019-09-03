@@ -956,6 +956,7 @@ struct NLT_IterEntry;
 
 template<>
 struct NLT_IterEntry<4> {
+    static uint32_t to_id(size_t x) { return uint32_t(x); };
     uint32_t state;
     uint32_t child0;
     uint16_t n_children;
@@ -964,6 +965,7 @@ struct NLT_IterEntry<4> {
 };
 template<>
 struct NLT_IterEntry<8> {
+    static size_t to_id(size_t x) { return x; };
     uint64_t state     : 48;
     uint64_t n_children: 16;
     uint64_t child0    : 48;
@@ -999,8 +1001,8 @@ initIterEntry(size_t parent, Entry* e, byte_t* buf, size_t cap) const {
 	assert(m_louds.is0(bitpos));
 	size_t lcount = m_louds.one_seq_len(bitpos+1);
 	assert(child0 + lcount <= total_states());
-    e->state = parent;
-    e->child0 = child0;
+    e->state = e->to_id(parent);
+    e->child0 = e->to_id(child0);
     e->nth_child = 0;
     e->n_children = lcount;
     if (m_is_link[parent]) {

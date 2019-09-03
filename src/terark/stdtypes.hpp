@@ -161,10 +161,16 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 //! @note Need declare public/protected after call this macro!!
 //
 #define DECLARE_NONE_COPYABLE_CLASS(ThisClassName)	\
-private:											\
-	ThisClassName(const ThisClassName& rhs);		\
-	ThisClassName& operator=(const ThisClassName& rhs);
+	ThisClassName(const ThisClassName&) = delete; \
+	ThisClassName& operator=(const ThisClassName&) = delete;
 /////////////////////////////////////////////////////////////
+
+/// stronger than none copyable
+#define DECLARE_NONE_MOVEABLE_CLASS(ThisClassName) \
+    DECLARE_NONE_COPYABLE_CLASS(ThisClassName); \
+	ThisClassName(ThisClassName&&) = delete; \
+	ThisClassName& operator=(ThisClassName&&) = delete;
+
 
 #define CURRENT_SRC_CODE_POSTION  \
 	__FILE__ ":" BOOST_STRINGIZE(__LINE__) ", in function: " BOOST_CURRENT_FUNCTION

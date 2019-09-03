@@ -10,6 +10,10 @@
 #include <terark/num_to_str.hpp>
 #include <atomic>
 #include <boost/preprocessor/cat.hpp>
+#include <boost/fiber/mutex.hpp>
+#include <boost/fiber/operations.hpp>
+#include <terark/thread/fiber_aio.hpp>
+#include <terark/thread/fiber_local.hpp>
 
 #if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
 	#define WIN32_LEAN_AND_MEAN
@@ -36,6 +40,8 @@
 #undef PAGE_SIZE
 
 namespace terark {
+
+static long g_lruLogLevel = getEnvLong("Terark_lruLogLevel", 0);
 
 template<class T>
 class SimplePermanentID {
@@ -444,6 +450,7 @@ using namespace lru_detail;
 
 class SingleLruReadonlyCache final: public LruReadonlyCache {
 public:
+    bool                m_use_aio;
 	valvec<size_t>      m_histogram;
 	Node*               m_hash_nodes;
 	uint32_t*           m_bucket;
@@ -463,7 +470,7 @@ public:
 	MyMutex          m_mutex_fd_fi;
 #endif
 	MY_MUTEX_PADDING
-	SingleLruReadonlyCache(size_t capacityBytes, size_t maxFiles);
+	SingleLruReadonlyCache(size_t capacityBytes, size_t maxFiles, bool aio);
 	~SingleLruReadonlyCache();
 	const byte_t* pread(intptr_t fi, size_t offset, size_t len, Buffer*) override;
 	void discard_impl(const Buffer& b);
@@ -480,9 +487,10 @@ private:
 
 ///
 SingleLruReadonlyCache::
-SingleLruReadonlyCache(size_t capacityBytes, size_t maxFiles)
+SingleLruReadonlyCache(size_t capacityBytes, size_t maxFiles, bool aio)
 	: m_fi_to_fd(maxFiles)
 {
+    m_use_aio = aio;
 	size_t pgNum = ceiled_div(capacityBytes, PAGE_SIZE);
 	if (pgNum >= nillink-2) {
 		THROW_STD(invalid_argument
@@ -550,7 +558,7 @@ SingleLruReadonlyCache::~SingleLruReadonlyCache() {
 }
 
 static void
-do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen) {
+do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bool aio) {
 #if defined(_MSC_VER)
 	OVERLAPPED ol; memset(&ol, 0, sizeof(ol));
 	ol.Offset = (DWORD)offset;
@@ -564,7 +572,13 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen) {
 			, offset, maxlen, rdlen, err, err);
 	}
 #else
-	ssize_t rdlen = pread(fd, buf, maxlen, offset);
+	assert(!aio || offset % 4096 == 0);
+	ssize_t rdlen;
+	if (aio)
+	    rdlen = fiber_aio_read(fd, buf, maxlen, offset);
+	else
+	    rdlen = pread(fd, buf, maxlen, offset);
+
 	if (rdlen < ssize_t(minlen)) {
 		THROW_STD(logic_error
 			, "pread(offset = %zd, len = %zd) = %zd (minlen = %zd), err = %s"
@@ -580,7 +594,7 @@ static inline uint64_t MyHash(uint64_t fi_page_id) {
 
 TERARK_DLL_EXPORT
 void fdpread(intptr_t fd, void* buf, size_t len, size_t offset) {
-	do_pread(fd, buf, offset, len, len);
+	do_pread(fd, buf, offset, len, len, false);
 }
 
 // already in m_mutex lock
@@ -770,6 +784,11 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		if (0) {
 	OnHitOthersLoad:
 			while (!nodes[p].is_loaded) {
+                if (m_use_aio) {
+                    boost::this_fiber::yield();
+                    if (nodes[p].is_loaded)
+                        break;
+                }
 				// waiting for other threads to load the page
 				std::this_thread::yield();
 			}
@@ -787,7 +806,7 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		TERARK_SCOPE_EXIT(if (!isOK) nodes[p].ref_count--);
 		do_pread(fd, bufptr
 				   , align_down(offset, PAGE_SIZE)
-				   , pg_offset + len, PAGE_SIZE);
+				   , pg_offset + len, PAGE_SIZE, m_use_aio);
 		nodes[p].is_loaded = true;
 		isOK = true;
         b->index = p;
@@ -802,7 +821,8 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		size_t first_page =  offset >> PAGE_BITS;
 		size_t plast_page = (offset + len + PAGE_SIZE - 1) >> PAGE_BITS;
 		assert(first_page + 2 <= plast_page);
-		static thread_local valvec<MyPageEntry>  pgvec_obj;
+		static thread_local recycle_pool<valvec<MyPageEntry> > tss;
+		valvec<MyPageEntry> pgvec_obj = tss.get();
 		pgvec_obj.resize_no_init(plast_page - first_page);
 		auto pgvec = pgvec_obj.data();
 		for (size_t pg = first_page; pg < plast_page; ++pg) {
@@ -855,10 +875,15 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 			if (!nodes[p].is_loaded) {
 				if (pgvec[fpg - first_page].alloc_by_me) {
 					assert(fd >= 0);
-					do_pread(fd, bufptr, fpg*PAGE_SIZE, minlen, PAGE_SIZE);
+					do_pread(fd, bufptr, fpg*PAGE_SIZE, minlen, PAGE_SIZE, m_use_aio);
 					nodes[p].is_loaded = true;
 				} else {
 					while (!nodes[p].is_loaded) {
+					    if (m_use_aio) {
+                            boost::this_fiber::yield();
+                            if (nodes[p].is_loaded)
+                                break;
+                        }
 						std::this_thread::yield();
 					}
 					ScopeLock lock(m_mutex);
@@ -894,6 +919,7 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
             }
 		}
         b->index = 0;
+		tss.put(std::move(pgvec_obj));
 		return unibuf->data();
 	}
 }
@@ -1035,14 +1061,17 @@ void SingleLruReadonlyCache::print_stat_cnt_impl(FILE* fp, const size_t cnt[6], 
 class MultiLruReadonlyCache final : public LruReadonlyCache {
 public:
 	valvec<std::unique_ptr<SingleLruReadonlyCache> > m_shards;
-	std::mutex m_mutex;
+	//typedef boost::fibers::mutex MutexType;
+	typedef std::mutex MutexType;
+	typedef std::lock_guard<MutexType> MutexGuard;
+	MutexType m_mutex;
 
-	explicit MultiLruReadonlyCache(size_t capacityBytes, size_t shards, size_t maxFiles) {
+	explicit MultiLruReadonlyCache(size_t capacityBytes, size_t shards, size_t maxFiles, bool aio) {
 		m_shards.reserve(shards);
 		size_t cap_all = align_up(capacityBytes, shards*PAGE_SIZE);
 		size_t cap_one = cap_all / shards;
 		for (size_t i = 0; i < shards; ++i) {
-			m_shards.emplace_back(new SingleLruReadonlyCache(cap_one, maxFiles));
+			m_shards.emplace_back(new SingleLruReadonlyCache(cap_one, maxFiles, aio));
 		}
 	}
 	~MultiLruReadonlyCache() {
@@ -1092,7 +1121,7 @@ public:
 		return unibuf->data();
 	}
 	intptr_t open(intptr_t fd) override {
-	    std::lock_guard<std::mutex> lock(m_mutex);
+	    MutexGuard lock(m_mutex);
 		intptr_t fi = m_shards[0]->open(fd);
 		for (size_t i = 1; i < m_shards.size(); ++i) {
 			intptr_t fii = m_shards[i]->open(fd);
@@ -1101,13 +1130,13 @@ public:
 		return fi;
 	}
 	void close(intptr_t fi) override {
-	    std::lock_guard<std::mutex> lock(m_mutex);
+	    MutexGuard lock(m_mutex);
 		for (auto& p : m_shards) {
 			p->close(fi);
 		}
 	}
 	bool safe_close(intptr_t fi) override {
-	    std::lock_guard<std::mutex> lock(m_mutex);
+	    MutexGuard lock(m_mutex);
 		bool bRet = false;
 		for (auto& p : m_shards) {
 			bRet = p->safe_close(fi);
@@ -1137,14 +1166,19 @@ public:
 };
 
 LruReadonlyCache*
-LruReadonlyCache::create(size_t totalcapacityBytes, size_t shards, size_t maxFiles) {
+LruReadonlyCache::create(size_t totalcapacityBytes, size_t shards, size_t maxFiles, bool aio) {
+    if (g_lruLogLevel >= 3) {
+        fprintf(stderr,
+          "INFO: LruReadonlyCache::create(cap=%zd, shards=%zd, files=%zd, aio=%d)\n",
+          totalcapacityBytes, shards, maxFiles, aio);
+    }
 	if (shards <= 1) {
-		return new SingleLruReadonlyCache(totalcapacityBytes, maxFiles);
+		return new SingleLruReadonlyCache(totalcapacityBytes, maxFiles, aio);
 	}
 	if (shards >= 500) {
 		THROW_STD(invalid_argument, "too large shard num = %zd", shards);
 	}
-	return new MultiLruReadonlyCache(totalcapacityBytes, shards, maxFiles);
+	return new MultiLruReadonlyCache(totalcapacityBytes, shards, maxFiles, aio);
 }
 
 } // namespace terark

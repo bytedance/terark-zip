@@ -7,6 +7,7 @@
 #include <terark/valvec.hpp>
 //#include <deque>
 //#include <boost/circular_buffer.hpp>
+#include <terark/util/atomic.hpp>
 #include <terark/util/concurrent_queue.hpp>
 #include <stdio.h>
 #include <iostream>
@@ -61,7 +62,7 @@ public:
 		q.queue().init(size + 1);
 	}
 	void push_back(const PipelineQueueItem& x) final {
-	    return q.push_back(x);
+	    q.push_back(x);
 	}
     bool push_back(const PipelineQueueItem& x, int timeout) final {
 	    return q.push_back(x, timeout);
@@ -111,11 +112,45 @@ public:
     size_t size() final { return q.size(); }
     size_t peekSize() const final { return q.size(); }
 };
-PipelineStage::queue_t* NewQueue(bool fiberMode, size_t size) {
-    if (fiberMode)
-        return new FiberQueue(size);
-    else
-        return new BlockQueue(size);
+
+class MixedQueue : public PipelineStage::queue_t {
+    base_queue q;
+public:
+	MixedQueue(size_t size) : q(size) {
+		q.queue().init(size + 1);
+	}
+	void push_back(const PipelineQueueItem& x) final {
+		if (q.peekFull()) {
+			boost::this_fiber::yield();
+		}
+	    q.push_back(x);
+	}
+    bool push_back(const PipelineQueueItem& x, int timeout) final {
+		if (q.peekFull()) {
+			boost::this_fiber::yield();
+		}
+        return q.push_back(x, timeout);
+	}
+    bool pop_front(PipelineQueueItem& x, int timeout) final {
+		if (q.peekEmpty()) {
+			boost::this_fiber::yield();
+		}
+        return q.pop_front(x, timeout);
+    }
+    bool empty() final { return q.peekEmpty(); }
+    size_t size() final { return q.peekSize(); }
+    size_t peekSize() const final { return q.peekSize(); }
+};
+
+static
+PipelineStage::queue_t*
+NewQueue(PipelineProcessor::EUType euType, size_t size) {
+	switch (euType) {
+	default: abort();
+	case PipelineProcessor::EUType::fiber : return new FiberQueue(size);
+	case PipelineProcessor::EUType::thread: return new BlockQueue(size);
+	case PipelineProcessor::EUType::mixed : return new MixedQueue(size);
+	}
 }
 
 class PipelineStage::ExecUnit {
@@ -125,37 +160,64 @@ public:
     virtual bool joinable() const = 0;
 };
 class ThreadExecUnit : public PipelineStage::ExecUnit {
-public:
     thread thr;
-    ThreadExecUnit(function<void()>&& f) : thr(std::move(f)) {}
+public:
+    template<class Func>
+    ThreadExecUnit(Func&& f) : thr(std::move(f)) {}
 
     void join() final { thr.join(); }
     bool joinable() const final { return thr.joinable(); }
 };
 class FiberExecUnit : public PipelineStage::ExecUnit {
-public:
     boost::fibers::fiber fib;
-    FiberExecUnit(function<void()>&& f) : fib(std::move(f)) {}
+public:
+    template<class Func>
+    FiberExecUnit(Func&& f) : fib(std::move(f)) {}
 
     void join() final { fib.join(); }
     bool joinable() const final { return fib.joinable(); }
 };
-PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, function<void()>&& func) {
+class MixedExecUnit : public ThreadExecUnit {
+public:
+    template<class MakeFunc>
+    MixedExecUnit(int nfib, MakeFunc mkfn)
+ : ThreadExecUnit([=]() {
+        const int spawn_num = nfib-1;
+        valvec<boost::fibers::fiber> fibs(spawn_num, valvec_reserve());
+        for (int i = 0; i < spawn_num; ++i) {
+            fibs.unchecked_emplace_back(mkfn());
+        }
+        mkfn()(); // use main fiber as last worker
+        for (int i = 0; i < spawn_num; ++i) {
+            fibs[i].join();
+        }
+    }){
+        assert(nfib > 0);
+    }
+};
+template<class Function>
+PipelineStage::ExecUnit* NewExecUnit(bool fiberMode, Function&& func) {
     if (fiberMode)
         return new FiberExecUnit(std::move(func));
     else
         return new ThreadExecUnit(std::move(func));
 }
 
-PipelineStage::ThreadData::ThreadData() : m_run(false) {
+PipelineStage::ThreadData::ThreadData() {
 	m_thread = NULL;
+    m_live_fibers = 0;
 }
-PipelineStage::ThreadData::~ThreadData() {}
+PipelineStage::ThreadData::~ThreadData() {
+	delete m_thread;
+}
 
 //////////////////////////////////////////////////////////////////////////
 
 PipelineStage::PipelineStage(int thread_count)
-: m_owner(0)
+: PipelineStage(thread_count, 1) {}
+
+PipelineStage::PipelineStage(int thread_count, int fibers_per_thread)
+: m_owner(NULL)
 {
 	if (0 == thread_count)
 	{
@@ -176,6 +238,8 @@ PipelineStage::PipelineStage(int thread_count)
 	m_prev = m_next = NULL;
 	m_out_queue = NULL;
 	m_threads.resize(thread_count);
+	m_fibers_per_thread = std::max(fibers_per_thread, 1);
+	m_running_exec_units = 0;
 }
 
 PipelineStage::~PipelineStage()
@@ -184,7 +248,6 @@ PipelineStage::~PipelineStage()
 	for (size_t threadno = 0; threadno != m_threads.size(); ++threadno)
 	{
 		assert(!m_threads[threadno].m_thread->joinable());
-		delete m_threads[threadno].m_thread;
 	}
 }
 
@@ -201,7 +264,7 @@ size_t PipelineStage::getOutputQueueSize() const {
 void PipelineStage::createOutputQueue(size_t size) {
 	if (size > 0) {
 		assert(NULL == this->m_out_queue);
-		this->m_out_queue = NewQueue(m_owner->m_fiberMode, size);
+		this->m_out_queue = NewQueue(m_owner->m_EUType, size);
 	}
 }
 
@@ -237,16 +300,6 @@ inline bool PipelineStage::isPrevRunning()
 	return m_owner->isRunning() || m_prev->isRunning() || !m_prev->m_out_queue->empty();
 }
 
-bool PipelineStage::isRunning()
-{
-	for (int t = 0, n = (int)m_threads.size(); t != n; ++t)
-	{
-		if (m_threads[t].m_run)
-			return true;
-	}
-	return false;
-}
-
 void PipelineStage::wait()
 {
 	for (size_t t = 0; t != m_threads.size(); ++t)
@@ -255,15 +308,19 @@ void PipelineStage::wait()
 
 void PipelineStage::start(int queue_size)
 {
-    const bool fiberMode = m_owner->m_fiberMode;
+	assert(NULL != m_owner);
+	const auto euType = m_owner->m_EUType;
+	const bool fiberMode = euType == PipelineProcessor::EUType::fiber;
 
 	if (this != m_owner->m_head->m_prev) { // is not last step
 		if (NULL == m_out_queue)
-			m_out_queue = NewQueue(fiberMode, queue_size);
+			m_out_queue = NewQueue(euType, queue_size);
 	}
 	if (m_threads.size() == 0) {
 		throw std::runtime_error("thread count = 0");
 	}
+	m_running_exec_units = 0;
+
 	for (size_t threadno = 0; threadno != m_threads.size(); ++threadno)
 	{
 		// 在 PipelineThread 保存 auto_ptr<thread> 指针
@@ -284,8 +341,17 @@ void PipelineStage::start(int queue_size)
 		// second: start the thread
 		//
 		assert(m_threads[threadno].m_thread == nullptr);
-		m_threads[threadno].m_thread = NewExecUnit(fiberMode,
-		                  bind(&PipelineStage::run_wrapper, this, threadno));
+		if (euType == PipelineProcessor::EUType::mixed) {
+			auto mkfn = [this,threadno]() {
+				return bind(&PipelineStage::run_wrapper, this, threadno);
+			};
+			m_threads[threadno].m_thread =
+				new MixedExecUnit(m_fibers_per_thread, mkfn);
+		}
+		else {
+			m_threads[threadno].m_thread = NewExecUnit(fiberMode,
+				bind(&PipelineStage::run_wrapper, this, threadno));
+		}
 	}
 }
 
@@ -306,27 +372,30 @@ void PipelineStage::onException(int threadno, const std::exception& exp)
 void PipelineStage::setup(int threadno)
 {
 	if (m_owner->m_logLevel >= 1) {
-		printf("start step[ordinal=%d, threadno=%d]: %s\n",
-		        step_ordinal(), threadno, m_step_name.c_str());
+        size_t live_fibers = m_threads[threadno].m_live_fibers;
+		printf("start step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n",
+		        step_ordinal(), threadno, live_fibers, m_step_name.c_str());
 	}
 }
 
 void PipelineStage::clean(int threadno)
 {
+    size_t live_fibers = m_threads[threadno].m_live_fibers;
 	if (err(threadno).empty()) {
 		if (m_owner->m_logLevel >= 1)
-			printf("ended step[ordinal=%d, threadno=%d]: %s\n"
-				, step_ordinal(), threadno, m_step_name.c_str());
+			printf("ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n"
+				, step_ordinal(), threadno, live_fibers, m_step_name.c_str());
 	} else {
-		fprintf(stderr, "ended step[ordinal=%d, threadno=%d]: %s; error: %s\n"
-				, step_ordinal(), threadno, m_step_name.c_str()
+		fprintf(stderr, "ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s; error: %s\n"
+				, step_ordinal(), threadno, live_fibers, m_step_name.c_str()
 				, err(threadno).c_str());
 	}
 }
 
 void PipelineStage::run_wrapper(int threadno)
 {
-	m_threads[threadno].m_run = true;
+	as_atomic(m_running_exec_units)++;
+	m_threads[threadno].m_live_fibers++;
 	bool setup_successed = false;
 	try {
 		setup(threadno);
@@ -357,7 +426,8 @@ void PipelineStage::run_wrapper(int threadno)
 		}
 	}
 	m_owner->stop();
-	m_threads[threadno].m_run = false;
+	m_threads[threadno].m_live_fibers--;
+	as_atomic(m_running_exec_units)--;
 }
 
 void PipelineStage::run(int threadno)
@@ -434,7 +504,7 @@ void PipelineStage::run_step_last(int threadno)
 		}
 		else {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: last_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: last_step(%s): tno=%d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 		}
 	}
@@ -443,6 +513,10 @@ void PipelineStage::run_step_last(int threadno)
 void PipelineStage::run_step_mid(int threadno)
 {
 	assert(ple_none == m_pl_enum || (ple_generate == m_pl_enum && m_threads.size() == 1));
+
+	if (m_owner->m_logLevel >= 4) {
+			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd, enter\n", threadno, m_threads[threadno].m_live_fibers);
+	}
 
 	while (isPrevRunning())
 	{
@@ -465,6 +539,10 @@ void PipelineStage::run_step_mid(int threadno)
 		        fprintf(stderr, "Pipeline: mid_step(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 		}
+	}
+
+	if (m_owner->m_logLevel >= 4) {
+			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd, leave\n", threadno, m_threads[threadno].m_live_fibers);
 	}
 }
 
@@ -527,7 +605,7 @@ void PipelineStage::run_serial_step_slow(int threadno,
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
         {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: serial_step_slow(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: serial_step_slow(%s): tno=%d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno);
 		    }
 			continue;
 		}
@@ -578,7 +656,7 @@ void PipelineStage::run_serial_step_fast(int threadno,
 		if (!m_prev->m_out_queue->pop_front(item, m_owner->m_queue_timeout))
         {
 		    if (m_owner->m_logLevel >= 3) {
-		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, wait push timeout, retry ...\n", m_step_name.c_str(), threadno);
+		        fprintf(stderr, "Pipeline: serial_step_fast(%s): tno=%d, prev.live_exec = %d, wait pop timeout, retry ...\n", m_step_name.c_str(), threadno, m_prev->m_running_exec_units);
 		    }
 			continue;
 		}
@@ -645,6 +723,15 @@ FunPipelineStage::FunPipelineStage(int thread_count,
 	m_step_name = (step_name);
 }
 
+FunPipelineStage::FunPipelineStage(int thread_count, int fibers_per_thread,
+				const function<void(PipelineStage*, int, PipelineQueueItem*)>& fprocess,
+				const std::string& step_name)
+	: PipelineStage(thread_count, fibers_per_thread)
+	, m_process(fprocess)
+{
+	m_step_name = (step_name);
+}
+
 FunPipelineStage::~FunPipelineStage() {}
 
 void FunPipelineStage::process(int threadno, PipelineQueueItem* task)
@@ -691,6 +778,7 @@ PipelineProcessor::PipelineProcessor()
 	m_keepSerial = false;
 	m_run = false;
 	m_logLevel = 1;
+	m_EUType = EUType::thread;
 }
 
 PipelineProcessor::~PipelineProcessor()
@@ -718,6 +806,18 @@ void PipelineProcessor::setMutex(mutex* pmutex)
 	}
 	m_mutex = pmutex;
 	m_is_mutex_owner = false;
+}
+
+const char* PipelineProcessor::euTypeName() const {
+	if (m_EUType > EUType::mixed) {
+		return "invalid";
+	}
+	const char* names[] = {
+			"thread",
+			"fiber",
+			"mixed",
+	};
+	return names[int(m_EUType)];
 }
 
 std::string PipelineProcessor::queueInfo()
@@ -828,13 +928,13 @@ void PipelineProcessor::compile(int input_feed_queue_size)
 		}
 	}
 // End check for double start
-	m_head->m_out_queue = NewQueue(m_fiberMode, input_feed_queue_size);
+	m_head->m_out_queue = NewQueue(m_EUType, input_feed_queue_size);
 	start();
 }
 
 void PipelineProcessor::enqueue(PipelineTask* task)
 {
-    if (m_fiberMode) {
+    if (EUType::fiber == m_EUType) {
         enqueue_impl(task);
     }
     else {
@@ -858,7 +958,7 @@ void PipelineProcessor::enqueue_impl(PipelineTask* task) {
 }
 
 void PipelineProcessor::enqueue(PipelineTask** tasks, size_t num) {
-    if (m_fiberMode) {
+    if (EUType::fiber == m_EUType) {
         enqueue_impl(tasks, num);
     }
     else {
@@ -910,6 +1010,15 @@ PipelineProcessor::operator|(std::pair<intptr_t, function<void(PipelineTask*)> >
   *this | new FunPipelineStage(s.first,
   [s=std::move(s)](PipelineStage*, int, PipelineQueueItem* item){
     s.second(item->task);
+  });
+  return *this;
+}
+
+PipelineProcessor&
+PipelineProcessor::operator|(std::tuple<int,int, function<void(PipelineTask*)> >&& s) {
+  *this | new FunPipelineStage(std::get<0>(s), std::get<1>(s),
+  [s=std::move(s)](PipelineStage*, int, PipelineQueueItem* item){
+    std::get<2>(s)(item->task);
   });
   return *this;
 }

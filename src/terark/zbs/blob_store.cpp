@@ -1,6 +1,7 @@
 #include "abstract_blob_store.hpp"
 #include "lru_page_cache.hpp"
 #include <terark/util/function.hpp>
+#include <terark/thread/fiber_local.hpp>
 
 #if defined(_WIN32) || defined(_WIN64)
 #   define WIN32_LEAN_AND_MEAN
@@ -19,6 +20,7 @@ namespace terark {
 BlobStore::BlobStore() {
     m_numRecords = size_t(-1);
     m_unzipSize = uint64_t(-1);
+    m_mmap_aio = false;
     m_get_record_append = NULL;
     m_get_record_append_CacheOffsets = NULL;
     m_fspread_record_append = NULL;
@@ -94,20 +96,24 @@ size_t BlobStore::lower_bound(size_t lo, size_t hi, fstring target,
   return recId;
 }
 
-static thread_local valvec<byte_t> tg_buf;
+static thread_local recycle_pool<valvec<byte_t> > tg_buf_pool;
 
 void BlobStore::pread_record_append(LruReadonlyCache* cache,
                                     intptr_t fd, size_t baseOffset,
                                     size_t recID, valvec<byte_t>* recData)
 const {
-    pread_record_append(cache, fd, baseOffset, recID, recData, &tg_buf);
+    valvec<byte_t> buf = tg_buf_pool.get();
+    pread_record_append(cache, fd, baseOffset, recID, recData, &buf);
+    tg_buf_pool.put(std::move(buf));
 }
 
 void BlobStore::fspread_record_append(pread_func_t fspread, void* lambda,
                                       size_t baseOffset,
                                       size_t recID, valvec<byte_t>* recData)
 const {
-    fspread_record_append(fspread, lambda, baseOffset, recID, recData, &tg_buf);
+    valvec<byte_t> buf = tg_buf_pool.get();
+    fspread_record_append(fspread, lambda, baseOffset, recID, recData, &buf);
+    tg_buf_pool.put(std::move(buf));
 }
 
 const byte_t* BlobStore::os_fspread(void* lambda, size_t offset, size_t len,
