@@ -9,8 +9,9 @@ fi
 # make the project
 git submodule update --init
 
-sudo apt-get update
-sudo apt-get install libaio-dev
+# you have to install libaio-dev first
+#sudo apt-get update
+#sudo apt-get install libaio-dev
 
 rm -rf pkg
 
