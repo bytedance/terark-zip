@@ -31,6 +31,9 @@
 	#endif
 #else
 #endif
+#if !defined(_MSC_VER) && !defined(__APPLE__)
+    #include "sys/resource.h"
+#endif
 
 namespace terark {
 
@@ -163,7 +166,14 @@ class ThreadExecUnit : public PipelineStage::ExecUnit {
     thread thr;
 public:
     template<class Func>
-    ThreadExecUnit(Func&& f) : thr(std::move(f)) {}
+    ThreadExecUnit(Func&& f) : thr(std::move(f)) {
+#if !defined(_MSC_VER) && !defined(__APPLE__)
+    #define IOPRIO_CLASS_SHIFT (13)
+    #define IOPRIO_PRIO_VALUE(class, data) (((class) << IOPRIO_CLASS_SHIFT) | data)
+        setpriority(PRIO_PROCESS, (int)thr.native_handle(), 19);
+        syscall(SYS_ioprio_set, 1, (int)thr.native_handle(), IOPRIO_PRIO_VALUE(3, 0));
+#endif
+    }
 
     void join() final { thr.join(); }
     bool joinable() const final { return thr.joinable(); }
