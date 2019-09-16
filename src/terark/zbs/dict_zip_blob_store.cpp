@@ -1395,6 +1395,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
              , const UintVecMin0& offsets, fstring entropyBitmap, fstring entropyTab
              , size_t maxOffsetEnt) {
 		assert(dict.memory.size() > 0);
+		assert(dict.verified);
 		memset(this, 0, sizeof(*this));
 		magic_len = MagicStrLen;
 		strcpy(magic, MagicString);
@@ -1589,6 +1590,7 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
             }
             assert(size == raw_size);
             dict = AbstractBlobStore::Dictionary(output_dict);
+            assert(dict.verified);
             if (mmapBase->formatVersion > 0 &&
                 mmapBase->dictXXHash != dict.xxhash) {
                 break;
@@ -2149,7 +2151,7 @@ void DictZipBlobStore::init_from_memory(fstring dataMem, Dictionary dict) {
         );
     }
     if (isChecksumVerifyEnabled() && mmapBase->formatVersion >= 1 &&
-        mmapBase->dictXXHash != dict.xxhash) {
+        dict.verified && mmapBase->dictXXHash != dict.xxhash) {
         THROW_STD(invalid_argument
             , "DictZipBlobStore xxhash mismatch: wire = %llX , real = %llX"
             , llong(mmapBase->dictXXHash), llong(dict.xxhash)
