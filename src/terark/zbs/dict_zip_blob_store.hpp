@@ -87,6 +87,7 @@ private:
 	bool          m_isNewRefEncoding; // now unused
     byte_t        m_entropyInterleaved;
     byte_t        m_gOffsetBits; // = My_bsr_size_t(dicLen - gMinLen) + 1;
+    bool          m_dict_verified;
 
 	bool offsetsIsSortedUintVec() const {
 		return m_zOffsets.isSortedUintVec();

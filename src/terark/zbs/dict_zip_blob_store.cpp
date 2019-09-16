@@ -170,6 +170,7 @@ void DictZipBlobStore::init() {
 	m_isNewRefEncoding = true;
 	new(&m_offsets)UintVecMin0();
     m_gOffsetBits = 0;
+    m_dict_verified = false;
 }
 
 DictZipBlobStore::~DictZipBlobStore() {
@@ -2156,6 +2157,7 @@ void DictZipBlobStore::init_from_memory(fstring dataMem, Dictionary dict) {
             , "DictZipBlobStore xxhash mismatch: wire = %llX , real = %llX"
             , llong(mmapBase->dictXXHash), llong(dict.xxhash)
         );
+        m_dict_verified = true;
     }
     setDataMemory((byte*)dataMem.data(), dataMem.size());
 }
@@ -2394,6 +2396,17 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
             mmapBase->offsetsUintBits);
     }
     m_isDetachMeta = true;
+
+    if (!m_dict_verified) {
+        Dictionary dict(fstring(offset_mem.data(), offset_mem.size()));
+        if (dict.xxhash != mmapBase->dictXXHash) {
+            THROW_STD(invalid_argument
+            , "DictZipBlobStore xxhash mismatch: wire = %llX , real = %llX"
+            , llong(mmapBase->dictXXHash), llong(dict.xxhash)
+            );
+        }
+        m_dict_verified = true;
+    }
 }
 
 size_t DictZipBlobStore::mem_size() const {
