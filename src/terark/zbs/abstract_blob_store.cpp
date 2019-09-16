@@ -51,6 +51,10 @@ AbstractBlobStore::Dictionary::Dictionary(fstring mem, uint64_t hash) : memory(m
     assert(!isChecksumVerifyEnabled() || hash == XXHash64(g_dicthash_seed)(mem));
 }
 
+AbstractBlobStore::Dictionary::Dictionary(terark::fstring mem, uint64_t hash, bool verified_)
+    : memory(mem), xxhash(hash), verified(verified_) {
+}
+
 AbstractBlobStore::Dictionary::Dictionary(size_t size, uint64_t hash) : memory(nullptr, size), xxhash(hash) {
 }
 
