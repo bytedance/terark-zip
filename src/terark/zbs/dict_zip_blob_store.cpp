@@ -1591,7 +1591,6 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
             }
             assert(size == raw_size);
             dict = AbstractBlobStore::Dictionary(output_dict);
-            assert(dict.verified);
             if (mmapBase->formatVersion > 0 &&
                 mmapBase->dictXXHash != dict.xxhash) {
                 break;
