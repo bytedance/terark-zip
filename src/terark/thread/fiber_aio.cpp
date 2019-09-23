@@ -3,6 +3,7 @@
 //
 
 #include "fiber_aio.hpp"
+#include "fiber_yield.hpp"
 #include <boost/fiber/all.hpp>
 
 #if BOOST_OS_LINUX
@@ -51,6 +52,7 @@ class io_fiber_context {
     stopping,
     stopped,
   };
+  FiberYield           m_fy;
   volatile state       m_state;
   size_t               ft_num;
   size_t               idle_cnt = 0;
@@ -83,7 +85,7 @@ class io_fiber_context {
   void fiber_proc_immediate_mode() {
     while (state::running == m_state) {
       io_reap();
-      boost::this_fiber::yield();
+      yield();
       counter++;
     }
   }
@@ -94,7 +96,7 @@ class io_fiber_context {
       } else {
         io_reap();
       }
-      boost::this_fiber::yield();
+      yield();
     }
   }
   void batch_submit() {
@@ -149,6 +151,8 @@ class io_fiber_context {
   }
 
 public:
+  io_fiber_context(const FiberYield& fy) : m_fy(fy) {}
+  void yield() { m_fy.unchecked_yield(); }
   intptr_t io_pread(int fd, void* buf, size_t len, off_t offset) {
     io_return io_ret = {0, -1, false};
     struct iocb io = {0};
@@ -171,13 +175,13 @@ public:
     else {
         while (terark_unlikely(io_reqnum >= io_batch)) {
           fprintf(stderr, "WARN: ft_num = %zd, io_reqnum = %zd >= io_batch = %d, yield fiber\n", ft_num, io_reqnum, io_batch);
-          boost::this_fiber::yield();
+          yield();
         }
         io_reqvec[io_reqnum++] = &io; // submit to user space queue
         //fprintf(stderr, "INFO: ft_num = %zd, io_reqnum = %zd, yield for io fiber submit\n", ft_num, io_reqnum);
     }
     do {
-      boost::this_fiber::yield();
+      yield();
     } while (!io_ret.done);
 
     if (io_ret.err) {
@@ -214,7 +218,7 @@ public:
             "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu, yield ...\n",
             ft_num, counter);
 #endif
-      boost::this_fiber::yield();
+      yield();
     }
     assert(state::stopped == m_state);
     io_fiber.join();
@@ -236,7 +240,7 @@ TERARK_DLL_EXPORT
 ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
   if (1 == g_aio_method || 2 == g_aio_method) {
-    static thread_local io_fiber_context io_fiber;
+    static thread_local io_fiber_context io_fiber(FiberYield(1));
     return io_fiber.io_pread(fd, buf, len, offset);
   }
 #endif
