@@ -21,6 +21,9 @@ namespace terark {
             m_active_context_pp = NULL;
             m_sched = NULL;
         }
+        explicit FiberYield(int /*init_tag*/) {
+            init_in_fiber_thread();
+        }
         void init_in_fiber_thread() {
             m_active_context_pp = boost::fibers::context::active_pp();
             m_sched = (*m_active_context_pp)->get_scheduler();
