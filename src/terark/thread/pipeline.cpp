@@ -688,6 +688,7 @@ void PipelineStage::run_serial_step_fast(int threadno)
 			if (cache[head].task)
 				process(threadno, &cache[head]);
 
+			item = cache[head];
 			if (terark_likely(is_last)) {
                 if (terark_likely(NULL != item.task))
                     m_owner->destroyTask(item.task);
