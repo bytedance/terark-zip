@@ -82,7 +82,7 @@ public:
     FiberQueue(size_t size) : q(size) {}
 	void push_back(const PipelineQueueItem& x, FiberYield* fy) final {
         while (q.full()) {
-            fy->unchecked_yield();
+            fy->yield();
         }
         q.push_back(x);
 	}
@@ -93,7 +93,7 @@ public:
                 q.push_back(x);
                 return true;
             }
-            fy->unchecked_yield();
+            fy->yield();
         }
         return false;
     }
@@ -105,7 +105,7 @@ public:
                 q.pop_front();
                 return true;
             }
-            fy->unchecked_yield();
+            fy->yield();
         }
         return false;
     }
@@ -122,19 +122,19 @@ public:
 	}
 	void push_back(const PipelineQueueItem& x, FiberYield* fy) final {
 		if (q.peekFull()) {
-			fy->unchecked_yield();
+			fy->yield();
 		}
 	    q.push_back(x);
 	}
     bool push_back(const PipelineQueueItem& x, int timeout, FiberYield* fy) final {
 		if (q.peekFull()) {
-			fy->unchecked_yield();
+			fy->yield();
 		}
         return q.push_back(x, timeout);
 	}
     bool pop_front(PipelineQueueItem& x, int timeout, FiberYield* fy) final {
 		if (q.peekEmpty()) {
-			fy->unchecked_yield();
+			fy->yield();
 		}
         return q.pop_front(x, timeout);
     }
@@ -169,7 +169,7 @@ public:
 
     void join() final { thr.join(); }
     bool joinable() const final { return thr.joinable(); }
-    FiberYield* get_fiber_yield() { return NULL; }
+    FiberYield* get_fiber_yield() override { return NULL; }
 };
 class FiberExecUnit : public PipelineStage::ExecUnit {
     boost::fibers::fiber fib;
@@ -180,10 +180,7 @@ public:
 
     void join() final { fib.join(); }
     bool joinable() const final { return fib.joinable(); }
-    FiberYield* get_fiber_yield() final {
-        fy.init_in_fiber_thread();
-        return &fy;
-    }
+    FiberYield* get_fiber_yield() final { return &fy; }
 };
 class MixedExecUnit : public ThreadExecUnit {
     FiberYield fy;
@@ -465,10 +462,7 @@ void PipelineStage::run(int threadno)
 			break;
 		case ple_keep:
 			assert(m_threads.size() == 1);
-			if (this == m_owner->m_head->m_prev)
-				run_serial_step_fast(threadno);
-			else
-				run_serial_step_fast(threadno);
+			run_serial_step_fast(threadno);
 			break;
 		}
 	}
@@ -966,9 +960,6 @@ void PipelineProcessor::enqueue(PipelineTask* task)
 
 void PipelineProcessor::enqueue_impl(PipelineTask* task) {
     FiberYield fy;
-    if (EUType::thread != m_EUType) {
-        fy.init_in_fiber_thread();
-    }
 	PipelineQueueItem item(++m_head->m_plserial, task);
     if (m_logLevel >= 3) {
         while (!m_head->m_out_queue->push_back(item, m_queue_timeout, &fy)) {
@@ -993,9 +984,6 @@ void PipelineProcessor::enqueue(PipelineTask** tasks, size_t num) {
 }
 void PipelineProcessor::enqueue_impl(PipelineTask** tasks, size_t num) {
     FiberYield fy;
-    if (EUType::thread != m_EUType) {
-        fy.init_in_fiber_thread();
-    }
 	uintptr_t plserial = m_head->m_plserial;
 	auto queue = m_head->m_out_queue;
     if (m_logLevel >= 3) {
