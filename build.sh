@@ -9,6 +9,9 @@ fi
 # make the project
 git submodule update --init
 
+BRANCH_NAME=`git rev-parse --abbrev-ref HEAD`
+echo Current BRANCH_NAME = $BRANCH_NAME
+
 # you have to install libaio-dev first
 #sudo apt-get update
 #sudo apt-get install libaio-dev
