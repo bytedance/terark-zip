@@ -32,7 +32,8 @@ namespace terark {
             if (terark_likely(NULL != m_active_context_pp)) {
                 assert(boost::fibers::context::active_pp() == m_active_context_pp);
                 assert((*m_active_context_pp)->get_scheduler() == m_sched);
-                m_sched->yield(*m_active_context_pp);
+                //m_sched->yield(*m_active_context_pp); // official boost
+                m_sched->yield(m_active_context_pp);
             } else {
                 yield_slow();
             }
@@ -42,7 +43,8 @@ namespace terark {
             assert(NULL != m_sched);
             assert(boost::fibers::context::active_pp() == m_active_context_pp);
             assert((*m_active_context_pp)->get_scheduler() == m_sched);
-            m_sched->yield(*m_active_context_pp);
+            //m_sched->yield(*m_active_context_pp); // official boost
+            m_sched->yield(m_active_context_pp);
         }
     };
 
