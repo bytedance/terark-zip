@@ -219,6 +219,13 @@ PipelineStage::ThreadData::~ThreadData() {
 	delete m_thread;
 }
 
+template<class T>
+static void WaitPtr(T*& pr) {
+    while (nullptr == as_atomic(pr).load()) {
+        std::this_thread::yield();
+    }
+}
+
 //////////////////////////////////////////////////////////////////////////
 
 PipelineStage::PipelineStage(int thread_count)
@@ -422,6 +429,7 @@ void PipelineStage::run_wrapper(int threadno)
 
 		if (m_prev != m_owner->m_head)
 		{ // 不是第一个 step, 清空前一个 step 的 out_queue
+		    WaitPtr(m_threads[threadno].m_thread);
 		    FiberYield* fy = m_threads[threadno].m_thread->get_fiber_yield();
 			while (!m_prev->m_out_queue->empty() || m_prev->isRunning())
 			{
@@ -472,6 +480,7 @@ void PipelineStage::run_step_first(int threadno)
 {
 	assert(ple_none == m_pl_enum || ple_generate == m_pl_enum);
 	assert(this->m_threads.size() == 1);
+	WaitPtr(m_threads[threadno].m_thread);
 	FiberYield* fy = m_threads[threadno].m_thread->get_fiber_yield();
 	while (m_owner->isRunning())
 	{
@@ -499,6 +508,7 @@ void PipelineStage::run_step_last(int threadno)
 {
 	assert(ple_none == m_pl_enum);
 
+	WaitPtr(m_threads[threadno].m_thread);
 	FiberYield* fy = m_threads[threadno].m_thread->get_fiber_yield();
 	while (isPrevRunning())
 	{
@@ -526,6 +536,7 @@ void PipelineStage::run_step_mid(int threadno)
 			fprintf(stderr, "Pipeline: run_step_mid(tno=%d), fiber_no = %zd, enter\n", threadno, m_threads[threadno].m_live_fibers);
 	}
 
+	WaitPtr(m_threads[threadno].m_thread);
 	FiberYield* fy = m_threads[threadno].m_thread->get_fiber_yield();
 	while (isPrevRunning())
 	{
@@ -597,6 +608,7 @@ void PipelineStage::run_serial_step_slow(int threadno,
 	assert(m_threads.size() == 1);
 	assert(0 == threadno);
 	using namespace std;
+	WaitPtr(m_threads[threadno].m_thread);
 	FiberYield* fy = m_threads[threadno].m_thread->get_fiber_yield();
 	valvec<PipelineQueueItem> cache;
 	m_plserial = 1;
@@ -646,6 +658,7 @@ void PipelineStage::run_serial_step_fast(int threadno)
 	assert(0 == threadno);
 	using namespace std;
 	const bool is_last = this == m_owner->m_head->m_prev;
+	WaitPtr(m_threads[threadno].m_thread);
 	FiberYield* fy = m_threads[threadno].m_thread->get_fiber_yield();
 	const ptrdiff_t nlen = TERARK_IF_DEBUG(4, 64); // should power of 2
 	ptrdiff_t head = 0;
