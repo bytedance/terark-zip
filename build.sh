@@ -19,9 +19,13 @@ git submodule update --init
 BRANCH_NAME=`git rev-parse --abbrev-ref HEAD`
 echo Current BRANCH_NAME = $BRANCH_NAME
 
-# you have to install libaio-dev first
-#sudo apt-get update
-#sudo apt-get install libaio-dev
+if test -n "$BUILD_BRANCH"; then
+    # this script is run in SCM auto build
+    sudo apt-get update
+    sudo apt-get install libaio-dev
+else
+    echo you must ensure libaio-dev have been installed
+fi
 
 rm -rf pkg
 
