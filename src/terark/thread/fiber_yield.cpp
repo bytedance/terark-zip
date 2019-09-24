@@ -8,7 +8,8 @@ namespace terark {
 
     void FiberYield::yield_slow() {
         init_in_fiber_thread();
-        m_sched->yield(*m_active_context_pp);
+        //m_sched->yield(*m_active_context_pp); // official boost
+        m_sched->yield(m_active_context_pp);
     }
 
 }
