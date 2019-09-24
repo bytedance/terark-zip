@@ -6,7 +6,6 @@ else
 	cpuNum=`nproc`
 fi
 
-echo Current BRANCH_NAME = $BRANCH_NAME
 echo Current BUILD_BRANCH = $BUILD_BRANCH
 echo Current BUILD_REPO_BRANCH = $BUILD_REPO_BRANCH
 
@@ -18,6 +17,7 @@ fi
 git submodule update --init
 
 BRANCH_NAME=`git rev-parse --abbrev-ref HEAD`
+echo Current BRANCH_NAME = $BRANCH_NAME
 
 # you have to install libaio-dev first
 #sudo apt-get update
