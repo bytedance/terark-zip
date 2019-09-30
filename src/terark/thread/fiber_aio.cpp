@@ -28,9 +28,8 @@ namespace terark {
 
 ///@returns
 //  0: posix aio
-//  1: linux aio immediate mode (default)
-//  2: linux aio batch     mode
-//  3: io uring (not supported now)
+//  1: linux aio(default)
+//  2: io uring (not supported now)
 static int get_aio_method() {
   const char* env = getenv("aio_method");
   if (env) {
@@ -43,8 +42,10 @@ static int g_aio_method = get_aio_method();
 
 static std::atomic<size_t> g_ft_num;
 
+#define aio_debug(...)
+//#define aio_debug(fmt, ...) fprintf(stderr, "DEBUG: %s:%d:%s: " fmt "\n", __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__)
+
 class io_fiber_context {
-  static const int io_batch = 128;
   static const int reap_batch = 32;
   enum class state {
     ready,
@@ -55,15 +56,14 @@ class io_fiber_context {
   FiberYield           m_fy;
   volatile state       m_state;
   size_t               ft_num;
-  size_t               idle_cnt = 0;
   unsigned long long   counter;
   boost::fibers::fiber io_fiber;
   io_context_t         io_ctx;
   volatile size_t      io_reqnum = 0;
   struct io_event      io_events[reap_batch];
-  struct iocb*         io_reqvec[io_batch];
 
   struct io_return {
+    boost::fibers::context* fctx;
     intptr_t len;
     int err;
     bool done;
@@ -71,71 +71,43 @@ class io_fiber_context {
 
   void fiber_proc() {
     m_state = state::running;
-    if (1 == g_aio_method)
-      fiber_proc_immediate_mode();
-    else if (2 == g_aio_method)
-      fiber_proc_batch_mode();
-    else {
-      fprintf(stderr, "ERROR: bad aio_method = %d\n", g_aio_method);
-      exit(1);
-    }
-    assert(state::stopping == m_state);
-    m_state = state::stopped;
-  }
-  void fiber_proc_immediate_mode() {
     while (state::running == m_state) {
       io_reap();
       yield();
       counter++;
     }
-  }
-  void fiber_proc_batch_mode() {
-    for (; state::running == m_state; counter++) {
-      if (counter % 2 == 0) {
-        batch_submit();
-      } else {
-        io_reap();
-      }
-      yield();
-    }
-  }
-  void batch_submit() {
-    if (io_reqnum) {
-      // should io_reqvec keep valid before reaped?
-      int ret = io_submit(io_ctx, io_reqnum, io_reqvec);
-      if (ret < 0) {
-        int err = -ret;
-        fprintf(stderr, "ERROR: ft_num = %zd, io_submit(nr=%zd) = %s\n", ft_num, io_reqnum, strerror(err));
-      }
-      else if (size_t(ret) == io_reqnum) {
-        //fprintf(stderr, "INFO: ft_num = %zd, io_submit(nr=%zd) = %d, graceful\n", ft_num, io_reqnum, ret);
-        io_reqnum = 0; // reset
-      }
-      else {
-        fprintf(stderr, "WARN: ft_num = %zd, io_submit(nr=%zd) = %d\n", ft_num, io_reqnum, ret);
-        assert(size_t(ret) < io_reqnum);
-        memmove(io_reqvec, io_reqvec + ret, io_reqnum - ret);
-        io_reqnum -= ret;
-      }
-      idle_cnt = 0;
-    }
-    else {
-      idle_cnt++;
-      if (idle_cnt > 128) {
-        //fprintf(stderr, "INFO: fiber_proc: ft_num = %zd, idle_cnt = %zd, counter = %llu\n", ft_num, idle_cnt, counter);
-        //std::this_thread::yield();
-        usleep(100); // 100 us
-        idle_cnt = 0;
-      }
-    }
+    assert(state::stopping == m_state);
+    m_state = state::stopped;
   }
 
   void io_reap() {
+  /*
+    if (io_reqnum < 1) {
+        return;
+    }
+    if (io_reqnum == 1) {
+      // block/wait if there is just one io request
+      int ret = io_getevents(io_ctx, 1, 1, io_events, NULL);
+      if (ret < 0) {
+        int err = -ret;
+        fprintf(stderr, "ERROR: ft_num = %zd, io_getevents(one) = %s\n", ft_num, strerror(err));
+      }
+      else {
+        io_return* ior = (io_return*)(io_events->data);
+        ior->len = io_events->res;
+        ior->err = io_events->res2;
+        ior->done = true;
+        m_fy.unchecked_notify(&ior->fctx);
+        io_reqnum = 0;
+      }
+      return;
+    }
+  */
     for (;;) {
       int ret = io_getevents(io_ctx, 0, reap_batch, io_events, NULL);
       if (ret < 0) {
         int err = -ret;
-        fprintf(stderr, "ERROR: ft_num = %zd, io_getevents(nr=%d) = %s\n", ft_num, io_batch, strerror(err));
+        fprintf(stderr, "ERROR: ft_num = %zd, io_getevents(nr=%d) = %s\n", ft_num, reap_batch, strerror(err));
       }
       else {
         for (int i = 0; i < ret; i++) {
@@ -143,7 +115,9 @@ class io_fiber_context {
           ior->len = io_events[i].res;
           ior->err = io_events[i].res2;
           ior->done = true;
+          m_fy.unchecked_notify(&ior->fctx);
         }
+        io_reqnum -= ret;
         if (ret < reap_batch)
           break;
       }
@@ -151,10 +125,10 @@ class io_fiber_context {
   }
 
 public:
-  io_fiber_context(const FiberYield& fy) : m_fy(fy) {}
   void yield() { m_fy.unchecked_yield(); }
+
   intptr_t io_pread(int fd, void* buf, size_t len, off_t offset) {
-    io_return io_ret = {0, -1, false};
+    io_return io_ret = {nullptr, 0, -1, false};
     struct iocb io = {0};
     io.data = &io_ret;
     io.aio_lio_opcode = IO_CMD_PREAD;
@@ -162,40 +136,37 @@ public:
     io.u.c.buf = buf;
     io.u.c.nbytes = len;
     io.u.c.offset = offset;
-    if (1 == g_aio_method) {
-      struct iocb* iop = &io;
+    struct iocb* iop = &io;
+    while (true) {
       int ret = io_submit(io_ctx, 1, &iop);
       if (ret < 0) {
         int err = -ret;
+        if (EAGAIN == err) {
+          yield();
+          continue;
+        }
         fprintf(stderr, "ERROR: ft_num = %zd, io_submit(nr=1) = %s\n", ft_num, strerror(err));
         errno = err;
         return -1;
       }
+      break;
     }
-    else {
-        while (terark_unlikely(io_reqnum >= io_batch)) {
-          fprintf(stderr, "WARN: ft_num = %zd, io_reqnum = %zd >= io_batch = %d, yield fiber\n", ft_num, io_reqnum, io_batch);
-          yield();
-        }
-        io_reqvec[io_reqnum++] = &io; // submit to user space queue
-        //fprintf(stderr, "INFO: ft_num = %zd, io_reqnum = %zd, yield for io fiber submit\n", ft_num, io_reqnum);
-    }
-    do {
-      yield();
-    } while (!io_ret.done);
-
+    io_reqnum++;
+    m_fy.unchecked_wait(&io_ret.fctx);
+    assert(io_ret.done);
     if (io_ret.err) {
       errno = io_ret.err;
     }
     return io_ret.len;
   }
 
-  io_fiber_context()
-    : io_fiber(std::bind(&io_fiber_context::fiber_proc, this))
+  io_fiber_context(boost::fibers::context** pp)
+    : m_fy(pp)
+    , io_fiber(std::bind(&io_fiber_context::fiber_proc, this))
   {
     ft_num = g_ft_num++;
-    //fprintf(stderr, "INFO: io_fiber_context::io_fiber_context(): ft_num = %zd\n", ft_num);
-    int maxevents = io_batch*2 - 1;
+    aio_debug("ft_num = %zd", ft_num);
+    int maxevents = reap_batch*4 - 1;
     int err = io_setup(maxevents, &io_ctx);
     if (err) {
       perror("io_setup");
@@ -206,28 +177,20 @@ public:
   }
 
   ~io_fiber_context() {
-#if 0
-    fprintf(stderr,
-            "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu ...\n",
-            ft_num, counter);
-#endif
+    aio_debug("ft_num = %zd, counter = %llu ...", ft_num, counter);
+
     m_state = state::stopping;
     while (state::stopping == m_state) {
-#if 0
-      fprintf(stderr,
-            "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu, yield ...\n",
-            ft_num, counter);
-#endif
+      aio_debug("ft_num = %zd, counter = %llu, yield ...", ft_num, counter);
       yield();
     }
     assert(state::stopped == m_state);
     io_fiber.join();
 
-#if 0
-    fprintf(stderr,
-            "INFO: io_fiber_context::~io_fiber_context(): ft_num = %zd, counter = %llu, done\n",
-            ft_num, counter);
-#endif
+    aio_debug("ft_num = %zd, counter = %llu, done", ft_num, counter);
+
+    assert(0 == io_reqnum);
+
     int err = io_destroy(io_ctx);
     if (err) {
       perror("io_destroy");
@@ -239,8 +202,9 @@ public:
 TERARK_DLL_EXPORT
 ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
-  if (1 == g_aio_method || 2 == g_aio_method) {
-    static thread_local io_fiber_context io_fiber(FiberYield(1));
+  if (1 == g_aio_method) {
+    using boost::fibers::context;
+    static thread_local io_fiber_context io_fiber(context::active_pp());
     return io_fiber.io_pread(fd, buf, len, offset);
   }
 #endif
