@@ -29,7 +29,7 @@ void SetUseDivSufSort(int v) {
 static const size_t MaxDepth = (1 << 8) - 1;
 
 // manully added prefetch makes it slower on visual c++ 2015
-//#define SuffixDict_EnablePrefetch
+#define SuffixDict_EnablePrefetch
 #if defined(SuffixDict_EnablePrefetch)
 	#define SuffixDict_prefetch(ptr) _mm_prefetch((const char*)ptr, _MM_HINT_T0)
 #else
@@ -625,11 +625,14 @@ const {
 	const auto lstates = m_da->states.data();
 	while (pos < len) {
 #if defined(SuffixDict_EnablePrefetch)
-		register size_t child = lstates[state].m_child0 + input[pos];
-		SuffixDict_prefetch(&lstates[child]);
+		size_t child;
 #endif
 		if (size_t zlen = lstates[state].getZstrLen()) {
 			SuffixDict_prefetch(&sa[lo]);
+#if defined(SuffixDict_EnablePrefetch)
+			child = lstates[state].m_child0 + input[pos+zlen];
+			SuffixDict_prefetch(&lstates[child]);
+#endif
 			size_t zend = std::min(len, pos + zlen);
 			for (auto zptr = str + sa[lo]; pos < zend; pos++) {
 				if (zptr[pos] != input[pos])
@@ -637,6 +640,11 @@ const {
 			}
 			if (terark_unlikely(pos == len))
 				return {lo, hi, pos};
+		}
+		else {
+#if defined(SuffixDict_EnablePrefetch)
+			child = lstates[state].m_child0 + input[pos];
+#endif
 		}
 #if !defined(SuffixDict_EnablePrefetch)
 		size_t  child = lstates[state].m_child0 + input[pos];
