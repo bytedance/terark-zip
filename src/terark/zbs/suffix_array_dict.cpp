@@ -28,7 +28,6 @@ void SetUseDivSufSort(int v) {
 
 static const size_t MaxDepth = (1 << 8) - 1;
 
-// manully added prefetch makes it slower on visual c++ 2015
 #define SuffixDict_EnablePrefetch
 #if defined(SuffixDict_EnablePrefetch)
 	#define SuffixDict_prefetch(ptr) _mm_prefetch((const char*)ptr, _MM_HINT_T0)
@@ -136,7 +135,7 @@ public:
 	uint32_t m_suffixLow; // for very little performance, use 32
 	uint32_t m_suffixHig;
 
-	MyDoubleArrayNode() {
+	MyDoubleArrayNode() noexcept {
 		m_zlenLo = 0;
 		m_suffixLow = 0;
 		m_suffixHig = 0;
@@ -144,12 +143,12 @@ public:
 		m_parent = nil_state;
 	}
 
-	void setZstrLen(size_t zlen) {
+	void setZstrLen(size_t zlen) noexcept {
 		BOOST_STATIC_ASSERT(MaxDepth == 255);
 		assert(zlen <= 255);
 		m_zlenLo = zlen;
 	}
-	size_t getZstrLen() const {
+	size_t getZstrLen() const noexcept {
 		return m_zlenLo;
 	}
 
@@ -162,10 +161,10 @@ public:
 		m_parent = x;
 	}
 
-	bool is_term() const { return true; }
-	bool is_free() const { return nil_state == m_parent; }
-	size_t child0() const { /*assert(!is_free());*/ return m_child0; }
-	size_t parent() const { /*assert(!is_free());*/ return m_parent; }
+	bool is_term() const noexcept { return true; }
+	bool is_free() const noexcept { return nil_state == m_parent; }
+	size_t child0() const noexcept { /*assert(!is_free());*/ return m_child0; }
+	size_t parent() const noexcept { /*assert(!is_free());*/ return m_parent; }
 };
 #pragma pack(pop)
 
@@ -186,25 +185,6 @@ void SuffixDictCacheDFA::MyDoubleArrayTrie::useHugePage() {
 #endif
 }
 
-//#define SuffixDictCacheDFA_EnableProfiling
-
-#ifdef SuffixDictCacheDFA_EnableProfiling
-	static long long g_hash_time = 0;
-	static long long g_dfa_time = 0;
-	static long long g_sa_time = 0;
-	profiling g_pf;
-	#define SuffixDictCacheDFA_Profiling_t0() long long t0 = g_pf.now()
-	#define SuffixDictCacheDFA_Profiling(which) \
-		TERARK_SCOPE_EXIT( \
-			long long t1 = g_pf.now(); \
-			g_##which##_time += t1 - t0; \
-			t0 = t1; \
-		)
-#else
-	#define SuffixDictCacheDFA_Profiling_t0()
-	#define SuffixDictCacheDFA_Profiling(which)
-#endif
-
 SuffixDictCacheDFA::SuffixDictCacheDFA() {
 	m_sa_data = NULL;
 	m_sa_size = 0;
@@ -212,11 +192,6 @@ SuffixDictCacheDFA::SuffixDictCacheDFA() {
 }
 
 SuffixDictCacheDFA::~SuffixDictCacheDFA() {
-#ifdef SuffixDictCacheDFA_EnableProfiling
-	printf("hash_time = %f's  dfa_time = %f's  sa_time = %f's\n"
-		, g_pf.sf(0,g_hash_time)
-		, g_pf.sf(0,g_dfa_time), g_pf.sf(0, g_sa_time));
-#endif
 }
 
 void SuffixDictCacheDFA::build_sa(valvec<byte>& str) {
@@ -456,7 +431,7 @@ SuffixDictCacheDFA::pfs_build_cache(size_t minFreq) {
 static inline
 std::pair<size_t, size_t>
 s_sa_equal_range(const byte* str, const int* sa, size_t saLen,
-				 size_t lo, size_t hi, size_t depth, byte_t ch) {
+				 size_t lo, size_t hi, size_t depth, byte_t ch) noexcept {
 	assert(lo < hi);
 	assert(hi <= saLen);
 	assert(sa[lo] + depth <= saLen);
@@ -504,24 +479,12 @@ static inline
 SuffixDictCacheDFA::MatchStatus
 s_sa_match(const byte* str, const int* sa, size_t saLen,
 			size_t lo, size_t hi, size_t pos,
-			const byte* input, size_t len, size_t minFreq) {
+			const byte* input, size_t len) noexcept {
 	using std::min;
 	using std::max;
 //	printf("freq =%4zd  pos =%3zd : \33[1;31m%.*s\33[0m%.*s\n", hi-lo, pos
 //		, int(pos), input, min(int(len-pos), 40), input + pos);
-#if 0
-	// not ready yet
-	if (minFreq <= 1) {
-		auto mr = sa_match_exact(lo, hi, pos, input, len);
-		lo = mr.first;
-		hi = mr.first + 1;
-		pos = mr.second;
-//		printf("freq =%4zd  pos =%3zd : \33[1;32m%.*s\33[0m%.*s\n", hi-lo, pos
-//			, int(pos), input, min(int(len-pos), 40), input + pos);
-		return {lo, hi, pos};
-	}
-#endif
-	assert(hi - lo >= minFreq); // cache should has a bigger freq
+	assert(hi - lo >= 1); // cache should has a bigger freq
 	while (pos < len) {
 		if (terark_unlikely(lo + 1 == hi)) {
 			size_t saLo = sa[lo];
@@ -545,7 +508,7 @@ s_sa_match(const byte* str, const int* sa, size_t saLen,
 				break;
 		}
 		auto rng = s_sa_equal_range(str, sa, saLen, lo, hi, pos, input[pos]);
-		if (rng.second - rng.first >= minFreq) {
+		if (rng.second - rng.first != 0) {
 			lo = rng.first;
 			hi = rng.second;
 			pos++;
@@ -560,20 +523,16 @@ s_sa_match(const byte* str, const int* sa, size_t saLen,
 }
 
 #ifdef SuffixDictCacheDebug
-#ifdef __GNUC__
- __attribute__((flatten))
-#endif
+terark_flatten
 SuffixDictCacheDFA::MatchStatus
-SuffixDictCacheDFA::sa_match_max_length(const byte* input, size_t len, size_t minFreq)
-const {
+SuffixDictCacheDFA::sa_match_max_length(const byte* input, size_t len)
+const noexcept {
 	assert(minFreq >= 1);
 	assert(m_bm.get() != NULL);
 	const byte_t* str = m_str;
 	const int* sa = m_sa_data;
 	size_t lo = 0, hi = m_sa_size, pos = 0;
-	SuffixDictCacheDFA_Profiling_t0();
 {
-	SuffixDictCacheDFA_Profiling(dfa);
 	size_t state = 0;
 	const auto trie = m_bm.get();
 	const auto lstates = trie->states.data();
@@ -592,7 +551,6 @@ const {
 			state = child;
 			lo = lstates[child].m_suffixLow;
 			hi = lstates[child].m_suffixHig;
-			assert(hi - lo >= minFreq); // cache should has a bigger freq
 			assert(str[sa[lo] + pos] == input[pos]);
 			pos++;
 		}
@@ -602,37 +560,28 @@ const {
 	return {lo, hi, pos};
 }
 SearchSA:
-	SuffixDictCacheDFA_Profiling(sa);
-	return s_sa_match(str, sa, m_sa_size, lo, hi, pos, input, len, minFreq);
+	return s_sa_match(str, sa, m_sa_size, lo, hi, pos, input, len);
 }
 #endif // SuffixDictCacheDebug
 
-#ifdef __GNUC__
- __attribute__((flatten))
-#endif
+terark_flatten
 SuffixDictCacheDFA::MatchStatus
-SuffixDictCacheDFA::da_match_max_length(const byte* input, size_t len, size_t minFreq)
-const {
-	assert(minFreq >= 1);
+SuffixDictCacheDFA::da_match_max_length(const byte* input, size_t len)
+const noexcept {
 	assert(m_da.get() != NULL);
 	const byte_t* str = m_str;
 	const int* sa = m_sa_data;
 	size_t lo = 0, hi = m_sa_size, pos = 0;
-	SuffixDictCacheDFA_Profiling_t0();
 {
-	SuffixDictCacheDFA_Profiling(dfa);
 	size_t state = 0;
 	const auto lstates = m_da->states.data();
 	while (pos < len) {
 #if defined(SuffixDict_EnablePrefetch)
 		size_t child;
-#endif
 		if (size_t zlen = lstates[state].getZstrLen()) {
 			SuffixDict_prefetch(&sa[lo]);
-#if defined(SuffixDict_EnablePrefetch)
 			child = lstates[state].m_child0 + input[pos+zlen];
 			SuffixDict_prefetch(&lstates[child]);
-#endif
 			size_t zend = std::min(len, pos + zlen);
 			for (auto zptr = str + sa[lo]; pos < zend; pos++) {
 				if (zptr[pos] != input[pos])
@@ -642,18 +591,24 @@ const {
 				return {lo, hi, pos};
 		}
 		else {
-#if defined(SuffixDict_EnablePrefetch)
 			child = lstates[state].m_child0 + input[pos];
-#endif
 		}
-#if !defined(SuffixDict_EnablePrefetch)
-		size_t  child = lstates[state].m_child0 + input[pos];
+#else
+		if (size_t zlen = lstates[state].getZstrLen()) {
+			size_t zend = std::min(len, pos + zlen);
+			for (auto zptr = str + sa[lo]; pos < zend; pos++) {
+				if (zptr[pos] != input[pos])
+					return {lo, hi, pos};
+			}
+			if (terark_unlikely(pos == len))
+				return {lo, hi, pos};
+		}
+		size_t child = lstates[state].m_child0 + input[pos];
 #endif
 		if (terark_likely(lstates[child].m_parent == state)) {
 			state = child;
 			lo = lstates[child].m_suffixLow;
 			hi = lstates[child].m_suffixHig;
-			assert(hi - lo >= minFreq); // cache should has a bigger freq
 			assert(str[sa[lo] + pos] == input[pos]);
 			pos++;
 		}
@@ -663,13 +618,12 @@ const {
 	return {lo, hi, pos};
 }
 SearchSA:
-	SuffixDictCacheDFA_Profiling(sa);
-	return s_sa_match(str, sa, m_sa_size, lo, hi, pos, input, len, minFreq);
+	return s_sa_match(str, sa, m_sa_size, lo, hi, pos, input, len);
 }
 
 size_t
 SuffixDictCacheDFA::sa_lower_bound(size_t lo, size_t hi, size_t depth, byte_t ch)
-const {
+const noexcept {
 	assert(lo < hi);
 	assert(hi <= m_sa_size);
 	const int* sa = m_sa_data;
@@ -692,7 +646,7 @@ const {
 
 size_t
 SuffixDictCacheDFA::sa_upper_bound(size_t lo, size_t hi, size_t depth, byte_t ch)
-const {
+const noexcept {
 	assert(lo < hi);
 	assert(hi <= m_sa_size);
 	const int* sa = m_sa_data;
@@ -715,13 +669,13 @@ const {
 
 std::pair<size_t, size_t>
 SuffixDictCacheDFA::sa_equal_range(size_t lo, size_t hi, size_t depth, byte_t ch)
-const {
+const noexcept {
 	return s_sa_equal_range(m_str, m_sa_data, m_sa_size, lo, hi, depth, ch);
 }
 
 static inline
 intptr_t
-sa_strcmp(const byte* x, size_t xn, const byte* y, size_t yn, size_t i) {
+sa_strcmp(const byte* x, size_t xn, const byte* y, size_t yn, size_t i) noexcept {
 	size_t n = std::min(xn, yn);
 	for (; i < n; ++i) {
 		if (x[i] != y[i])
@@ -732,7 +686,7 @@ sa_strcmp(const byte* x, size_t xn, const byte* y, size_t yn, size_t i) {
 
 SuffixDictCacheDFA::MatchStatus
 SuffixDictCacheDFA::sa_match_range(size_t lo, size_t hi, size_t depth, const byte_t* input, size_t len)
-const {
+const noexcept {
 	assert(lo < hi);
 	assert(hi <= m_sa_size);
 	const int* sa = m_sa_data;
@@ -805,7 +759,7 @@ TwoMatch:
 
 std::pair<size_t, size_t>
 SuffixDictCacheDFA::sa_match_exact(size_t lo, size_t hi, size_t depth, const byte_t* input, size_t len)
-const {
+const noexcept {
 	assert(lo < hi);
 	assert(hi <= m_sa_size);
 	const int* sa = m_sa_data;
@@ -908,7 +862,6 @@ HashSuffixDictCacheDFA::~HashSuffixDictCacheDFA() {
 
 void
 HashSuffixDictCacheDFA::bfs_build_cache(size_t minFreq, size_t maxBfsDepth) {
-	profiling pf;
 	auto sa = m_sa_data;
 	auto str = m_str;
 	auto sa_size = m_sa_size;
@@ -1084,16 +1037,14 @@ HashSuffixDictCacheDFA::pfs_build_cache(size_t minFreq) {
 
 SuffixDictCacheDFA::MatchStatus
 HashSuffixDictCacheDFA::da_match_max_length(const byte* input, size_t len, size_t minFreq)
-const {
+const noexcept {
 	if (terark_unlikely(len < MinMatchLen)) {
 		return {0,0,0};
 	}
-	SuffixDictCacheDFA_Profiling_t0();
 	const byte_t* str = m_str;
 	const int* sa = m_sa_data;
 	size_t lo = 0, hi = 0;
 	if (!m_nodes.empty()) {
-		SuffixDictCacheDFA_Profiling(hash);
 		unsigned h = HashPtr(input, m_shift);
 		unsigned p = m_bucket[h];
 		auto nodes = m_nodes.data();
@@ -1116,7 +1067,6 @@ const {
 		return {0,0,0}; // not found
 	}
 SearchTrie:
-	SuffixDictCacheDFA_Profiling(dfa);
 	const auto lstates = m_da->states.data();
 	size_t state = hi; // now hi is trie root
 	assert(lo == lstates[state].m_suffixLow);
@@ -1142,7 +1092,6 @@ SearchTrie:
 			pos++;
 		}
 		else {
-			SuffixDictCacheDFA_Profiling(sa);
 			return s_sa_match(str, sa, m_sa_size,
 							  lo, hi, pos, input, len, minFreq);
 		}

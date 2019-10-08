@@ -49,31 +49,31 @@ public:
 	void sa_print_stat() const;
 
 #ifdef SuffixDictCacheDebug
-	MatchStatus sa_match_max_length(const byte*, size_t len, size_t minFreq = 1) const;
-	MatchStatus sa_match_max_length(fstring input, size_t minFreq = 1) const {
-		return sa_match_max_length(input.udata(), input.size(), minFreq);
+	MatchStatus sa_match_max_length(const byte*, size_t len) const noexcept;
+	MatchStatus sa_match_max_length(fstring input) const noexcept {
+		return sa_match_max_length(input.udata(), input.size());
 	}
 #endif
 
-	virtual
-	MatchStatus da_match_max_length(const byte*, size_t len, size_t minFreq = 1) const;
-	MatchStatus da_match_max_length(fstring input, size_t minFreq = 1) const {
-		return da_match_max_length(input.udata(), input.size(), minFreq);
+	SuffixDictCacheDFA_virtual
+	MatchStatus da_match_max_length(const byte*, size_t len) const noexcept;
+	MatchStatus da_match_max_length(fstring input) const noexcept {
+		return da_match_max_length(input.udata(), input.size());
 	}
 
-	size_t sa_lower_bound(size_t lo, size_t hi, size_t depth, byte_t ch) const;
-	size_t sa_upper_bound(size_t lo, size_t hi, size_t depth, byte_t ch) const;
+	size_t sa_lower_bound(size_t lo, size_t hi, size_t depth, byte_t ch) const noexcept;
+	size_t sa_upper_bound(size_t lo, size_t hi, size_t depth, byte_t ch) const noexcept;
 	std::pair<size_t, size_t>
-		   sa_equal_range(size_t lo, size_t hi, size_t depth, byte_t ch) const;
+		   sa_equal_range(size_t lo, size_t hi, size_t depth, byte_t ch) const noexcept;
 
-	MatchStatus sa_match_range(size_t lo, size_t hi, size_t depth, const byte_t* input, size_t len) const;
+	MatchStatus sa_match_range(size_t lo, size_t hi, size_t depth, const byte_t* input, size_t len) const noexcept;
 
 	/// @returns pair{lo, new_depth}
 	std::pair<size_t, size_t>
-		sa_match_exact(size_t lo, size_t hi, size_t depth, const byte_t* input, size_t len) const;
+		sa_match_exact(size_t lo, size_t hi, size_t depth, const byte_t* input, size_t len) const noexcept;
 
-	const int* sa_data() const { return m_sa_data; }
-	const byte* str(size_t pos) const {
+	const int* sa_data() const noexcept { return m_sa_data; }
+	const byte* str(size_t pos) const noexcept {
 		assert(pos < m_sa_size);
 		return m_str + pos;
 	}
@@ -95,7 +95,7 @@ public:
 	~HashSuffixDictCacheDFA();
 	void bfs_build_cache(size_t minFreq, size_t maxBfsDepth) override;
 	void pfs_build_cache(size_t minFreq) override;
-	MatchStatus da_match_max_length(const byte*, size_t len, size_t minFreq) const override;
+	MatchStatus da_match_max_length(const byte*, size_t len) const noexcept override;
 };
 #endif
 
