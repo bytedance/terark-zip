@@ -582,11 +582,12 @@ const noexcept {
 			SuffixDict_prefetch(&sa[lo]);
 			child = lstates[state].m_child0 + input[pos+zlen];
 			SuffixDict_prefetch(&lstates[child]);
-			size_t zend = std::min(len, pos + zlen);
-			for (auto zptr = str + sa[lo]; pos < zend; pos++) {
+			auto zptr = str + sa[lo];
+			auto zend = std::min(len, pos + zlen);
+			do {
 				if (zptr[pos] != input[pos])
 					return {lo, hi, pos};
-			}
+			} while (++pos < zend);
 			if (terark_unlikely(pos == len))
 				return {lo, hi, pos};
 		}
@@ -595,11 +596,12 @@ const noexcept {
 		}
 #else
 		if (size_t zlen = lstates[state].getZstrLen()) {
-			size_t zend = std::min(len, pos + zlen);
-			for (auto zptr = str + sa[lo]; pos < zend; pos++) {
+			auto zptr = str + sa[lo];
+			auto zend = std::min(len, pos + zlen);
+			do {
 				if (zptr[pos] != input[pos])
 					return {lo, hi, pos};
-			}
+			} while (++pos < zend);
 			if (terark_unlikely(pos == len))
 				return {lo, hi, pos};
 		}
