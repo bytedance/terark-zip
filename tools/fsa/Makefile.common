@@ -164,6 +164,10 @@ link: ${ALL_BIN}
 	for f in `find ../${RLS_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
 		ln -sf $$f .; \
 	done; cd ..
+	@mkdir -p afr; cd afr; \
+	for f in `find ../${AFR_DIR} -name '*.exe' -o -name '*'${DLL_SUFFIX}`; do \
+		ln -sf $$f .; \
+	done; cd ..
 
 ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
