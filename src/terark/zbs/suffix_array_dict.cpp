@@ -439,21 +439,24 @@ s_sa_equal_range(const byte* str, const int* sa, size_t saLen,
 		lo++;
 		assert(sa[lo] + depth < saLen);
 	}
+#if 1
+	// binary search
+	size_t mideq;
 	while (lo < hi) {
 		assert(sa[lo] + depth < saLen);
-		size_t mid = (lo + hi) / 2;
-		assert(sa[mid] + depth < saLen);
-		byte_t hitChr = str[sa[mid] + depth];
+		mideq = (lo + hi) / 2;
+		assert(sa[mideq] + depth < saLen);
+		byte_t hitChr = str[sa[mideq] + depth];
 		if (hitChr < ch)
-			lo = mid + 1;
+			lo = mideq + 1;
 		else if (hitChr > ch)
-			hi = mid;
+			hi = mideq;
 		else
 			goto Found;
 	}
 	return std::make_pair(lo, lo);
 Found:
-	size_t lo1 = lo, hi1 = hi;
+	size_t lo1 = lo, hi1 = mideq;
 	while (lo1 < hi1) {
 		size_t mid = (lo1 + hi1) / 2;
 		byte_t hitChr = str[sa[mid] + depth];
@@ -462,7 +465,7 @@ Found:
 		else
 			hi1 = mid;
 	}
-	size_t lo2 = lo, hi2 = hi;
+	size_t lo2 = mideq + 1, hi2 = hi;
 	while (lo2 < hi2) {
 		size_t mid = (lo2 + hi2) / 2;
 		byte_t hitChr = str[sa[mid] + depth];
@@ -472,6 +475,159 @@ Found:
 			hi2 = mid;
 	}
 	return std::make_pair(lo1, lo2);
+#else
+	// 4-ary search
+	// use prefetch to improve latency, may waste some RAM bandwidth
+	// does not get faster
+	size_t lh = hi, hl = lo;
+	while (lo + 3 < hi) {
+		assert(sa[lo] + depth < saLen);
+		size_t m2 = (lo + hi) / 2;
+		size_t m1 = lo + (hi - lo) * 1 / 4;
+		size_t m3 = lo + (hi - lo) * 3 / 4;
+		assert(sa[m1] + depth < saLen);
+		assert(sa[m2] + depth < saLen);
+		assert(sa[m3] + depth < saLen);
+		SuffixDict_prefetch(&sa[m2]);
+		size_t p1 = sa[m1] + depth;
+		size_t p3 = sa[m3] + depth;
+		SuffixDict_prefetch(&str[p1]);
+		SuffixDict_prefetch(&str[p3]);
+		byte_t hc2 = str[sa[m2] + depth];
+		if (hc2 < ch) {
+			byte_t hc3 = str[p3];
+			if (hc3 < ch) {
+				lo = hl = m3 + 1;
+			}
+			else if (hc3 > ch) {
+				lo = hl = m2 + 1;
+				hi = lh = m3;
+			}
+			else {
+				lo = m2 + 1;
+				lh = m3;
+				hl = m3 + 1;
+				break;
+			}
+		}
+		else if (hc2 > ch) {
+			byte_t hc1 = str[p1];
+			if (hc1 < ch) {
+				lo = hl = m1 + 1;
+				hi = lh = m2;
+			}
+			else if (hc1 > ch) {
+				hi = lh = m1;
+			}
+			else {
+				hi = m2;
+				lh = m1;
+				hl = m1 + 1;
+				break;
+			}
+		}
+		else {
+			if (str[p1] < ch) {
+				lo = m1 + 1;
+				assert(lo <= m2);
+			}
+			if (str[p3] > ch) {
+				hi = m3;
+				assert(hi >= m2);
+			}
+			lh = m2;
+			hl = m2 + 1;
+			break;
+		}
+	}
+	assert(lo <= lh);
+	assert(hi >= hl);
+	size_t lo1 = lo, hi1 = lh;
+	while (lo1 + 3 < hi1) {
+		size_t m2 = (lo1 + hi1) * 1 / 2;
+		size_t m1 = lo1 + (hi1 - lo1) * 1 / 4;
+		size_t m3 = lo1 + (hi1 - lo1) * 3 / 4;
+		assert(sa[m1] + depth < saLen);
+		assert(sa[m2] + depth < saLen);
+		assert(sa[m3] + depth < saLen);
+		size_t p1 = sa[m1] + depth;
+		size_t p3 = sa[m3] + depth;
+		SuffixDict_prefetch(&str[p1]);
+		SuffixDict_prefetch(&str[p3]);
+		byte_t hc2 = str[sa[m2] + depth];
+		if (hc2 < ch) {
+			if (str[p3] < ch) {
+				lo1 = m3 + 1;
+			}
+			else {
+				lo1 = m2 + 1;
+				hi1 = m3;
+			}
+		}
+		else {
+			if (str[p1] < ch) {
+				lo1 = m1 + 1;
+				hi1 = m2;
+			}
+			else {
+				hi1 = m1;
+			}
+		}
+	}
+	assert(lo1 <= hi1);
+	while (lo1 < hi1) {
+		size_t mid = (lo1 + hi1) / 2;
+		byte_t hitChr = str[sa[mid] + depth];
+		if (hitChr < ch) // lower bound
+			lo1 = mid + 1;
+		else
+			hi1 = mid;
+	}
+	size_t lo2 = hl, hi2 = hi;
+	while (lo2 + 3 < hi2) {
+		size_t m2 = (lo2 + hi2) * 1 / 2;
+		size_t m1 = lo2 + (hi2 - lo2) * 1 / 4;
+		size_t m3 = lo2 + (hi2 - lo2) * 3 / 4;
+		assert(sa[m1] + depth < saLen);
+		assert(sa[m2] + depth < saLen);
+		assert(sa[m3] + depth < saLen);
+		size_t p1 = sa[m1] + depth;
+		size_t p3 = sa[m3] + depth;
+		SuffixDict_prefetch(&str[p1]);
+		SuffixDict_prefetch(&str[p3]);
+		byte_t hc2 = str[sa[m2] + depth];
+		if (hc2 <= ch) {
+			if (str[p3] <= ch) {
+				lo2 = m3 + 1;
+			}
+			else {
+				lo2 = m2 + 1;
+				hi2 = m3;
+			}
+		}
+		else {
+			if (str[p1] <= ch) {
+				lo2 = m1 + 1;
+				hi2 = m2;
+			}
+			else {
+				hi2 = m1;
+			}
+		}
+	}
+	assert(lo2 <= hi2);
+	while (lo2 < hi2) {
+		size_t mid = (lo2 + hi2) / 2;
+		byte_t hitChr = str[sa[mid] + depth];
+		if (hitChr <= ch) // upper bound
+			lo2 = mid + 1;
+		else
+			hi2 = mid;
+	}
+	assert(lo1 != lo2);
+	assert(str[sa[lo1] + depth] == ch);
+	return std::make_pair(lo1, hi2);
+#endif
 }
 
 // many params may get better compiler optimization
@@ -508,7 +664,7 @@ s_sa_match(const byte* str, const int* sa, size_t saLen,
 				break;
 		}
 		auto rng = s_sa_equal_range(str, sa, saLen, lo, hi, pos, input[pos]);
-		if (rng.second - rng.first != 0) {
+		if (rng.second != rng.first) {
 			lo = rng.first;
 			hi = rng.second;
 			pos++;
