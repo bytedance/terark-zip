@@ -1326,13 +1326,7 @@ void DFA_MutationInterface::del_move(size_t s, auchar_t ch) {
 
 /////////////////////////////////////////////////////////
 //
-const BaseAC* BaseDFA::get_ac() const {
-	return NULL;
-}
 const BaseDAWG* BaseDFA::get_dawg() const {
-	return NULL;
-}
-const SuffixCountableDAWG* BaseDFA::get_SuffixCountableDAWG() const {
 	return NULL;
 }
 
@@ -1472,49 +1466,5 @@ void BaseDAWG::get_random_keys(SortableStrVec* keys, size_t num) const {
     get_random_keys_append(keys, num);
 }
 
-size_t SuffixCountableDAWG::
-suffix_cnt(fstring exact_prefix) const {
-    MatchContext& ctx = g_fsa_ctx;
-    ctx.reset();
-	size_t cnt = suffix_cnt(ctx, exact_prefix);
-	return exact_prefix.size() == ctx.pos ? cnt : 0;
-}
-
-size_t SuffixCountableDAWG::
-suffix_cnt(fstring exact_prefix, const ByteTR& tr) const {
-    MatchContext& ctx = g_fsa_ctx;
-    ctx.reset();
-	size_t cnt = suffix_cnt(ctx, exact_prefix, tr);
-	return exact_prefix.size() == ctx.pos ? cnt : 0;
-}
-
-size_t SuffixCountableDAWG::
-suffix_cnt(fstring exact_prefix, const byte_t* tr) const {
-    MatchContext& ctx = g_fsa_ctx;
-    ctx.reset();
-	size_t cnt = suffix_cnt(ctx, exact_prefix, tr);
-	return exact_prefix.size() == ctx.pos ? cnt : 0;
-}
-
-void SuffixCountableDAWG::
-path_suffix_cnt(fstring str, valvec<size_t>* cnt) const {
-    MatchContext& ctx = g_fsa_ctx;
-    ctx.reset();
-	path_suffix_cnt(ctx, str, cnt);
-}
-
-void SuffixCountableDAWG::
-path_suffix_cnt(fstring str, valvec<size_t>* cnt, const ByteTR& tr) const {
-    MatchContext& ctx = g_fsa_ctx;
-    ctx.reset();
-	path_suffix_cnt(ctx, str, cnt, tr);
-}
-
-void SuffixCountableDAWG::
-path_suffix_cnt(fstring str, valvec<size_t>* cnt, const byte_t* tr) const {
-    MatchContext& ctx = g_fsa_ctx;
-    ctx.reset();
-	path_suffix_cnt(ctx, str, cnt, tr);
-}
 
 } // namespace terark
