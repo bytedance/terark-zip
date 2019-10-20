@@ -7,11 +7,9 @@
 #include <terark/util/autoclose.hpp>
 #include <terark/util/fstrvec.hpp>
 #include <terark/util/linebuf.hpp>
-#include <terark/util/profiling.hpp>
 #include <terark/fstring.hpp>
 #include <terark/bitmap.hpp>
 #include <terark/valvec.hpp>
-//#include <terark/io/FileStream.hpp>
 
 using namespace terark;
 
@@ -31,7 +29,7 @@ R"EOS(Usage: %s Options output-keys output-values
 int main(int argc, char* argv[]) {
 //	bool verbose = false;
 	febitvec isKey;
-	char delim = '\t';
+	fstring delim = "\t";
 	valvec<size_t> keyFields;
 	for (;;) {
 		int opt = getopt(argc, argv, "hd:k:v");
@@ -39,7 +37,7 @@ int main(int argc, char* argv[]) {
 		case -1:
 			goto GetoptDone;
 		case 'd':
-			delim = optarg[0];
+			delim = optarg;
 			break;
 		case 'k':
 			for(char* p = optarg; *p;) {
@@ -82,13 +80,14 @@ GetoptDone:
 		fprintf(stderr, "FATAL: fopen(%s, wb) = %s\n", fnameVals, strerror(errno));
 		return 1;
 	}
-	terark::profiling pf;
+	size_t lineno = 0;
 	terark::LineBuf line;
 	valvec<fstring> F;
 	valvec<char> key, val;
 	while (line.getline(stdin) > 0) {
+		lineno++;
 		line.chomp();
-		line.split(delim, &F);
+		line.split(delim, &F, isKey.size());
 		key.erase_all();
 		val.erase_all();
 		// keyFields can be reordered, such as: 4,2,3,0,1
@@ -96,28 +95,29 @@ GetoptDone:
 			size_t j = keyFields[i];
 			if (j < F.size()) {
 				key.append(F[j]);
-				key.push_back(delim);
+				key.append(delim);
 			}
 			else {
-				fprintf(stderr, "WARN: key field index = %zd out of range, skipped\n", j);
+				fprintf(stderr, "WARN: line: %zd: key field index = %zd out of range, insert an empty key field\n", lineno, j);
+				key.append(delim);
 			}
 		}
 		for (size_t i = 0; i < F.size(); ++i) {
 			if (i >= isKey.size() || !isKey[i]) {
 				val.append(F[i]);
-				val.push_back(delim);
+				val.append(delim);
 			}
 		}
-		if (!key.empty()) key.back() = '\n'; else key.push_back('\n');
-		if (!val.empty()) val.back() = '\n'; else val.push_back('\n');
+		if (!key.empty()) key.pop_n(delim.size());  key.push_back('\n');
+		if (!val.empty()) val.pop_n(delim.size());  val.push_back('\n');
 		size_t n = fwrite(key.data(), 1, key.size(), ofkeys);
 		if (key.size() != n) {
-			fprintf(stderr, "fwrite(key, %zd) = %s\n", key.size(), strerror(errno));
+			fprintf(stderr, "ERROR: lineno: %zd: fwrite(key, %zd) = %s\n", lineno, key.size(), strerror(errno));
 			return 1;
 		}
 		n = fwrite(val.data(), 1, val.size(), ofvals);
 		if (val.size() != n) {
-			fprintf(stderr, "fwrite(val, %zd) = %s\n", val.size(), strerror(errno));
+			fprintf(stderr, "ERROR: lineno: %zd: fwrite(val, %zd) = %s\n", lineno, val.size(), strerror(errno));
 			return 1;
 		}
 	}
