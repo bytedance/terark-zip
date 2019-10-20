@@ -246,6 +246,7 @@ public:
     void pop_back();
     void reverse_keys();
     void sort();
+    static void sort_raw(void* base, size_t num, size_t fixlen);
     void clear();
     size_t lower_bound_by_offset(size_t offset) const;
     size_t upper_bound_by_offset(size_t offset) const;
