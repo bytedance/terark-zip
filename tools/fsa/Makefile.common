@@ -172,6 +172,9 @@ link: ${ALL_BIN}
 ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
   LIB_SUF := .a
+  ifneq (Darwin,${UNAME_System})
+    override LIBS += -lgomp
+  endif
 else
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib
   LIB_SUF := ${DLL_SUFFIX}
