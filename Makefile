@@ -191,6 +191,8 @@ fsa_src += $(wildcard src/terark/zsrch/*.cpp)
 zbs_src := $(wildcard src/terark/entropy/*.cpp)
 zbs_src += $(wildcard src/terark/zbs/*.cpp)
 
+idx_src := $(wildcard src/terark/idx/*.cpp)
+
 zstd_src := $(wildcard 3rdparty/zstd/zstd/common/*.c)
 zstd_src += $(wildcard 3rdparty/zstd/zstd/compress/*.c)
 zstd_src += $(wildcard 3rdparty/zstd/zstd/decompress/*.c)
@@ -201,7 +203,7 @@ zstd_src += $(wildcard 3rdparty/zstd/zstd/legacy/*.c)
 zbs_src += ${zstd_src}
 
 #function definition
-#@param:${1} -- targets var prefix, such as core | fsa | zbs
+#@param:${1} -- targets var prefix, such as core | fsa | zbs | idx
 #@param:${2} -- build type: d | r | a
 objs = $(addprefix ${${2}dir}/, $(addsuffix .o, $(basename ${${1}_src}))) \
        ${${2}dir}/${${2}dir}/git-version-${1}.o
@@ -240,32 +242,44 @@ static_zbs_d := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-d.a
 static_zbs_r := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-r.a
 static_zbs_a := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-a.a
 
+idx_d_o := $(call objs,idx,d)
+idx_r_o := $(call objs,idx,r)
+idx_a_o := $(call objs,idx,a)
+idx_d := ${BUILD_ROOT}/lib/libterark-idx-${COMPILER}-d${DLL_SUFFIX}
+idx_r := ${BUILD_ROOT}/lib/libterark-idx-${COMPILER}-r${DLL_SUFFIX}
+idx_a := ${BUILD_ROOT}/lib/libterark-idx-${COMPILER}-a${DLL_SUFFIX}
+static_idx_d := ${BUILD_ROOT}/lib_static/libterark-idx-${COMPILER}-d.a
+static_idx_r := ${BUILD_ROOT}/lib_static/libterark-idx-${COMPILER}-r.a
+static_idx_a := ${BUILD_ROOT}/lib_static/libterark-idx-${COMPILER}-a.a
+
 core := ${core_d} ${core_r} ${core_a} ${static_core_d} ${static_core_r} ${static_core_a}
 fsa  := ${fsa_d}  ${fsa_r}  ${fsa_a}  ${static_fsa_d}  ${static_fsa_r}  ${static_fsa_a}
 zbs  := ${zbs_d}  ${zbs_r}  ${zbs_a}  ${static_zbs_d}  ${static_zbs_r}  ${static_zbs_a}
+idx  := ${idx_d}  ${idx_r}  ${idx_a}  ${static_idx_d}  ${static_idx_r}  ${static_idx_a}
 
-ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs
-DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d}
-RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r}
-AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a}
+ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs idx
+DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d} ${idx_d}
+RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r} ${idx_r}
+AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a} ${idx_a}
 
 ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
-  TERARK_BIN_DEP_LIB := ${static_core_d} ${static_fsa_d} ${static_zbs_d}
+  TERARK_BIN_DEP_LIB := ${static_core_d} ${static_fsa_d} ${static_zbs_d} ${static_idx_d}
 else
-  TERARK_BIN_DEP_LIB := ${core_d} ${fsa_d} ${zbs_d}
+  TERARK_BIN_DEP_LIB := ${core_d} ${fsa_d} ${zbs_d} ${idx_d}
 endif
 
-.PHONY : default all core fsa zbs
+.PHONY : default all core fsa zbs idx
 
-default : fsa core zbs
+default : fsa core zbs idx
 all : ${ALL_TARGETS}
 core: ${core}
 fsa: ${fsa}
 zbs: ${zbs}
+idx: ${idx}
 
 OpenSources := $(shell find -H src 3rdparty -name '*.h' -o -name '*.hpp' -o -name '*.cc' -o -name '*.cpp' -o -name '*.c')
 
-allsrc = ${core_src} ${fsa_src} ${zbs_src}
+allsrc = ${core_src} ${fsa_src} ${zbs_src} ${idx_src}
 alldep = $(addprefix ${rdir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
          $(addprefix ${adir}/, $(addsuffix .dep, $(basename ${allsrc}))) \
          $(addprefix ${ddir}/, $(addsuffix .dep, $(basename ${allsrc})))
@@ -290,6 +304,10 @@ ${zbs_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-d -lterark-core-
 ${zbs_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
 ${zbs_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
 
+${idx_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
+${idx_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
+${idx_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
+
 ${zstd_d_o} ${zstd_r_o} ${zstd_a_o} : override CFLAGS += -Wno-sign-compare -Wno-implicit-fallthrough
 
 ${fsa_d} : $(call objs,fsa,d) ${core_d}
@@ -305,6 +323,13 @@ ${zbs_a} : $(call objs,zbs,a) ${fsa_a} ${core_a}
 ${static_zbs_d} : $(call objs,zbs,d)
 ${static_zbs_r} : $(call objs,zbs,r)
 ${static_zbs_a} : $(call objs,zbs,a)
+
+${idx_d} : $(call objs,idx,d) ${fsa_d} ${core_d}
+${idx_r} : $(call objs,idx,r) ${fsa_r} ${core_r}
+${idx_a} : $(call objs,idx,a) ${fsa_a} ${core_a}
+${static_idx_d} : $(call objs,idx,d)
+${static_idx_r} : $(call objs,idx,r)
+${static_idx_a} : $(call objs,idx,a)
 
 ${core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 ${core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
@@ -437,7 +462,7 @@ tgz : ${TarBall}.tgz
 ${TarBall}: $(wildcard tools/general/*.cpp) \
 			$(wildcard tools/fsa/*.cpp) \
 			$(wildcard tools/zbs/*.cpp) \
-			${core} ${fsa} ${zbs}
+			${core} ${fsa} ${zbs} ${idx}
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/fsa
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/zbs
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/general
@@ -445,6 +470,7 @@ ${TarBall}: $(wildcard tools/general/*.cpp) \
 	mkdir -p ${TarBall}/bin
 	mkdir -p ${TarBall}/lib
 	mkdir -p ${TarBall}/include/terark/entropy
+	mkdir -p ${TarBall}/include/terark/idx
 	mkdir -p ${TarBall}/include/terark/thread
 	mkdir -p ${TarBall}/include/terark/succinct
 	mkdir -p ${TarBall}/include/terark/io/win
@@ -475,6 +501,7 @@ ${TarBall}: $(wildcard tools/general/*.cpp) \
 	cp    src/terark/stdtypes.hpp                ${TarBall}/include/terark
 	cp    src/terark/valvec.hpp                  ${TarBall}/include/terark
 	cp    src/terark/entropy/*.hpp               ${TarBall}/include/terark/entropy
+	cp    src/terark/idx/*.hpp                   ${TarBall}/include/terark/idx
 	cp    src/terark/io/*.hpp                    ${TarBall}/include/terark/io
 	cp    src/terark/io/win/*.hpp                ${TarBall}/include/terark/io/win
 	cp    src/terark/util/*.hpp                  ${TarBall}/include/terark/util
@@ -487,20 +514,20 @@ ${TarBall}: $(wildcard tools/general/*.cpp) \
 	cp    3rdparty/zstd/zstd/*.h                 ${TarBall}/include/zstd
 	cp    3rdparty/zstd/zstd/common/*.h          ${TarBall}/include/zstd/common
 ifeq (${PKG_WITH_DBG},1)
-	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
-	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*a${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib/libterark-{idx,fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib/libterark-{idx,fsa,zbs,core}-*a${DLL_SUFFIX} ${TarBall}/lib
   ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib_static/libterark-{fsa,zbs,core}-{${COMPILER}-,}d.a ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib_static/libterark-{fsa,zbs,core}-{${COMPILER}-,}a.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib_static/libterark-{idx,fsa,zbs,core}-{${COMPILER}-,}d.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib_static/libterark-{idx,fsa,zbs,core}-{${COMPILER}-,}a.a ${TarBall}/lib_static
   endif
 endif
-	cp -a ${BUILD_ROOT}/lib/libterark-{fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib/libterark-{idx,fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
 	echo $(shell date "+%Y-%m-%d %H:%M:%S") > ${TarBall}/package.buildtime.txt
 	echo $(shell git log | head -n1) >> ${TarBall}/package.buildtime.txt
 ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
-	cp -a ${BUILD_ROOT}/lib_static/libterark-{fsa,zbs,core}-{${COMPILER}-,}r.a ${TarBall}/lib_static
+	cp -a ${BUILD_ROOT}/lib_static/libterark-{idx,fsa,zbs,core}-{${COMPILER}-,}r.a ${TarBall}/lib_static
 endif
 	cp -L tools/*/rls/*.exe ${TarBall}/bin/
 
