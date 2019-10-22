@@ -1,12 +1,14 @@
+//#ifndef INDEX_UT
+//#include "db/builder.h" // for cf_options.h
+//#endif
 
-#ifndef INDEX_UT
-#include "db/builder.h" // for cf_options.h
-#endif
-
-#include "terark_zip_index.h"
+#include "terark_zip_index.hpp"
 #include <typeindex>
-#include "terark_zip_table.h"
-#include "terark_zip_common.h"
+// #include "terark_zip_table.h"
+#include <terark/io/DataIO.hpp>
+#include <terark/io/FileStream.hpp>
+#include <terark/io/StreamBuffer.hpp>
+// #include "terark_zip_common.h"
 #include <terark/bitmap.hpp>
 #include <terark/entropy/huffman_encoding.hpp>
 #include <terark/hash_strmap.hpp>
@@ -26,9 +28,7 @@
 #include <terark/num_to_str.hpp>
 #include <terark/io/MemStream.hpp>
 
-namespace rocksdb {
-
-using namespace terark;
+namespace terark {
 
 static const uint64_t g_terark_index_prefix_seed = 0x505f6b7261726554ull; // echo Terark_P | od -t x8
 static const uint64_t g_terark_index_suffix_seed = 0x535f6b7261726554ull; // echo Terark_S | od -t x8
@@ -41,6 +41,64 @@ static bool g_indexEnableNonDescUint = getEnvBool("TerarkZipTable_enableNonDescU
 static bool g_indexEnableDynamicSuffix = getEnvBool("TerarkZipTable_enableDynamicSuffix", true);
 static bool g_indexEnableEntropySuffix = getEnvBool("TerarkZipTable_enableEntropySuffix", true);
 static bool g_indexEnableDictZipSuffix = getEnvBool("TerarkZipTable_enableDictZipSuffix", true);
+
+inline uint64_t ReadBigEndianUint64(const byte_t* beg, size_t len) {
+  union {
+    byte_t bytes[8];
+    uint64_t value;
+  } c;
+  c.value = 0;  // this is fix for gcc-4.8 union init bug
+  memcpy(c.bytes + (8 - len), beg, len);
+  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(c.value);
+}
+inline uint64_t ReadBigEndianUint64(const byte_t* beg, const byte_t* end) {
+  assert(end - beg <= 8);
+  return ReadBigEndianUint64(beg, end - beg);
+}
+inline uint64_t ReadBigEndianUint64(fstring data) {
+  assert(data.size() <= 8);
+  return ReadBigEndianUint64((const byte_t*)data.data(), data .size());
+}
+
+inline
+uint64_t ReadBigEndianUint64Aligned(const byte_t* beg, size_t len) {
+  assert(8 == len); TERARK_UNUSED_VAR(len);
+  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(*(const uint64_t*)beg);
+}
+inline
+uint64_t ReadBigEndianUint64Aligned(const byte_t* beg, const byte_t* end) {
+  assert(end - beg == 8); TERARK_UNUSED_VAR(end);
+  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(*(const uint64_t*)beg);
+}
+inline uint64_t ReadBigEndianUint64Aligned(fstring data) {
+  assert(data.size() == 8);
+  return VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(*(const uint64_t*)data.p);
+}
+
+inline void SaveAsBigEndianUint64(byte_t* beg, size_t len, uint64_t value) {
+  assert(len <= 8);
+  union {
+    byte_t bytes[8];
+    uint64_t value;
+  } c;
+  c.value = VALUE_OF_BYTE_SWAP_IF_LITTLE_ENDIAN(value);
+  memcpy(beg, c.bytes + (8 - len), len);
+}
+
+TerarkKeyReader* TerarkKeyReader::MakeReader(fstring fileName, size_t fileBegin, size_t fileEnd, bool reverse) {
+  if (reverse) {
+    return new TerarkKeyIndexReader<true>(fileName, fileBegin, fileEnd);
+  }
+  else {
+    return new TerarkKeyIndexReader<false>(fileName, fileBegin, fileEnd);
+  }
+}
+
+TerarkKeyReader* TerarkKeyReader::MakeReader(const valvec<std::shared_ptr<FilePair>>& files, bool attach) {
+  return new TerarkKeyFileReader(files, attach);
+}
+
+TerarkValueReader::TerarkValueReader(const valvec<std::shared_ptr<FilePair>>& _files) : files(_files) {}
 
 template<class RankSelect> struct RankSelectNeedHint : public std::false_type {};
 template<size_t P, size_t W> struct RankSelectNeedHint<rank_select_few<P, W>> : public std::true_type {};
@@ -233,6 +291,7 @@ struct VirtualPrefixBase {
   virtual bool Load(fstring mem) = 0;
   virtual void Save(std::function<void(const void*, size_t)> append) const = 0;
 };
+
 template<class Prefix>
 struct VirtualPrefixWrapper : public VirtualPrefixBase, public Prefix {
   using IteratorStorage = typename Prefix::IteratorStorage;
@@ -307,6 +366,7 @@ struct VirtualPrefixWrapper : public VirtualPrefixBase, public Prefix {
     Prefix::Save(append);
   }
 };
+
 struct VirtualPrefix : public PrefixBase {
   typedef void* IteratorStorage;
 
@@ -422,6 +482,7 @@ struct VirtualSuffixBase {
   virtual void
   Reorder(ZReorderMap& newToOld, std::function<void(const void*, size_t)> append, fstring tmpFile) const = 0;
 };
+
 template<class Suffix>
 struct VirtualSuffixWrapper : public VirtualSuffixBase, public Suffix {
   using IteratorStorage = typename Suffix::IteratorStorage;
@@ -476,6 +537,7 @@ struct VirtualSuffixWrapper : public VirtualSuffixBase, public Suffix {
     Suffix::Reorder(newToOld, append, tmpFile);
   }
 };
+
 struct VirtualSuffix : public SuffixBase {
   typedef void* IteratorStorage;
 
@@ -2641,16 +2703,16 @@ BuildUintPrefix(
 void NestLoudsTriePrefixSetConfig(
     NestLoudsTrieConfig& conf,
     size_t memSize, double avgSize,
-    const TerarkZipTableOptions& tzopt) {
-  conf.nestLevel = tzopt.indexNestLevel;
-  conf.nestScale = tzopt.indexNestScale;
-  if (tzopt.indexTempLevel >= 0 && tzopt.indexTempLevel < 5) {
-    if (memSize > tzopt.smallTaskMemory) {
+    const TerarkIndexOptions& tiopt) {
+  conf.nestLevel = tiopt.indexNestLevel;
+  conf.nestScale = tiopt.indexNestScale;
+  if (tiopt.indexTempLevel >= 0 && tiopt.indexTempLevel < 5) {
+    if (memSize > tiopt.smallTaskMemory) {
       // use tmp files during index building
-      conf.tmpDir = tzopt.localTempDir;
-      if (0 == tzopt.indexTempLevel) {
+      conf.tmpDir = tiopt.localTempDir;
+      if (0 == tiopt.indexTempLevel) {
         // adjust tmpLevel for linkVec, wihch is proportional to num of keys
-        if (memSize > tzopt.smallTaskMemory * 2 && avgSize <= 50) {
+        if (memSize > tiopt.smallTaskMemory * 2 && avgSize <= 50) {
           // not need any mem in BFS, instead 8G file of 4G mem (linkVec)
           // this reduce 10% peak mem when avg keylen is 24 bytes
           if (avgSize <= 30) {
@@ -2661,23 +2723,23 @@ void NestLoudsTriePrefixSetConfig(
             // which offset is ref to outer StrVec's data
             conf.tmpLevel = 3;
           }
-        } else if (memSize > tzopt.smallTaskMemory * 3 / 2) {
+        } else if (memSize > tiopt.smallTaskMemory * 3 / 2) {
           // for example:
           // 1G mem in BFS, swap to 1G file after BFS and before build nextStrVec
           conf.tmpLevel = 2;
         }
       } else {
-        conf.tmpLevel = tzopt.indexTempLevel;
+        conf.tmpLevel = tiopt.indexTempLevel;
       }
     }
   }
-  if (tzopt.indexTempLevel >= 5) {
+  if (tiopt.indexTempLevel >= 5) {
     // always use max tmpLevel 4
-    conf.tmpDir = tzopt.localTempDir;
+    conf.tmpDir = tiopt.localTempDir;
     conf.tmpLevel = 4;
   }
   conf.isInputSorted = true;
-  conf.debugLevel = tzopt.debugLevel > 0 ? 1 : 0;
+  conf.debugLevel = tiopt.debugLevel > 0 ? 1 : 0;
 }
 
 template<class NestLoudsTrieDAWG, class StrVec>
@@ -2786,7 +2848,7 @@ template<class InputBufferType>
 PrefixBase*
 BuildNestLoudsTriePrefix(
     InputBufferType& input,
-    const TerarkZipTableOptions& tzopt,
+    const TerarkIndexOptions& tiopt,
     size_t numKeys, size_t sumKeyLen,
     bool isReverse, bool isFixedLen) {
   input.rewind();
@@ -2795,13 +2857,13 @@ BuildNestLoudsTriePrefix(
     FixedLenStrVec keyVec(sumKeyLen / numKeys);
     assert(sumKeyLen % numKeys == 0);
     IndexFillKeyVector(input, keyVec, numKeys, sumKeyLen, keyVec.m_fixlen, isReverse);
-    NestLoudsTriePrefixSetConfig(cfg, keyVec.mem_size(), keyVec.avg_size(), tzopt);
-    return NestLoudsTriePrefixSelect(tzopt.indexType, cfg, keyVec);
+    NestLoudsTriePrefixSetConfig(cfg, keyVec.mem_size(), keyVec.avg_size(), tiopt);
+    return NestLoudsTriePrefixSelect(tiopt.indexType, cfg, keyVec);
   } else {
     SortedStrVec keyVec;
     IndexFillKeyVector(input, keyVec, numKeys, sumKeyLen, isReverse);
-    NestLoudsTriePrefixSetConfig(cfg, keyVec.mem_size(), keyVec.avg_size(), tzopt);
-    return NestLoudsTriePrefixSelect(tzopt.indexType, cfg, keyVec);
+    NestLoudsTriePrefixSetConfig(cfg, keyVec.mem_size(), keyVec.avg_size(), tiopt);
+    return NestLoudsTriePrefixSelect(tiopt.indexType, cfg, keyVec);
   }
 }
 
@@ -3205,7 +3267,7 @@ TerarkKeyReader* TerarkIndex::TerarkIndexDebugBuilder::Finish(KeyStat* output) {
   return reader;
 }
 
-TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkZipTableOptions& tzopt,
+TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIndexOptions& tiopt,
                                          const TerarkIndex::KeyStat& ks, const UintPrefixBuildInfo* info_ptr) {
   using namespace index_detail;
   struct DefaultInputBuffer {
@@ -3363,13 +3425,13 @@ TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkZi
              !g_indexEnableCompositeIndex || ks.sumPrefixLen >= ks.sumKeyLen * 31 / 32) {
     DefaultInputBuffer input_reader{reader, cplen};
     prefix = BuildNestLoudsTriePrefix(
-        input_reader, tzopt, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen,
+        input_reader, tiopt, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen,
         isReverse, ks.minKeyLen == ks.maxKeyLen);
     suffix = BuildEmptySuffix();
   } else {
     MinimizePrefixInputBuffer prefix_input_reader{reader, cplen, ks.keyCount, ks.maxKeyLen};
     prefix = BuildNestLoudsTriePrefix(
-        prefix_input_reader, tzopt, ks.keyCount, ks.sumPrefixLen - ks.keyCount * cplen,
+        prefix_input_reader, tiopt, ks.keyCount, ks.sumPrefixLen - ks.keyCount * cplen,
         isReverse, ks.minPrefixLen == ks.maxPrefixLen);
     MinimizePrefixRemainingInputBuffer suffix_input_reader{reader, cplen, ks.keyCount, ks.maxKeyLen};
     suffix = BuildSuffixAutoSelect(suffix_input_reader, ks.keyCount, ks.sumKeyLen - ks.sumPrefixLen,
