@@ -1,4 +1,19 @@
 #!/usr/bin/env bash
+#
+# Usage:
+#
+#   GTEST_INC=... \     # googletest include dir
+#   GTEST_LIB=... \     # googletest static library dir (if not set, will use submodule denpendency to complie on the fly)
+#   BOOST_INC=... \
+#   BOOST_LIB=... \
+#   ./build.sh  
+#
+
+BASE_DIR=$PWD
+GTEST_INC=
+GTEST_LIB=
+BOOST_INC=
+BOOST_LIB=
 
 if [ `uname` == Darwin ]; then
 	cpuNum=`sysctl -n machdep.cpu.thread_count`
@@ -13,9 +28,20 @@ if test -n "$BUILD_BRANCH"; then
     git checkout "$BUILD_BRANCH"
 fi
 
-# make the project
 git submodule update --init
 
+# build boost
+if [ -z "${BOOST_LIB}" ];then
+  echo "build from submodule"
+  # TODO
+  BOOST_INC=${BASE_DIR}/boost-include
+  BOOST_LIB=${BASE_DIR}/$BOOST_LIB/stage/lib
+else
+  echo "use prebuild boost"
+  # TODO
+fi
+
+# build core
 BRANCH_NAME=`git rev-parse --abbrev-ref HEAD`
 echo Current BRANCH_NAME = $BRANCH_NAME
 
@@ -50,4 +76,21 @@ else
 	cp -lrP pkg/terark-fsa_all-$PLATFORM_DIR/* output
 fi
 
-#mv 'pkg/terark-fsa_all-'$PLATFORM_DIR output
+# build gtest for unit testing
+if [ -z "$GTEST_LIB" ]; then
+  echo "build google test on the fly"
+  cd $BASE_DIR/3rdparty/googletest
+  cmake . && make -j $cpuNum
+  GTEST_INC=$BASE_DIR/3rdparty/googletest/googletest/include
+  GTEST_LIB=$BASE_DIR/3rdparty/googletest/lib
+  cd $BASE_DIR
+else
+  echo "use prebuild google test, GTEST_LIB = " $GTEST_LIB
+fi
+
+cd $BASE_DIR/tests
+rm -rf build && mkdir build && cd build
+cmake ../ -DGTEST_INC=$GTEST_INC -DGTEST_LIB=$GTEST_LIB \
+          -DBOOST_INC=$BOOST_INC -DBOOST_LIB=$BOOST_LIB
+make -j $cpuNum
+cd $BASE_DIR
