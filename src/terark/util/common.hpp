@@ -1,3 +1,9 @@
+#pragma once
+
+#ifndef TERARK_COMMON_H
+# define TERARK_COMMON_H
+#endif
+
 #include <terark/io/DataIO.hpp>
 #include <terark/io/FileStream.hpp>
 #include <terark/io/StreamBuffer.hpp>
@@ -5,7 +11,7 @@
 
 namespace terark {
 
-class TempFileDeleteOnClose {
+class TERARK_DLL_EXPORT TempFileDeleteOnClose {
 public:
   std::string path;
   FileStream fp;
@@ -62,14 +68,14 @@ public:
   }
 };
 
-struct FilePair {
+struct TERARK_DLL_EXPORT FilePair {
   TempFileDeleteOnClose key;
   TempFileDeleteOnClose value;
   bool isFullValue = true;
 };
 
 
-class AutoDeleteFile {
+class TERARK_DLL_EXPORT AutoDeleteFile {
 public:
   std::string fpath;
   operator fstring() const { return fpath; }

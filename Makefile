@@ -261,6 +261,12 @@ ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs id
 DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d} ${idx_d}
 RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r} ${idx_r}
 AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a} ${idx_a}
+ifeq (${PKG_WITH_STATIC},1)
+  DBG_TARGETS += ${static_core_d} ${static_fsa_d} ${static_zbs_d} ${static_idx_d}
+  RLS_TARGETS += ${static_core_r} ${static_fsa_r} ${static_zbs_r} ${static_idx_r}
+  AFR_TARGETS += ${static_core_a} ${static_fsa_a} ${static_zbs_a} ${static_idx_a}
+endif
+
 
 ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   TERARK_BIN_DEP_LIB := ${static_core_d} ${static_fsa_d} ${static_zbs_d} ${static_idx_d}
