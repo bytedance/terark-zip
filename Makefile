@@ -304,9 +304,9 @@ ${zbs_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-d -lterark-core-
 ${zbs_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
 ${zbs_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
 
-${idx_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
-${idx_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
-${idx_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
+${idx_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-zbs-${COMPILER}-d -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
+${idx_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-zbs-${COMPILER}-r -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
+${idx_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-zbs-${COMPILER}-a -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
 
 ${zstd_d_o} ${zstd_r_o} ${zstd_a_o} : override CFLAGS += -Wno-sign-compare -Wno-implicit-fallthrough
 
@@ -324,9 +324,9 @@ ${static_zbs_d} : $(call objs,zbs,d)
 ${static_zbs_r} : $(call objs,zbs,r)
 ${static_zbs_a} : $(call objs,zbs,a)
 
-${idx_d} : $(call objs,idx,d) ${fsa_d} ${core_d}
-${idx_r} : $(call objs,idx,r) ${fsa_r} ${core_r}
-${idx_a} : $(call objs,idx,a) ${fsa_a} ${core_a}
+${idx_d} : $(call objs,idx,d) ${zbs_d} ${fsa_d} ${core_d}
+${idx_r} : $(call objs,idx,r) ${zbs_r} ${fsa_r} ${core_r}
+${idx_a} : $(call objs,idx,a) ${zbs_a} ${fsa_a} ${core_a}
 ${static_idx_d} : $(call objs,idx,d)
 ${static_idx_r} : $(call objs,idx,r)
 ${static_idx_a} : $(call objs,idx,a)
