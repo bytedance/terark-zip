@@ -1,19 +1,14 @@
 #!/usr/bin/env bash
+# 
+# TODO:
+#   pass prebuild libraries so we don't have to re-build it in terark-core
+#   e.g. boost, zstd, snappy etc...
 #
-# Usage:
-#
-#   GTEST_INC=... \     # googletest include dir
-#   GTEST_LIB=... \     # googletest static library dir (if not set, will use submodule denpendency to complie on the fly)
-#   BOOST_INC=... \
-#   BOOST_LIB=... \
-#   ./build.sh  
-#
+set -x
 
 BASE_DIR=$PWD
-GTEST_INC=
-GTEST_LIB=
 BOOST_INC=
-BOOST_LIB=
+BOOST_LIB_DIR=
 
 if [ `uname` == Darwin ]; then
 	cpuNum=`sysctl -n machdep.cpu.thread_count`
@@ -31,11 +26,11 @@ fi
 git submodule update --init
 
 # build boost
-if [ -z "${BOOST_LIB}" ];then
-  echo "build from submodule"
+if [ -z "$BOOST_LIB_DIR" ];then
+  echo "build from submodule if BOOST_LIB_DIR is not set"
   # TODO
-  BOOST_INC=${BASE_DIR}/boost-include
-  BOOST_LIB=${BASE_DIR}/$BOOST_LIB/stage/lib
+  BOOST_INC=$BASE_DIR/boost-include
+  BOOST_LIB_DIR=$BOOST_INC/stage/lib
 else
   echo "use prebuild boost"
   # TODO
@@ -55,6 +50,7 @@ fi
 
 rm -rf pkg
 
+# TODO add prebuild from params BOOST_LIB_DIR...
 make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
 
 # move all binaries to output/ dir for next CICD steps
@@ -64,33 +60,10 @@ tmpfile=`mktemp compiler-XXXXXX`
 COMPILER=`gcc tools/configure/compiler.cpp -o $tmpfile.exe && ./$tmpfile.exe && rm -f $tmpfile*`
 PLATFORM_DIR=$SYSTEM-$COMPILER-bmi2-$WITH_BMI2
 
-echo $PLATFORM_DIR
-
-rm -rf output
-
-mkdir output
+echo $PLATFORM_DIR && rm -rf output && mkdir output
 
 if [ `uname` == Darwin ]; then
 	cp -r pkg/terark-fsa_all-$PLATFORM_DIR/* output
 else
 	cp -lrP pkg/terark-fsa_all-$PLATFORM_DIR/* output
 fi
-
-# build gtest for unit testing
-if [ -z "$GTEST_LIB" ]; then
-  echo "build google test on the fly"
-  cd $BASE_DIR/3rdparty/googletest
-  cmake . && make -j $cpuNum
-  GTEST_INC=$BASE_DIR/3rdparty/googletest/googletest/include
-  GTEST_LIB=$BASE_DIR/3rdparty/googletest/lib
-  cd $BASE_DIR
-else
-  echo "use prebuild google test, GTEST_LIB = " $GTEST_LIB
-fi
-
-cd $BASE_DIR/tests
-rm -rf build && mkdir build && cd build
-cmake ../ -DGTEST_INC=$GTEST_INC -DGTEST_LIB=$GTEST_LIB \
-          -DBOOST_INC=$BOOST_INC -DBOOST_LIB=$BOOST_LIB
-make -j $cpuNum
-cd $BASE_DIR

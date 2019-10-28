@@ -65,3 +65,4 @@ cmake-build-debug
 terark-core
 terark-rocksdb
 output
+tests/Testing

@@ -4,23 +4,27 @@ PROJECT(terark-core-test)
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++1y")
 SET(CMAKE_CXX_STANDARD 14)
 
-MESSAGE("googletest include dir: ${GTEST_INC}")
-MESSAGE("googletest library dir: ${GTEST_LIB}")
+#MESSAGE("googletest include dir: ${GTEST_INC}")
+#MESSAGE("googletest library dir: ${GTEST_LIB_DIR}")
 
 INCLUDE_DIRECTORIES(${GTEST_INC})
 INCLUDE_DIRECTORIES(${BOOST_INC})
 INCLUDE_DIRECTORIES(../src)
+INCLUDE_DIRECTORIES(../3rdparty/zstd)
 
-LINK_DIRECTORIES(${GTEST_LIB})
-LINK_DIRECTORIES(${BOOST_LIB})
+LINK_DIRECTORIES(${GTEST_LIB_DIR})
+LINK_DIRECTORIES(${BOOST_LIB_DIR})
 
 FILE(GLOB_RECURSE TEST_SRC "../src/*_test.cpp" "*_test.cpp")
-FILE(GLOB_RECURSE MAIN_SRC "../src/*.*")
-
-MESSAGE("${BOOST_INC}")
+FILE(GLOB_RECURSE IGNORE_SRC "../src/terark/io/discard/*.*" "../src/terark/io/todo/*.*" "old/*.*")
+FILE(GLOB_RECURSE MAIN_SRC "../src/*.c*" "../3rdparty/zstd/*.c*")
 
 FOREACH (test_file ${TEST_SRC})
     LIST(REMOVE_ITEM MAIN_SRC ${test_file})
+ENDFOREACH ()
+FOREACH (ignore_file ${IGNORE_SRC})
+    LIST(REMOVE_ITEM MAIN_SRC ${ignore_file})
+    LIST(REMOVE_ITEM TEST_SRC ${ignore_file})
 ENDFOREACH ()
 
 ENABLE_TESTING()
@@ -28,7 +32,7 @@ FUNCTION(test_func test_file)
     SET(extra_args ${ARGN})
     GET_FILENAME_COMPONENT(test_target_name "${test_file}" NAME_WE)
     ADD_EXECUTABLE("${test_target_name}" "${test_file}" "${MAIN_SRC}")
-    TARGET_LINK_LIBRARIES("${test_target_name}" boost_filesystem boost_fiber gomp aio rt gtest_main gmock "${extra_args}")
+    TARGET_LINK_LIBRARIES("${test_target_name}" boost_filesystem boost_fiber boost_context gomp aio rt gtest_main gmock_main gtest pthread "${extra_args}")
     ADD_TEST(NAME "${test_target_name}" COMMAND "${test_target_name}")
 ENDFUNCTION(test_func)
 
