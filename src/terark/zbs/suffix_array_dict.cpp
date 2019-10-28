@@ -736,8 +736,11 @@ const noexcept {
 		size_t child;
 		if (size_t zlen = lstates[state].getZstrLen()) {
 			SuffixDict_prefetch(&sa[lo]);
-			child = lstates[state].m_child0 + input[pos+zlen];
-			SuffixDict_prefetch(&lstates[child]);
+			// this check is ugly but is a must
+			if (terark_likely(pos + zlen < len)) {
+				child = lstates[state].m_child0 + input[pos+zlen];
+				SuffixDict_prefetch(&lstates[child]);
+			}
 			auto zptr = str + sa[lo];
 			auto zend = std::min(len, pos + zlen);
 			do {
