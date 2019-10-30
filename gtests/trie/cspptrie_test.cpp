@@ -39,7 +39,7 @@ namespace terark {
     printf("done, lines=%zd...\n", lineno);
     if (strVec.size() > 0) {
         insert(patricia, strVec);
-        minimize_and_path_zip(patricia);
+        // minimize_and_path_zip(patricia);
         printf("strVec.sort_slow()...\n");
         strVec.sort_slow();
         printf("strVec.key(0).size() = %zd\n", strVec.key(0).size());
@@ -47,4 +47,3 @@ namespace terark {
     // 
   }
 }
-

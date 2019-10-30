@@ -50,15 +50,12 @@ else
 fi
 
 # build all test cases
-cd $BASE_DIR/tests
+cd $BASE_DIR/gtests
 rm -rf build && mkdir build && cd build
 cmake ../ -DGTEST_INC=$GTEST_INC -DGTEST_LIB_DIR=$GTEST_LIB_DIR \
           -DBOOST_INC=$BOOST_INC -DBOOST_LIB_DIR=$BOOST_LIB_DIR
 make -j $cpuNum
 cd $BASE_DIR
 
-# run old test tools
-# make -j$cpuNum test
-
 # run all test cases
-cd $BASE_DIR/tests/build && make -j $cpuNum test
+cd $BASE_DIR/gtests/build && make -j $cpuNum test
