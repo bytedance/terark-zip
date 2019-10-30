@@ -16,7 +16,7 @@ LINK_DIRECTORIES(${GTEST_LIB_DIR})
 LINK_DIRECTORIES(${BOOST_LIB_DIR})
 
 FILE(GLOB_RECURSE TEST_SRC "../src/*_test.cpp" "*_test.cpp")
-FILE(GLOB_RECURSE IGNORE_SRC "../src/terark/io/discard/*.*" "../src/terark/io/todo/*.*" "old/*.*")
+FILE(GLOB_RECURSE IGNORE_SRC "../src/terark/io/discard/*.*" "../src/terark/io/todo/*.*" "tools/*.*")
 FILE(GLOB_RECURSE MAIN_SRC "../src/*.c*" "../3rdparty/zstd/*.c*")
 
 FOREACH (test_file ${TEST_SRC})
