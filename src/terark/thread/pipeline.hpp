@@ -103,7 +103,7 @@ protected:
 	void run_step_mid(int threadno);
 
 	void run_serial_step_slow(int threadno, void (PipelineStage::*fdo)(PipelineQueueItem&));
-	void run_serial_step_fast(int threadno, void (PipelineStage::*fdo)(PipelineQueueItem&));
+	void run_serial_step_fast(int threadno);
 	void serial_step_do_mid(PipelineQueueItem& item);
 	void serial_step_do_last(PipelineQueueItem& item);
 

@@ -13,10 +13,12 @@ public:
         Dictionary();
         explicit Dictionary(fstring mem);
         Dictionary(fstring mem, uint64_t hash);
+        Dictionary(fstring mem, uint64_t hash, bool verified);
         Dictionary(size_t size, uint64_t hash);
 
         fstring  memory;
         uint64_t xxhash;
+        bool verified = true;
     };
     enum MemoryCloseType : uint8_t {
         Clear, MmapClose, RiskRelease

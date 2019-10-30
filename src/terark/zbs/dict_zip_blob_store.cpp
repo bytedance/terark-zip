@@ -170,6 +170,7 @@ void DictZipBlobStore::init() {
 	m_isNewRefEncoding = true;
 	new(&m_offsets)UintVecMin0();
     m_gOffsetBits = 0;
+    m_dict_verified = false;
 }
 
 DictZipBlobStore::~DictZipBlobStore() {
@@ -1395,6 +1396,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
              , const UintVecMin0& offsets, fstring entropyBitmap, fstring entropyTab
              , size_t maxOffsetEnt) {
 		assert(dict.memory.size() > 0);
+		assert(dict.verified);
 		memset(this, 0, sizeof(*this));
 		magic_len = MagicStrLen;
 		strcpy(magic, MagicString);
@@ -2149,11 +2151,12 @@ void DictZipBlobStore::init_from_memory(fstring dataMem, Dictionary dict) {
         );
     }
     if (isChecksumVerifyEnabled() && mmapBase->formatVersion >= 1 &&
-        mmapBase->dictXXHash != dict.xxhash) {
+        dict.verified && mmapBase->dictXXHash != dict.xxhash) {
         THROW_STD(invalid_argument
             , "DictZipBlobStore xxhash mismatch: wire = %llX , real = %llX"
             , llong(mmapBase->dictXXHash), llong(dict.xxhash)
         );
+        m_dict_verified = true;
     }
     setDataMemory((byte*)dataMem.data(), dataMem.size());
 }
@@ -2207,11 +2210,13 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 			throw BadCrc32cException("DictZipBlobStore::headerCRC",
 				mmapBase->headerCRC, hCRC);
 		}
-		uint32_t offsetsCRC =
-			Crc32c_update(0, m_offsets.data(), m_offsets.mem_size());
-		if (offsetsCRC != mmapBase->offsetsCRC) {
-			throw BadCrc32cException("DictZipBlobStore::offsetsCRC",
-				mmapBase->offsetsCRC, offsetsCRC);
+		if (m_dict_verified) { // only check offsetsCRC iff dictCRC is verified
+            uint32_t offsetsCRC =
+                Crc32c_update(0, m_offsets.data(), m_offsets.mem_size());
+            if (offsetsCRC != mmapBase->offsetsCRC) {
+                throw BadCrc32cException("DictZipBlobStore::offsetsCRC",
+                    mmapBase->offsetsCRC, offsetsCRC);
+            }
 		}
 	}
 
@@ -2392,6 +2397,24 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
             mmapBase->offsetsUintBits);
     }
     m_isDetachMeta = true;
+
+    if (!m_dict_verified) {
+        Dictionary dict(fstring(dict_mem.data(), dict_mem.size()));
+        if (dict.xxhash != mmapBase->dictXXHash) {
+            THROW_STD(invalid_argument
+            , "DictZipBlobStore xxhash mismatch: wire = %llX , real = %llX"
+            , llong(mmapBase->dictXXHash), llong(dict.xxhash)
+            );
+        }
+
+        uint32_t offsetsCRC =
+                Crc32c_update(0, offset_mem.data(), offset_mem.size());
+        if (offsetsCRC != mmapBase->offsetsCRC) {
+            throw BadCrc32cException("DictZipBlobStore::offsetsCRC",
+                                     mmapBase->offsetsCRC, offsetsCRC);
+        }
+        m_dict_verified = true;
+    }
 }
 
 size_t DictZipBlobStore::mem_size() const {

@@ -361,17 +361,21 @@ GetoptDone:
 	const char* input_fname = argv[optind];
 	Auto_fclose afp;
 	if (input_fname) {
-#ifdef _MSC_VER
-		afp = fopen(input_fname, "rb");
-#else
 		afp = fopen(input_fname, isBson ? "rb" : "r");
-#endif
 		if (NULL == afp) {
 			fprintf(stderr, "FATAL: fopen(\"%s\", \"r\") = %s\n", input_fname, strerror(errno));
 			return 1;
 		}
 	}
 	else {
+#ifdef _MSC_VER
+		if (isBson) {
+			if (_setmode(_fileno(stdin), _O_BINARY) < 0) {
+				perror("ERROR: _setmode(_fileno(stdin), _O_BINARY)");
+				exit(1);
+			}
+		}
+#endif
 		fprintf(stderr, "Reading from stdin...\n");
 	}
 	FILE* fp = afp.self_or(stdin);

@@ -80,8 +80,6 @@ typedef function<byte_t(byte_t)> ByteTR;
 
 class TERARK_DLL_EXPORT BaseDFA; // forward declaration
 class TERARK_DLL_EXPORT BaseDAWG;
-class TERARK_DLL_EXPORT SuffixCountableDAWG;
-class TERARK_DLL_EXPORT BaseAC;
 
 struct TERARK_DLL_EXPORT ComplexMatchContext : private boost::noncopyable {
 	virtual ~ComplexMatchContext();
@@ -241,9 +239,7 @@ public:
 	size_t get_sigma() const { return m_dyn_sigma; }
 	void set_sigma(size_t sigma1) { m_dyn_sigma = sigma1; }
 
-	virtual const BaseAC* get_ac() const;
 	virtual const BaseDAWG* get_dawg() const;
-	virtual const SuffixCountableDAWG* get_SuffixCountableDAWG() const;
 	virtual bool has_freelist() const = 0;
 //	virtual bool compute_is_dag() const = 0;
 
@@ -450,38 +446,6 @@ protected:
 	virtual bool match_dawg_l(MatchContext&, fstring, size_t* len, size_t* nth) const = 0;
 	virtual bool match_dawg_l(MatchContext&, fstring, size_t* len, size_t* nth, const ByteTR&) const = 0;
 	virtual bool match_dawg_l(MatchContext&, fstring, size_t* len, size_t* nth, const byte_t*) const = 0;
-
-	friend class LazyUnionDAWG;
-};
-
-class TERARK_DLL_EXPORT SuffixCountableDAWG : public BaseDAWG {
-public:
-	virtual size_t suffix_cnt(size_t root) const = 0;
-
-	///@{
-	///@returns suffix_cnt of exact_prefix
-	size_t suffix_cnt(fstring exact_prefix) const;
-	size_t suffix_cnt(fstring exact_prefix, const ByteTR& tr) const;
-	size_t suffix_cnt(fstring exact_prefix, const byte_t* tr) const;
-	///@}
-
-	///@{
-	///@param[out] cnt on return
-	///   cnt[i] == suffix_cnt(str.substr(0,i));
-	///   cnt->size()-1 is the max matched length
-	void path_suffix_cnt(fstring str, valvec<size_t>* cnt) const;
-	void path_suffix_cnt(fstring str, valvec<size_t>* cnt, const ByteTR& tr) const;
-	void path_suffix_cnt(fstring str, valvec<size_t>* cnt, const byte_t* tr) const;
-	///@}
-
-protected:
-	virtual size_t suffix_cnt(MatchContext&, fstring) const = 0;
-	virtual size_t suffix_cnt(MatchContext&, fstring, const ByteTR&) const = 0;
-	virtual size_t suffix_cnt(MatchContext&, fstring, const byte_t*) const = 0;
-
-	virtual void path_suffix_cnt(MatchContext&, fstring, valvec<size_t>*) const = 0;
-	virtual void path_suffix_cnt(MatchContext&, fstring, valvec<size_t>*, const ByteTR&) const = 0;
-	virtual void path_suffix_cnt(MatchContext&, fstring, valvec<size_t>*, const byte_t*) const = 0;
 
 	friend class LazyUnionDAWG;
 };

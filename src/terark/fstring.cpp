@@ -273,8 +273,9 @@ void escape_append_imp(fstring str, char quote, PushBack push_back) {
 void escape_append(fstring str, std::string* res, char quote) {
 	size_t esclen = 0;
 	escape_append_imp(str, quote, [&esclen](byte_t) { esclen++; });
-	res->resize(res->size() + esclen);
-	char* p = &*res->begin() + res->size() - esclen;
+	size_t oldsize = res->size();
+	res->resize(oldsize + esclen);
+	char* p = &*res->begin() + oldsize;
 	escape_append_imp(str, quote, [&p](byte_t c) { *p++ = char(c); });
 	assert(&*res->begin() + res->size() == p);
 }

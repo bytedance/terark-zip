@@ -3,5 +3,66 @@ cmake-build-debug
 build
 tools/*/dbg
 tools/*/rls
+
 pkg
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+.idea/
+.vs/
+*.tlog
+*.lastbuildstate
+*.idb
+*.pdb
+*.ilk
+*/x64/Debug/
+*/x64/Release/
+*/CMakeFiles/
+
+build
+vs2015
+vs2017
+
+# vim backup file
+*~
+
+# got files
+*.got
+
+# vscode file
+.vscode
+
+cmake-build-debug
+.DS_Store
+
+terark-core
+terark-rocksdb
 output
+tests/Testing

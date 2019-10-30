@@ -784,6 +784,10 @@ static int CmpFixLenStr(const void* x, const void* y, void* ctx)
 
 void FixedLenStrVec::sort() {
     assert(m_fixlen * m_size == m_strpool.size());
+    sort_raw(m_strpool.data(), m_size, m_fixlen);
+}
+
+void FixedLenStrVec::sort_raw(void* base, size_t num, size_t fixlen) {
 #ifdef _MSC_VER
     #define QSortCtx qsort_s
 #elif defined(__APPLE__)
@@ -795,8 +799,7 @@ void FixedLenStrVec::sort() {
 #else
     #define QSortCtx qsort_r
 #endif
-    auto d = m_strpool.data();
-    QSortCtx(d, m_size, m_fixlen, CmpFixLenStr, (void*)(m_fixlen));
+    QSortCtx(base, num, fixlen, CmpFixLenStr, (void*)(fixlen));
 }
 
 void FixedLenStrVec::clear() {
