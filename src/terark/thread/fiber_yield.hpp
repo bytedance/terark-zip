@@ -143,6 +143,8 @@ namespace terark {
         size_t notify_all(wait_queue_t&) noexcept;
         size_t unchecked_notify_all(wait_queue_t&) noexcept;
 
+        boost::fibers::scheduler* sched() const noexcept { return m_sched; }
+
     private:
         boost::fibers::context**  m_active_context_pp;
         boost::fibers::scheduler* m_sched;
