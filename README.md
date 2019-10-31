@@ -19,7 +19,7 @@ Terark-Core is the foundation of TerarkDB and TerarkKV, it contains a series of 
 
 
 ## Unit Tests
-Terark-Core contains a set of serious test cases under `./tests`, you can run them all by using `run_all.sh` to make sure your modification doesn't break previous code logic.
+Terark-Core contains a set of serious test cases under `./tests`, you can run them all by using `test.sh` to make sure your changes do not break previous code logic.
 
 ## Integration
 If you want to use Terark-Core in you own application, simple include the headers and link terark-core's three libraries.
