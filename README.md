@@ -16,6 +16,7 @@ Terark-Core is the foundation of TerarkDB and TerarkKV, it contains a series of 
 ## Complile
 1. Install libaio-dev first if you dont have it yet
 2. `build.sh` will do the rest work
+3. Note that the `CMakeLists.txt` here is just for IDE loading, please inspect Makefile for the actual complie details
 
 
 ## Unit Tests
