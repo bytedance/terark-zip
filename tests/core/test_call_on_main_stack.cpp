@@ -15,7 +15,9 @@ int main() {
             sprintf(buf, "fn: large stack");
             //printf("%s\n", buf);
         };
-        for (size_t i = 0; i < 1024*1024; ++i) {
+        //size_t loop = 1024*1024;
+        size_t loop = 1;
+        for (size_t i = 0; i < loop; ++i) {
             sched->call_on_main_stack(largeFn);
         }
     };
