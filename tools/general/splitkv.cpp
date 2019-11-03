@@ -87,7 +87,7 @@ GetoptDone:
 	while (line.getline(stdin) > 0) {
 		lineno++;
 		line.chomp();
-		line.split(delim, &F, isKey.size());
+		line.split(delim, &F, isKey.size()+1);
 		key.erase_all();
 		val.erase_all();
 		// keyFields can be reordered, such as: 4,2,3,0,1
