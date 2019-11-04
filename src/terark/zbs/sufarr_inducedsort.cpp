@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <cstdint>
 #include "sufarr_inducedsort.h"
+#include <terark/config.hpp>
 
 #if _MSC_VER
 #pragma warning(disable: 4244) // shut up
@@ -280,6 +281,7 @@ computeBWT(SAT *source, sais_index_type *suf_arr,
 }
 
 template<bool bwt, class SAT>
+terark_no_inline
 sais_index_type
 sais_main(SAT *source, sais_index_type *suf_arr,
           sais_index_type fs, sais_index_type size, sais_index_type sigma) {
