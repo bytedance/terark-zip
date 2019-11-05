@@ -9,3 +9,6 @@ else
 fi
 
 make -j$cpuNum test
+
+# more test cases under google test framework
+./gtest.sh
