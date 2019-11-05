@@ -454,7 +454,7 @@ clean:
 .PHONY : cleanall
 cleanall:
 	rm -rf boost-include/bin.v2 boost-include/build-lib-for-terark.done
-	@for f in `find * -name build`; do \
+	@for f in `find build tools tests gtests -name build`; do \
 		echo rm -rf $${f}; \
 		rm -rf $${f}; \
 	done
