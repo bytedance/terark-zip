@@ -9,18 +9,16 @@
 #include "terark/util/linebuf.hpp"
 #include "terark/util/mmap.hpp"
 
-
 namespace terark {
-
-  TEST(NLT_TEST, SIMPLE_TEST) {
-  }
-
 
   template<typename T>
   void load_keys(T& t) {
     t.push_back("aaa");
     t.push_back("bbb");
     t.push_back("cccc");
+    t.push_back("dd");
+    t.push_back("df");
+    t.push_back("eee");
   }
 
   TEST(NLT_TEST, BUILD_SAVE_LOAD_SEARCH) {
@@ -40,12 +38,30 @@ namespace terark {
 		 */
     typedef SortableStrVec StrVecType;
 
+    // prepare trie config
+    NestLoudsTrieConfig conf;
+    conf.isInputSorted = true; // ascending sorted
+
     // prepare input vector
     StrVecType records;
     load_keys(records);
+    records.finish(); // shrink to fit
     ASSERT_TRUE(records[0] == "aaa");
     ASSERT_TRUE(records[2] == "cccc");
-  }
 
+    // prepare adfa trie
+    std::unique_ptr<NestLoudsTrieDAWG> trie(new NestLoudsTrieDAWG());
+    trie->build_from(records, conf);
+    // optional: 
+    // trie->save_mmap("/tmp/test.nlt");
+
+    // read from adfa trie
+    auto iter = trie->adfa_make_iter();
+    auto found = iter->seek_lower_bound("bbb");
+    ASSERT_TRUE(found);
+    ASSERT_TRUE(iter->word() == "bbb");
+    found = iter->incr();
+    ASSERT_TRUE(iter->word() == "cccc");
+  }
 }
 
