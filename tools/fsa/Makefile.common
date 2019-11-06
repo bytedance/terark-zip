@@ -128,20 +128,20 @@ DBG_DIR := ${BUILD_ROOT}/dbg
 RLS_DIR := ${BUILD_ROOT}/rls
 
 EXE_SRCS ?= $(wildcard *.cpp)
-EXE_OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${EXE_SRCS})))
-EXE_OBJS_R := $(addprefix ${RLS_DIR}/, $(addsuffix .o, $(basename ${EXE_SRCS})))
-EXE_OBJS_D := $(addprefix ${DBG_DIR}/, $(addsuffix .o ,$(basename ${EXE_SRCS})))
-EXE_BINS_A := $(addsuffix .exe ,$(basename ${EXE_OBJS_A}))
-EXE_BINS_D := $(addsuffix .exe ,$(basename ${EXE_OBJS_D}))
-EXE_BINS_R := $(addsuffix .exe ,$(basename ${EXE_OBJS_R}))
+EXE_OBJS_A := $(addprefix ${AFR_DIR}/,$(addsuffix .o,$(basename ${EXE_SRCS})))
+EXE_OBJS_R := $(addprefix ${RLS_DIR}/,$(addsuffix .o,$(basename ${EXE_SRCS})))
+EXE_OBJS_D := $(addprefix ${DBG_DIR}/,$(addsuffix .o,$(basename ${EXE_SRCS})))
+EXE_BINS_A := $(addsuffix .exe,$(basename ${EXE_OBJS_A}))
+EXE_BINS_D := $(addsuffix .exe,$(basename ${EXE_OBJS_D}))
+EXE_BINS_R := $(addsuffix .exe,$(basename ${EXE_OBJS_R}))
 
 DLL_SRCS += $(wildcard *.cxx)
-DLL_OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${DLL_SRCS})))
-DLL_OBJS_R := $(addprefix ${RLS_DIR}/, $(addsuffix .o, $(basename ${DLL_SRCS})))
-DLL_OBJS_D := $(addprefix ${DBG_DIR}/, $(addsuffix .o ,$(basename ${DLL_SRCS})))
-DLL_BINS_A := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_A}))
-DLL_BINS_D := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_D}))
-DLL_BINS_R := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_R}))
+DLL_OBJS_A := $(addprefix ${AFR_DIR}/,$(addsuffix .o,$(basename ${DLL_SRCS})))
+DLL_OBJS_R := $(addprefix ${RLS_DIR}/,$(addsuffix .o,$(basename ${DLL_SRCS})))
+DLL_OBJS_D := $(addprefix ${DBG_DIR}/,$(addsuffix .o,$(basename ${DLL_SRCS})))
+DLL_BINS_A := $(addsuffix ${DLL_SUFFIX},$(basename ${DLL_OBJS_A}))
+DLL_BINS_D := $(addsuffix ${DLL_SUFFIX},$(basename ${DLL_OBJS_D}))
+DLL_BINS_R := $(addsuffix ${DLL_SUFFIX},$(basename ${DLL_OBJS_R}))
 
 ALL_OBJ := ${EXE_OBJS_A} ${EXE_OBJS_D} ${EXE_OBJS_R} ${DLL_OBJS_A} ${DLL_OBJS_D} ${DLL_OBJS_R}
 ALL_EXE := ${EXE_BINS_A} ${EXE_BINS_D} ${EXE_BINS_R}
@@ -173,10 +173,11 @@ ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_static
   LIB_SUF := .a
   ifneq (Darwin,${UNAME_System})
+    override LIBS += -laio
     override LIBS += -lgomp
   endif
 else
-  LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib
+  LIB_DIR := ${TERARK_HOME}/${BUILD_ROOT}/lib_shared
   LIB_SUF := ${DLL_SUFFIX}
 endif
 
