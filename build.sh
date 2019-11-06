@@ -4,7 +4,7 @@
 #   pass prebuild libraries so we don't have to re-build it in terark-core
 #   e.g. boost, zstd, snappy etc...
 #
-set -x
+set -e
 
 BASE_DIR=$PWD
 BOOST_INC=
