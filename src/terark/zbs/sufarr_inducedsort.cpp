@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <cstdint>
 #include "sufarr_inducedsort.h"
+#include <terark/config.hpp>
 
 #if _MSC_VER
 #pragma warning(disable: 4244) // shut up
@@ -279,11 +280,11 @@ computeBWT(SAT *source, sais_index_type *suf_arr,
   return pidx;
 }
 
-template<class SAT>
+template<bool bwt, class SAT>
+terark_no_inline
 sais_index_type
 sais_main(SAT *source, sais_index_type *suf_arr,
-          sais_index_type fs, sais_index_type size, sais_index_type sigma,
-          sais_bool_type bwt) {
+          sais_index_type fs, sais_index_type size, sais_index_type sigma) {
   sais_index_type *alphabet, *bucket, *bucket_prime, *sub_source, *bucket_pos;
   sais_index_type i, j, m, p, q, t, name, pidx = 0, newfs;
   sais_index_type alphabet_p0, alphabet_p1;
@@ -376,7 +377,7 @@ sais_main(SAT *source, sais_index_type *suf_arr,
         sub_source[j--] = suf_arr[i] - 1;
       }
     }
-    if(sais_main(sub_source, suf_arr, newfs, m, name, 0) != 0) {
+    if(sais_main<0>(sub_source, suf_arr, newfs, m, name) != 0) {
       if(flags & 1) { SAIS_MYFREE(alphabet, sigma, sais_index_type); }
       return -2;
     }
@@ -465,14 +466,14 @@ sufarr_inducedsort(const unsigned char *source, int *suf_arr, int size) {
     return gluten_sain_ns::neo_sais_uchar((unsigned char*)source, (uint32_t*)suf_arr, size);
   if((source == NULL) || (suf_arr == NULL) || (size < 0)) { return -1; }
   if(size <= 1) { if(size == 1) { suf_arr[0] = 0; } return 0; }
-  return sais_main(source, suf_arr, 0, size, UCHAR_SIZE, 0);
+  return sais_main<0>(source, suf_arr, 0, size, UCHAR_SIZE);
 }
 
 int
 sufarr_inducedsort_int(const int *source, int *suf_arr, int n, int k) {
   if((source == NULL) || (suf_arr == NULL) || (n < 0) || (k <= 0)) { return -1; }
   if(n <= 1) { if(n == 1) { suf_arr[0] = 0; } return 0; }
-  return sais_main(source, suf_arr, 0, n, k, 0);
+  return sais_main<0>(source, suf_arr, 0, n, k);
 }
 
 int
@@ -480,7 +481,7 @@ sufarr_inducedsort_bwt(const unsigned char *source, unsigned char *height, int *
   int i, pidx;
   if((source == NULL) || (height == NULL) || (rank == NULL) || (size < 0)) { return -1; }
   if(size <= 1) { if(size == 1) { height[0] = source[0]; } return size; }
-  pidx = sais_main(source, rank, 0, size, UCHAR_SIZE, 1);
+  pidx = sais_main<1>(source, rank, 0, size, UCHAR_SIZE);
   if(pidx < 0) { return pidx; }
   height[0] = source[size - 1];
   for(i = 0; i < pidx; ++i) { height[i + 1] = (unsigned char)rank[i]; }
@@ -494,7 +495,7 @@ sufarr_inducedsort_int_bwt(const int *source, int *height, int *rank, int size, 
   int i, pidx;
   if((source == NULL) || (height == NULL) || (rank == NULL) || (size < 0) || (sigma <= 0)) { return -1; }
   if(size <= 1) { if(size == 1) { height[0] = source[0]; } return size; }
-  pidx = sais_main(source, rank, 0, size, sigma, 1);
+  pidx = sais_main<1>(source, rank, 0, size, sigma);
   if(pidx < 0) { return pidx; }
   height[0] = source[size - 1];
   for(i = 0; i < pidx; ++i) { height[i + 1] = rank[i]; }

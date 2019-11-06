@@ -215,9 +215,9 @@ zstd_a_o := $(call objs,zstd,a)
 core_d_o := $(call objs,core,d)
 core_r_o := $(call objs,core,r)
 core_a_o := $(call objs,core,a)
-core_d := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-d${DLL_SUFFIX}
-core_r := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-r${DLL_SUFFIX}
-core_a := ${BUILD_ROOT}/lib/libterark-core-${COMPILER}-a${DLL_SUFFIX}
+shared_core_d := ${BUILD_ROOT}/lib_shared/libterark-core-${COMPILER}-d${DLL_SUFFIX}
+shared_core_r := ${BUILD_ROOT}/lib_shared/libterark-core-${COMPILER}-r${DLL_SUFFIX}
+shared_core_a := ${BUILD_ROOT}/lib_shared/libterark-core-${COMPILER}-a${DLL_SUFFIX}
 static_core_d := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-d.a
 static_core_r := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-r.a
 static_core_a := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-a.a
@@ -225,9 +225,9 @@ static_core_a := ${BUILD_ROOT}/lib_static/libterark-core-${COMPILER}-a.a
 fsa_d_o := $(call objs,fsa,d)
 fsa_r_o := $(call objs,fsa,r)
 fsa_a_o := $(call objs,fsa,a)
-fsa_d := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-d${DLL_SUFFIX}
-fsa_r := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-r${DLL_SUFFIX}
-fsa_a := ${BUILD_ROOT}/lib/libterark-fsa-${COMPILER}-a${DLL_SUFFIX}
+shared_fsa_d := ${BUILD_ROOT}/lib_shared/libterark-fsa-${COMPILER}-d${DLL_SUFFIX}
+shared_fsa_r := ${BUILD_ROOT}/lib_shared/libterark-fsa-${COMPILER}-r${DLL_SUFFIX}
+shared_fsa_a := ${BUILD_ROOT}/lib_shared/libterark-fsa-${COMPILER}-a${DLL_SUFFIX}
 static_fsa_d := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-d.a
 static_fsa_r := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-r.a
 static_fsa_a := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-a.a
@@ -235,9 +235,9 @@ static_fsa_a := ${BUILD_ROOT}/lib_static/libterark-fsa-${COMPILER}-a.a
 zbs_d_o := $(call objs,zbs,d)
 zbs_r_o := $(call objs,zbs,r)
 zbs_a_o := $(call objs,zbs,a)
-zbs_d := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-d${DLL_SUFFIX}
-zbs_r := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-r${DLL_SUFFIX}
-zbs_a := ${BUILD_ROOT}/lib/libterark-zbs-${COMPILER}-a${DLL_SUFFIX}
+shared_zbs_d := ${BUILD_ROOT}/lib_shared/libterark-zbs-${COMPILER}-d${DLL_SUFFIX}
+shared_zbs_r := ${BUILD_ROOT}/lib_shared/libterark-zbs-${COMPILER}-r${DLL_SUFFIX}
+shared_zbs_a := ${BUILD_ROOT}/lib_shared/libterark-zbs-${COMPILER}-a${DLL_SUFFIX}
 static_zbs_d := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-d.a
 static_zbs_r := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-r.a
 static_zbs_a := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-a.a
@@ -245,22 +245,22 @@ static_zbs_a := ${BUILD_ROOT}/lib_static/libterark-zbs-${COMPILER}-a.a
 idx_d_o := $(call objs,idx,d)
 idx_r_o := $(call objs,idx,r)
 idx_a_o := $(call objs,idx,a)
-idx_d := ${BUILD_ROOT}/lib/libterark-idx-${COMPILER}-d${DLL_SUFFIX}
-idx_r := ${BUILD_ROOT}/lib/libterark-idx-${COMPILER}-r${DLL_SUFFIX}
-idx_a := ${BUILD_ROOT}/lib/libterark-idx-${COMPILER}-a${DLL_SUFFIX}
+shared_idx_d := ${BUILD_ROOT}/lib_shared/libterark-idx-${COMPILER}-d${DLL_SUFFIX}
+shared_idx_r := ${BUILD_ROOT}/lib_shared/libterark-idx-${COMPILER}-r${DLL_SUFFIX}
+shared_idx_a := ${BUILD_ROOT}/lib_shared/libterark-idx-${COMPILER}-a${DLL_SUFFIX}
 static_idx_d := ${BUILD_ROOT}/lib_static/libterark-idx-${COMPILER}-d.a
 static_idx_r := ${BUILD_ROOT}/lib_static/libterark-idx-${COMPILER}-r.a
 static_idx_a := ${BUILD_ROOT}/lib_static/libterark-idx-${COMPILER}-a.a
 
-core := ${core_d} ${core_r} ${core_a} ${static_core_d} ${static_core_r} ${static_core_a}
-fsa  := ${fsa_d}  ${fsa_r}  ${fsa_a}  ${static_fsa_d}  ${static_fsa_r}  ${static_fsa_a}
-zbs  := ${zbs_d}  ${zbs_r}  ${zbs_a}  ${static_zbs_d}  ${static_zbs_r}  ${static_zbs_a}
-idx  := ${idx_d}  ${idx_r}  ${idx_a}  ${static_idx_d}  ${static_idx_r}  ${static_idx_a}
+core := ${shared_core_d} ${shared_core_r} ${shared_core_a} ${static_core_d} ${static_core_r} ${static_core_a}
+fsa  := ${shared_fsa_d}  ${shared_fsa_r}  ${shared_fsa_a}  ${static_fsa_d}  ${static_fsa_r}  ${static_fsa_a}
+zbs  := ${shared_zbs_d}  ${shared_zbs_r}  ${shared_zbs_a}  ${static_zbs_d}  ${static_zbs_r}  ${static_zbs_a}
+idx  := ${shared_idx_d}  ${shared_idx_r}  ${shared_idx_a}  ${static_idx_d}  ${static_idx_r}  ${static_idx_a}
 
 ALL_TARGETS = ${MAYBE_DBB_DBG} ${MAYBE_DBB_RLS} ${MAYBE_DBB_AFR} core fsa zbs idx
-DBG_TARGETS = ${MAYBE_DBB_DBG} ${core_d} ${fsa_d} ${zbs_d} ${idx_d}
-RLS_TARGETS = ${MAYBE_DBB_RLS} ${core_r} ${fsa_r} ${zbs_r} ${idx_r}
-AFR_TARGETS = ${MAYBE_DBB_AFR} ${core_a} ${fsa_a} ${zbs_a} ${idx_a}
+DBG_TARGETS = ${MAYBE_DBB_DBG} ${shared_core_d} ${shared_fsa_d} ${shared_zbs_d} ${shared_idx_d}
+RLS_TARGETS = ${MAYBE_DBB_RLS} ${shared_core_r} ${shared_fsa_r} ${shared_zbs_r} ${shared_idx_r}
+AFR_TARGETS = ${MAYBE_DBB_AFR} ${shared_core_a} ${shared_fsa_a} ${shared_zbs_a} ${shared_idx_a}
 ifeq (${PKG_WITH_STATIC},1)
   DBG_TARGETS += ${static_core_d} ${static_fsa_d} ${static_zbs_d} ${static_idx_d}
   RLS_TARGETS += ${static_core_r} ${static_fsa_r} ${static_zbs_r} ${static_idx_r}
@@ -271,7 +271,7 @@ endif
 ifeq (${TERARK_BIN_USE_STATIC_LIB},1)
   TERARK_BIN_DEP_LIB := ${static_core_d} ${static_fsa_d} ${static_zbs_d} ${static_idx_d}
 else
-  TERARK_BIN_DEP_LIB := ${core_d} ${fsa_d} ${zbs_d} ${idx_d}
+  TERARK_BIN_DEP_LIB := ${shared_core_d} ${shared_fsa_d} ${shared_zbs_d} ${shared_idx_d}
 endif
 
 .PHONY : default all core fsa zbs idx
@@ -296,64 +296,70 @@ rls: ${RLS_TARGETS}
 afr: ${AFR_TARGETS}
 
 ifneq (${UNAME_System},Darwin)
-${core_d} ${core_r} ${core_a} : LIBS += -lrt -lpthread -laio
+${shared_core_d} ${shared_core_r} ${shared_core_a} : LIBS += -lrt -lpthread -laio
 endif
-${core_d} : LIBS := $(filter-out -lterark-core-${COMPILER}-d, ${LIBS})
-${core_r} : LIBS := $(filter-out -lterark-core-${COMPILER}-r, ${LIBS})
-${core_a} : LIBS := $(filter-out -lterark-core-${COMPILER}-a, ${LIBS})
+${shared_core_d} : LIBS := $(filter-out -lterark-core-${COMPILER}-d, ${LIBS})
+${shared_core_r} : LIBS := $(filter-out -lterark-core-${COMPILER}-r, ${LIBS})
+${shared_core_a} : LIBS := $(filter-out -lterark-core-${COMPILER}-a, ${LIBS})
 
-${fsa_d} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-d, -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-d ${LIBS})
-${fsa_r} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-r, -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-r ${LIBS})
-${fsa_a} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-a, -L${BUILD_ROOT}/lib -lterark-core-${COMPILER}-a ${LIBS})
+${shared_fsa_d} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-d, -L${BUILD_ROOT}/lib_shared -lterark-core-${COMPILER}-d ${LIBS})
+${shared_fsa_r} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-r, -L${BUILD_ROOT}/lib_shared -lterark-core-${COMPILER}-r ${LIBS})
+${shared_fsa_a} : LIBS := $(filter-out -lterark-fsa-${COMPILER}-a, -L${BUILD_ROOT}/lib_shared -lterark-core-${COMPILER}-a ${LIBS})
 
-${zbs_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
-${zbs_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
-${zbs_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
+${shared_zbs_d} : LIBS := -L${BUILD_ROOT}/lib_shared -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
+${shared_zbs_r} : LIBS := -L${BUILD_ROOT}/lib_shared -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
+${shared_zbs_a} : LIBS := -L${BUILD_ROOT}/lib_shared -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
 
-${idx_d} : LIBS := -L${BUILD_ROOT}/lib -lterark-zbs-${COMPILER}-d -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
-${idx_r} : LIBS := -L${BUILD_ROOT}/lib -lterark-zbs-${COMPILER}-r -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
-${idx_a} : LIBS := -L${BUILD_ROOT}/lib -lterark-zbs-${COMPILER}-a -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
+${shared_idx_d} : LIBS := -L${BUILD_ROOT}/lib_shared -lterark-zbs-${COMPILER}-d -lterark-fsa-${COMPILER}-d -lterark-core-${COMPILER}-d ${LIBS}
+${shared_idx_r} : LIBS := -L${BUILD_ROOT}/lib_shared -lterark-zbs-${COMPILER}-r -lterark-fsa-${COMPILER}-r -lterark-core-${COMPILER}-r ${LIBS}
+${shared_idx_a} : LIBS := -L${BUILD_ROOT}/lib_shared -lterark-zbs-${COMPILER}-a -lterark-fsa-${COMPILER}-a -lterark-core-${COMPILER}-a ${LIBS}
 
 ${zstd_d_o} ${zstd_r_o} ${zstd_a_o} : override CFLAGS += -Wno-sign-compare -Wno-implicit-fallthrough
 
-${fsa_d} : $(call objs,fsa,d) ${core_d}
-${fsa_r} : $(call objs,fsa,r) ${core_r}
-${fsa_a} : $(call objs,fsa,a) ${core_a}
+${shared_fsa_d} : $(call objs,fsa,d) ${shared_core_d}
+${shared_fsa_r} : $(call objs,fsa,r) ${shared_core_r}
+${shared_fsa_a} : $(call objs,fsa,a) ${shared_core_a}
 ${static_fsa_d} : $(call objs,fsa,d)
 ${static_fsa_r} : $(call objs,fsa,r)
 ${static_fsa_a} : $(call objs,fsa,a)
 
-${zbs_d} : $(call objs,zbs,d) ${fsa_d} ${core_d}
-${zbs_r} : $(call objs,zbs,r) ${fsa_r} ${core_r}
-${zbs_a} : $(call objs,zbs,a) ${fsa_a} ${core_a}
+${shared_zbs_d} : $(call objs,zbs,d) ${shared_fsa_d} ${shared_core_d}
+${shared_zbs_r} : $(call objs,zbs,r) ${shared_fsa_r} ${shared_core_r}
+${shared_zbs_a} : $(call objs,zbs,a) ${shared_fsa_a} ${shared_core_a}
 ${static_zbs_d} : $(call objs,zbs,d)
 ${static_zbs_r} : $(call objs,zbs,r)
 ${static_zbs_a} : $(call objs,zbs,a)
 
-${idx_d} : $(call objs,idx,d) ${zbs_d} ${fsa_d} ${core_d}
-${idx_r} : $(call objs,idx,r) ${zbs_r} ${fsa_r} ${core_r}
-${idx_a} : $(call objs,idx,a) ${zbs_a} ${fsa_a} ${core_a}
+${shared_idx_d} : $(call objs,idx,d) ${shared_zbs_d} ${shared_fsa_d} ${shared_core_d}
+${shared_idx_r} : $(call objs,idx,r) ${shared_zbs_r} ${shared_fsa_r} ${shared_core_r}
+${shared_idx_a} : $(call objs,idx,a) ${shared_zbs_a} ${shared_fsa_a} ${shared_core_a}
 ${static_idx_d} : $(call objs,idx,d)
 ${static_idx_r} : $(call objs,idx,r)
 ${static_idx_a} : $(call objs,idx,a)
 
-${core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${shared_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${shared_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${shared_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 ${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 ${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 ${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
 
-${static_core_d} ${core_d}: BOOST_VARIANT := debug
-${static_core_r} ${core_r}: BOOST_VARIANT := release
-${static_core_a} ${core_a}: BOOST_VARIANT := release
+${static_core_d} ${shared_core_d}: BOOST_VARIANT := debug
+${static_core_r} ${shared_core_r}: BOOST_VARIANT := release
+${static_core_a} ${shared_core_a}: BOOST_VARIANT := release
 
 #@param ${1}: release|debug
 define BOOST_OBJS
   $(shell \
   if test -n "${1}"; then  \
+    if test "$(suffix $@)" = ".a"; \
+    then \
+      DirSig=${1}/link-static/threading-multi; \
+    else \
+      DirSig=${1}/threading-multi; \
+    fi; \
     find boost-include/bin.v2/libs \
-        -path "*/${1}/*" -name '*.o' \
+        -path "*/$$DirSig/*" -name '*.o' \
         -not -path "boost-include/bin.v2/libs/config/*"; \
   fi)
 endef
@@ -405,17 +411,24 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 boost-include/build-lib-for-terark.done:
 	cd boost-include \
 		&& bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
 		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=debug \
 		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=release
 	touch $@
 
 %${DLL_SUFFIX}:
 	@echo "----------------------------------------------------------------------------------"
-	@echo "Creating dynamic library: $@"
+	@echo "Creating shared library: $@"
 	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
-	mkdir -p ${BUILD_ROOT}/lib
+	@mkdir -p ${BUILD_ROOT}/lib_shared
+ifeq (Darwin, ${UNAME_System})
+	@cd ${BUILD_ROOT}; ln -sfh lib_shared lib
+else
+	@cd ${BUILD_ROOT}; ln -sfT lib_shared lib
+endif
 	@rm -f $@
 	${LD} -shared ${THIS_LIB_OBJS} ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
@@ -436,7 +449,7 @@ endif
 
 .PHONY : install
 install : core
-	cp ${BUILD_ROOT}/lib/* ${prefix}/lib/
+	cp ${BUILD_ROOT}/lib_shared/* ${prefix}/lib/
 
 .PHONY : clean
 clean:
@@ -449,7 +462,7 @@ clean:
 .PHONY : cleanall
 cleanall:
 	rm -rf boost-include/bin.v2 boost-include/build-lib-for-terark.done
-	@for f in `find * -name build`; do \
+	@for f in `find build tools tests gtests -name build`; do \
 		echo rm -rf $${f}; \
 		rm -rf $${f}; \
 	done
@@ -474,7 +487,8 @@ ${TarBall}: $(wildcard tools/general/*.cpp) \
 	+${MAKE} CHECK_TERARK_FSA_LIB_UPDATE=0 -C tools/general
 	rm -rf ${TarBall}
 	mkdir -p ${TarBall}/bin
-	mkdir -p ${TarBall}/lib
+	mkdir -p ${TarBall}/lib_shared
+	cd ${TarBall};ln -s lib_shared lib
 	mkdir -p ${TarBall}/include/terark/entropy
 	mkdir -p ${TarBall}/include/terark/idx
 	mkdir -p ${TarBall}/include/terark/thread
@@ -520,15 +534,15 @@ ${TarBall}: $(wildcard tools/general/*.cpp) \
 	cp    3rdparty/zstd/zstd/*.h                 ${TarBall}/include/zstd
 	cp    3rdparty/zstd/zstd/common/*.h          ${TarBall}/include/zstd/common
 ifeq (${PKG_WITH_DBG},1)
-	cp -a ${BUILD_ROOT}/lib/libterark-{idx,fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib
-	cp -a ${BUILD_ROOT}/lib/libterark-{idx,fsa,zbs,core}-*a${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib_shared/libterark-{idx,fsa,zbs,core}-*d${DLL_SUFFIX} ${TarBall}/lib_shared
+	cp -a ${BUILD_ROOT}/lib_shared/libterark-{idx,fsa,zbs,core}-*a${DLL_SUFFIX} ${TarBall}/lib_shared
   ifeq (${PKG_WITH_STATIC},1)
 	mkdir -p ${TarBall}/lib_static
 	cp -a ${BUILD_ROOT}/lib_static/libterark-{idx,fsa,zbs,core}-{${COMPILER}-,}d.a ${TarBall}/lib_static
 	cp -a ${BUILD_ROOT}/lib_static/libterark-{idx,fsa,zbs,core}-{${COMPILER}-,}a.a ${TarBall}/lib_static
   endif
 endif
-	cp -a ${BUILD_ROOT}/lib/libterark-{idx,fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib
+	cp -a ${BUILD_ROOT}/lib_shared/libterark-{idx,fsa,zbs,core}-*r${DLL_SUFFIX} ${TarBall}/lib_shared
 	echo $(shell date "+%Y-%m-%d %H:%M:%S") > ${TarBall}/package.buildtime.txt
 	echo $(shell git log | head -n1) >> ${TarBall}/package.buildtime.txt
 ifeq (${PKG_WITH_STATIC},1)
