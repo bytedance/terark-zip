@@ -253,12 +253,13 @@ ${2}/%.o : %.${1}
 	${CXX} ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} ${ext_cxxflags_delay} $$< -o $$@ -c
 ${2}/%.s : %.${1}
 	@echo file: $$< "->" $$@
+	@mkdir -p $$(dir $$@)
 	${CXX} ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} ${ext_cxxflags_delay} $$< -o $$@ -S -fverbose-asm
 ${2}/%.dep : %.${1}
 	@echo file: $$< "->" $$@
 	@echo INCS = ${INCS}
-	mkdir -p $$(dir $$@)
-	-${CXX} ${CXX_STD} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+	@mkdir -p $$(dir $$@)
+	-${CXX} ${CXX_STD} ${3} -M -MT $$(basename $$@).o ${INCS} ${ext_cxxflags_delay} $$< > $$@
 endef
 
 $(eval $(call COMPILE_CXX,cpp,${AFR_DIR},${AFR_FLAGS}))
