@@ -352,8 +352,14 @@ ${static_core_a} ${shared_core_a}: BOOST_VARIANT := release
 define BOOST_OBJS
   $(shell \
   if test -n "${1}"; then  \
+    if test "$(suffix $@)" = ".a"; \
+    then \
+      DirSig=${1}/link-static/threading-multi; \
+    else \
+      DirSig=${1}/threading-multi; \
+    fi; \
     find boost-include/bin.v2/libs \
-        -path "*/${1}/*" -name '*.o' \
+        -path "*/$$DirSig/*" -name '*.o' \
         -not -path "boost-include/bin.v2/libs/config/*"; \
   fi)
 endef
@@ -405,6 +411,8 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 boost-include/build-lib-for-terark.done:
 	cd boost-include \
 		&& bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
+		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
 		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=debug \
 		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=release
 	touch $@
