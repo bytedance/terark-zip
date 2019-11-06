@@ -127,13 +127,13 @@ AFR_DIR := ${BUILD_ROOT}/afr
 DBG_DIR := ${BUILD_ROOT}/dbg
 RLS_DIR := ${BUILD_ROOT}/rls
 
-SRCS ?= $(wildcard *.cpp)
-OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${SRCS})))
-OBJS_R := $(addprefix ${RLS_DIR}/, $(addsuffix .o, $(basename ${SRCS})))
-OBJS_D := $(addprefix ${DBG_DIR}/, $(addsuffix .o ,$(basename ${SRCS})))
-BINS_A := $(addsuffix .exe ,$(basename ${OBJS_A}))
-BINS_D := $(addsuffix .exe ,$(basename ${OBJS_D}))
-BINS_R := $(addsuffix .exe ,$(basename ${OBJS_R}))
+EXE_SRCS ?= $(wildcard *.cpp)
+EXE_OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${EXE_SRCS})))
+EXE_OBJS_R := $(addprefix ${RLS_DIR}/, $(addsuffix .o, $(basename ${EXE_SRCS})))
+EXE_OBJS_D := $(addprefix ${DBG_DIR}/, $(addsuffix .o ,$(basename ${EXE_SRCS})))
+EXE_BINS_A := $(addsuffix .exe ,$(basename ${EXE_OBJS_A}))
+EXE_BINS_D := $(addsuffix .exe ,$(basename ${EXE_OBJS_D}))
+EXE_BINS_R := $(addsuffix .exe ,$(basename ${EXE_OBJS_R}))
 
 DLL_SRCS += $(wildcard *.cxx)
 DLL_OBJS_A := $(addprefix ${AFR_DIR}/, $(addsuffix .o ,$(basename ${DLL_SRCS})))
@@ -143,8 +143,8 @@ DLL_BINS_A := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_A}))
 DLL_BINS_D := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_D}))
 DLL_BINS_R := $(addsuffix ${DLL_SUFFIX} ,$(basename ${DLL_OBJS_R}))
 
-ALL_OBJ := ${OBJS_A} ${OBJS_D} ${OBJS_R} ${DLL_OBJS_A} ${DLL_OBJS_D} ${DLL_OBJS_R}
-ALL_EXE := ${BINS_A} ${BINS_D} ${BINS_R}
+ALL_OBJ := ${EXE_OBJS_A} ${EXE_OBJS_D} ${EXE_OBJS_R} ${DLL_OBJS_A} ${DLL_OBJS_D} ${DLL_OBJS_R}
+ALL_EXE := ${EXE_BINS_A} ${EXE_BINS_D} ${EXE_BINS_R}
 ALL_DLL := ${DLL_BINS_A} ${DLL_BINS_D} ${DLL_BINS_R}
 ALL_BIN := ${ALL_EXE} ${ALL_DLL}
 
@@ -206,21 +206,21 @@ ${LIB_LIBS_R}: ${LIB_SRCS}
 %zbs-${COMPILER}-r${LIB_SUF}:
 	+$(MAKE) -C ${TERARK_HOME} $(subst ${TERARK_HOME}/,,${LIB_LIBS_R})
 
-${BINS_A}: ${LIB_LIBS_A}
-${BINS_D}: ${LIB_LIBS_D}
-${BINS_R}: ${LIB_LIBS_R}
+${EXE_BINS_A}: ${LIB_LIBS_A}
+${EXE_BINS_D}: ${LIB_LIBS_D}
+${EXE_BINS_R}: ${LIB_LIBS_R}
 endif
 
-${BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
-${BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
-${BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-r,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-r ${LIBS}
+${EXE_BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
+${EXE_BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
+${EXE_BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-r,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-r ${LIBS}
 
 clean :
-	rm -rf ${BUILD_ROOT} dbg rls
+	rm -rf ${BUILD_ROOT} dbg rls afr
 
-UNIT_TESTS_DBG := $(addsuffix .test_dbg,${BINS_D})
-UNIT_TESTS_AFR := $(addsuffix .test_afr,${BINS_A})
-UNIT_TESTS_RLS := $(addsuffix .test_rls,${BINS_R})
+UNIT_TESTS_DBG := $(addsuffix .test_dbg,${EXE_BINS_D})
+UNIT_TESTS_AFR := $(addsuffix .test_afr,${EXE_BINS_A})
+UNIT_TESTS_RLS := $(addsuffix .test_rls,${EXE_BINS_R})
 
 .PHONY : test
 .PHONY : test_dbg

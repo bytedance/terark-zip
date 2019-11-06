@@ -1,7 +1,7 @@
 
 TERARK_EXT_LIBS := fsa
 
-SRCS += $(wildcard *.cpp)
-#SRCS += $(wildcard extra/*.cpp)
+EXE_SRCS += $(wildcard *.cpp)
+#EXE_SRCS += $(wildcard extra/*.cpp)
 
 include ../../tools/fsa/Makefile.common
