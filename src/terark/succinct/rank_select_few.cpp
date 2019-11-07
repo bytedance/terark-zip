@@ -25,22 +25,26 @@ namespace terark {
   template <size_t P, size_t W>
   size_t rank_select_few<P, W>::lower_bound(size_t val, size_t &hint) const {
     size_t n = P ? m_num1 : m_num0;
-    if (hint < n) {
-      if ((hint > 0) &&
-          (val_a_logi(hint - 1) < val) && (val_a_logi(hint) >= val))
-        return hint;
-      if ((hint + 1 < n) &&
-          (val_a_logi(hint) < val) && (val_a_logi(hint + 1) >= val))
+    size_t idx = hint;
+    if (idx < n) {
+      if ((idx > 0) &&
+          (val_a_logi(idx - 1) < val) && (val_a_logi(idx) >= val))
+        return idx;
+      if ((idx + 1 < n) &&
+          (val_a_logi(idx) < val) && (val_a_logi(idx + 1) >= val))
         return ++hint;
-      if ((hint > 1) &&
-          (val_a_logi(hint - 2) < val) && (val_a_logi(hint - 1) >= val))
+      if ((idx > 1) &&
+          (val_a_logi(idx - 2) < val) && (val_a_logi(idx - 1) >= val))
         return --hint;
-      if ((hint == 0) &&
+      if ((idx == 0) &&
           (val_a_logi(0) >= val))
         return 0;
-      if ((hint + 1 == n) &&
-          (val_a_logi(hint) < val))
+      if ((idx + 1 == n) &&
+          (val_a_logi(idx) < val))
         return n;
+    } else if (idx == n &&
+               (val_a_logi(n - 1) <= val)) {
+      return n;
     }
     return hint = lower_bound(val);
   }
@@ -81,26 +85,29 @@ namespace terark {
   template <size_t P, size_t W>
   size_t rank_select_few<P, W>::select_complement(size_t id, size_t &hint) const {
     size_t n = P ? m_num1 : m_num0;
-    if (hint < n) {
-      size_t val = id + hint;
-      if ((hint > 0) &&
-          (val_a_logi(hint - 1) <= val - 1) && (val_a_logi(hint) > val))
-        return id + hint;
-      if ((hint + 1 < n) &&
-          (val_a_logi(hint) <= val) && (val_a_logi(hint + 1) > val + 1))
+    size_t idx = hint;
+    size_t val = id + idx;
+    if (idx < n) {
+      if ((idx > 0) &&
+          (val_a_logi(idx - 1) <= val - 1) && (val_a_logi(idx) > val))
+        return id + idx;
+      if ((idx + 1 < n) &&
+          (val_a_logi(idx) <= val) && (val_a_logi(idx + 1) > val + 1))
         return id + ++hint;
-      if ((hint > 1) &&
-          (val_a_logi(hint - 2) <= val - 2) && (val_a_logi(hint - 1) > val - 1))
+      if ((idx > 1) &&
+          (val_a_logi(idx - 2) <= val - 2) && (val_a_logi(idx - 1) > val - 1))
         return id + --hint;
-      if ((hint + 1 == n) &&
-          (val_a_logi(hint) <= val))
+      if ((idx + 1 == n) &&
+          (val_a_logi(idx) <= val))
         return id + n;
-      if ((hint == 0) &&
+      if ((idx == 0) &&
           (val_a_logi(0) > val))
         return id;
+    } else if (idx == n &&
+               (val_a_logi(n - 1) <= val)) {
+      return id + n;
     }
-    hint = select_complement(id);
-    return hint;
+    return hint = select_complement(id);
   }
 
   template <size_t P, size_t W>
@@ -396,10 +403,14 @@ namespace terark {
     size_t cache[8];
     size_t layer = 0;
     size_t n = (P ? num1 : num0);
-    while(n){
+    while (n) {
       sz += n * W;
       cache[layer++] = sz;
       n >>= 8;
+    }
+    if (layer <= 1) {
+      // create bound for val_a_logi
+      sz += W;
     }
     if (!P)
       m_last = rev ? num0 + num1 - 1 : 0;
