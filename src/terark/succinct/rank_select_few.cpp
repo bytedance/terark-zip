@@ -44,7 +44,7 @@ namespace terark {
         return n;
     } else if (idx == n &&
                (val_a_logi(n - 1) <= val)) {
-      return n;
+      return hint = n - (val_a_logi(n - 1) == val);
     }
     return hint = lower_bound(val);
   }
@@ -105,7 +105,7 @@ namespace terark {
         return id;
     } else if (idx == n &&
                (val_a_logi(n - 1) <= val)) {
-      return id + n;
+      return id + (hint = n - (val_a_logi(n - 1) == val));
     }
     return hint = select_complement(id);
   }
