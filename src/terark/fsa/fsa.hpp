@@ -237,7 +237,7 @@ public:
 	BaseDFA();
 	virtual ~BaseDFA();
 	size_t get_sigma() const { return m_dyn_sigma; }
-	void set_sigma(size_t sigma1) { m_dyn_sigma = sigma1; }
+	void set_sigma(size_t sigma1) { m_dyn_sigma = (uint32_t)sigma1; }
 
 	virtual const BaseDAWG* get_dawg() const;
 	virtual bool has_freelist() const = 0;

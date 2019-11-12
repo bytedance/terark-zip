@@ -185,7 +185,7 @@ public:
         m_is_dying = true; // must before m_tls_ptr.~instance_tls()
         m_tls_ptr.~instance_tls(); // explicit destruct
     }
-    inline bool reuse(TlsMember* tls) { return true; }
+    inline bool reuse(TlsMember* /*tls*/) { return true; }
     void init_fixed_cap(size_t cap) {
         assert(cap > 0);
         assert(m_tls_vec.size() == 0);

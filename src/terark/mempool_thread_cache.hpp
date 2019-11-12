@@ -78,10 +78,10 @@ public:
     #define mptc1t_debug_fill_alloc(mem, len)
     #define mptc1t_debug_fill_free(mem, len)
 #else
-    void mptc1t_debug_fill_alloc(void* mem, size_t len) {
+    void mptc1t_debug_fill_alloc(void* /*mem*/, size_t /*len*/) {
         //memset(mem, 0xCC, len);
     }
-    void mptc1t_debug_fill_free(void* mem, size_t len) {
+    void mptc1t_debug_fill_free(void* /*mem*/, size_t /*len*/) {
         //memset(mem, 0xDD, len);
     }
 #endif

@@ -87,7 +87,7 @@ public:
     defined(_M_X64) && 0
         uint64_t val = unaligned_load<uint64_t>((const byte_t*)(indexBase) + bitpos/8);
     #if defined(__BMI__) || defined(__BMI2__)
-        size_t sample0 = _bextr_u64(val, bitpos % 8, sampleWidth);
+        size_t sample0 = _bextr_u64(val, bitpos % 8, uint32_t(sampleWidth));
     #else
         size_t sample0 = (val >> (bitpos%8)) & ~(size_t(-1) << sampleWidth);
     #endif

@@ -72,12 +72,14 @@ fast_rank1(const bm_uint_t* bits, const uint32_t* rankCache, size_t bitpos) {
 }
 
 inline size_t rank_select_simple::
-fast_select0(const bm_uint_t* bits, const uint32_t* sel0, const uint32_t* rankCache, size_t rank) {
+fast_select0(const bm_uint_t* /*bits*/, const uint32_t* /*sel0*/,
+             const uint32_t* /*rankCache*/, size_t /*rank*/) {
     THROW_STD(invalid_argument, "not supported");
 }
 
 inline size_t rank_select_simple::
-fast_select1(const bm_uint_t* bits, const uint32_t* sel1, const uint32_t* rankCache, size_t rank) {
+fast_select1(const bm_uint_t* /*bits*/, const uint32_t* /*sel1*/,
+             const uint32_t* /*rankCache*/, size_t /*rank*/) {
     THROW_STD(invalid_argument, "not supported");
 }
 
@@ -109,9 +111,9 @@ public:
     void set0(size_t i) { assert(i < m_size); }
     void set1(size_t i) { assert(i < m_size); }
     size_t rank0(size_t bitpos) const { assert(bitpos <= m_size); return bitpos; }
-    size_t rank1(size_t bitpos) const { return 0; }
+    size_t rank1(size_t /*bitpos*/) const { return 0; }
     size_t select0(size_t id) const { assert(id < m_size); return id; }
-    size_t select1(size_t id) const { return size_t(-1); }
+    size_t select1(size_t /*id*/) const { return size_t(-1); }
     size_t max_rank0() const { return m_size; }
     size_t max_rank1() const { return 0; }
     size_t size() const { return m_size; }
@@ -136,8 +138,8 @@ public:
         assert(bitpos < m_size);
         return bitpos;
     }
-    size_t one_seq_len(size_t bitpos) const { return 0; }
-    size_t one_seq_revlen(size_t bitpos) const { return 0; }
+    size_t one_seq_len(size_t /*bitpos*/) const { return 0; }
+    size_t one_seq_revlen(size_t /*bitpos*/) const { return 0; }
 
 private:
     size_t m_size;
@@ -170,9 +172,9 @@ public:
     size_t mem_size() const { return sizeof(*this); }
     void set0(size_t i) { assert(i < m_size); }
     void set1(size_t i) { assert(i < m_size); }
-    size_t rank0(size_t bitpos) const { return 0; }
+    size_t rank0(size_t /*bitpos*/) const { return 0; }
     size_t rank1(size_t bitpos) const { assert(bitpos <= m_size); return bitpos; }
-    size_t select0(size_t id) const { return size_t(-1); }
+    size_t select0(size_t /*id*/) const { return size_t(-1); }
     size_t select1(size_t id) const { assert(id < m_size); return id; }
     size_t max_rank0() const { return 0; }
     size_t max_rank1() const { return m_size; }
@@ -190,8 +192,8 @@ public:
     const uint32_t* get_sel1_cache() const { return NULL; }
 
     ///@returns number of continuous one/zero bits starts at bitpos
-    size_t zero_seq_len(size_t bitpos) const { return 0; }
-    size_t zero_seq_revlen(size_t bitpos) const { return 0; }
+    size_t zero_seq_len(size_t /*bitpos*/) const { return 0; }
+    size_t zero_seq_revlen(size_t /*bitpos*/) const { return 0; }
     size_t one_seq_len(size_t bitpos) const {
         assert(bitpos < m_size);
         return m_size - bitpos;

@@ -34,7 +34,7 @@ namespace terark {
 inline size_t UintSelect1(unsigned int x, size_t r) {
     assert(x != 0);
     assert(r < (size_t)_mm_popcnt_u32(x));
-    return terark_bsr_u32(_pdep_u32(_bzhi_u32(uint32_t(-1), r+1), x));
+    return terark_bsr_u32(_pdep_u32(_bzhi_u32(uint32_t(-1), uint32_t(r+1)), x));
 }
 inline size_t UintSelect1(unsigned long long x, size_t r) {
     assert(x != 0);
