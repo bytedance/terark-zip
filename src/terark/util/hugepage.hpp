@@ -15,6 +15,7 @@ static const size_t hugepage_size = size_t(2) << 20;
 template<class T>
 void use_hugepage_advise(valvec<T>* vec) {
 #if defined(_MSC_VER) || !defined(MADV_HUGEPAGE)
+  TERARK_UNUSED_VAR(vec);
 #else
 	size_t nBytes = vec->used_mem_size();
 	if (nBytes < hugepage_size) {

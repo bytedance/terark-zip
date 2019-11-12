@@ -166,9 +166,9 @@ public:
     static void fast_prefetch_bit(const Line* m_lines, size_t i)
         { _mm_prefetch((const char*)&m_lines[i/LineBits].bit64[i%LineBits/64], _MM_HINT_T0); }
 
-    void prefetch_rank1(size_t bitpos) const
+    void prefetch_rank1(size_t /*bitpos*/) const
         { /*_mm_prefetch((const char*)&m_lines[bitpos/LineBits].rlev1, _MM_HINT_T0);*/ }
-    static void fast_prefetch_rank1(const Line* m_lines, size_t bitpos)
+    static void fast_prefetch_rank1(const Line* /*m_lines*/, size_t /*bitpos*/)
         { /*_mm_prefetch((const char*)&m_lines[bitpos/LineBits].rlev1, _MM_HINT_T0);*/ }
 
     static size_t fast_one_seq_len(const Line*, size_t bitpos);

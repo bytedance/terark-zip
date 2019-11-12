@@ -157,7 +157,7 @@ public:
         m_len = std::max(m_len, Base::tell());
     }
     template<class OutputStream>
-    void to_output(OutputStream& output, size_t length) {
+    void to_output(OutputStream& output, size_t /*length*/) {
         assert(Base::tell() <= m_len);
         size_t n = m_len - Base::tell();
         output.ensureWrite(skip(n), n);

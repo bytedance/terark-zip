@@ -1,4 +1,3 @@
-
 #include "rank_select_few.hpp"
 
 namespace terark {
@@ -9,14 +8,14 @@ namespace terark {
     const uint8_t *p = base + ((m_layer == 1) ? 0 : m_offset[m_layer - 2]);
     for (int i = m_layer - 2; i >= 0; --i) {
       for (const uint8_t *e = base + m_offset[i + 1]; p < e; p += W) {
-        if (val_at_ptr(p) > val)
+        if (val_of_ptr(p) > val)
           break;
       }
       if(p > base + m_offset[i]) p -= W;
       p = base + (i ? m_offset[i - 1] : 0) + (p - base - m_offset[i]) * 256;
     }
     for(const uint8_t *e = base + m_offset[0]; p < e; p += W){
-      if (val_at_ptr(p) >= val)
+      if (val_of_ptr(p) >= val)
         break;
     }
     return (p - base) / W;
@@ -42,7 +41,7 @@ namespace terark {
       if ((idx + 1 == n) &&
           (val_a_logi(idx) < val))
         return n;
-    } else if (idx == n &&
+    } else if ((idx == n) &&
                (val_a_logi(n - 1) <= val)) {
       return hint = n - (val_a_logi(n - 1) == val);
     }
@@ -53,10 +52,10 @@ namespace terark {
   size_t rank_select_few<P, W>::select_complement(size_t id) const {
     assert(id < (P ? m_num0 : m_num1));
     const uint8_t *base = m_mempool.data();
-    if(id < val_at_ptr(base)){
+    if(id < val_of_ptr(base)){
       return id;
     }
-    if(id + (P ? m_num1 : m_num0) > val_at_ptr(base + m_offset[0] - W)){
+    if(id + (P ? m_num1 : m_num0) > val_of_ptr(base + m_offset[0] - W)){
       return id + (P ? m_num1 : m_num0);
     }
     const uint8_t *p = base + ((m_layer == 1) ? 0 : m_offset[m_layer - 2]);
@@ -64,7 +63,7 @@ namespace terark {
     size_t pos = 0;
     for( int i = m_layer - 2; i >= 0; --i){
       for(e = base + m_offset[i + 1]; p < e ;){
-        if(id + pos < val_at_ptr(p)) break;
+        if(id + pos < val_of_ptr(p)) break;
         p += W;
         pos += 1ULL << (8 * i + 8);
       }
@@ -75,7 +74,7 @@ namespace terark {
       p = base + (i ? m_offset[i - 1] : 0) + (p - (base + m_offset[i])) * 256;
     }
     for(e = base + m_offset[0]; p < e ;){
-      if(id + pos < val_at_ptr(p)) break;
+      if(id + pos < val_of_ptr(p)) break;
       p += W;
       pos ++;
     }
@@ -103,7 +102,7 @@ namespace terark {
       if ((idx == 0) &&
           (val_a_logi(0) > val))
         return id;
-    } else if (idx == n &&
+    } else if ((idx == n) &&
                (val_a_logi(n - 1) <= val)) {
       return id + (hint = n - (val_a_logi(n - 1) == val));
     }
@@ -428,12 +427,13 @@ namespace terark {
 
   template <size_t P, size_t W>
   void rank_select_few_builder<P, W>::insert(size_t pos) {
-    assert((W == 8) || (pos <= ~(0xFFFFFFFFFFFFFFFFULL << (W * 8))));
+    assert((W == 8) || (pos <= ~(size_t(-1) << (W * 8))));
     if (P) {
       *(reinterpret_cast<uint64_t *>(m_it)) |= pos;
       m_it = m_rev ? m_it - W : m_it + W;
     } else {
       if (m_rev) {
+        // decreasing construct
         assert(pos <= m_last);
         while (m_last != pos) {
           *(reinterpret_cast<uint64_t *>(m_it)) |= m_last--;
@@ -441,6 +441,7 @@ namespace terark {
         }
         m_last--;
       } else {
+        // increasing construct
         assert(pos >= m_last);
         while (m_last != pos) {
           *(reinterpret_cast<uint64_t *>(m_it)) |= m_last++;

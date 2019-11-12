@@ -187,10 +187,10 @@ public:
       { _mm_prefetch((const char*)&m_lines[i / LineBits].words[i % LineBits / WordBits * Arity + dimensions], _MM_HINT_T0); }
 
     template<size_t dimensions>
-    void prefetch_rank1_dx(size_t bitpos) const
+    void prefetch_rank1_dx(size_t /*bitpos*/) const
       { /*_mm_prefetch((const char*)&m_lines[bitpos / LineBits].mixed[dimensions].rlev, _MM_HINT_T0);*/ }
     template<size_t dimensions>
-    static void fast_prefetch_rank1_dx(const RankCacheMixed* rankCache, size_t bitpos)
+    static void fast_prefetch_rank1_dx(const RankCacheMixed* /*rankCache*/, size_t /*bitpos*/)
       { /*_mm_prefetch((const char*)&rankCache[bitpos / LineBits].mixed[dimensions].rlev, _MM_HINT_T0);*/ }
 };
 
