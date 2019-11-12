@@ -136,6 +136,7 @@ protected:
     {
         // m_flags must be member of this
         // for d<0> and d<1> build cache
+        // d stands for Deg()
         uint64_t m_flags;
         struct
         {
