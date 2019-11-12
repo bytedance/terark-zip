@@ -28,6 +28,11 @@
 #include <terark/num_to_str.hpp>
 #include <terark/io/MemStream.hpp>
 
+#if __clang__
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Winconsistent-missing-override"
+#endif
+
 namespace terark {
 
 static const uint64_t g_terark_index_prefix_seed = 0x505f6b7261726554ull; // echo Terark_P | od -t x8
@@ -248,21 +253,25 @@ struct SuffixBase {
   Reorder(ZReorderMap& newToOld, std::function<void(const void*, size_t)> append, fstring tmpFile) const = 0;
 };
 
-template<class T>
-struct ComponentIteratorStorageImpl {
+template<class B, class T>
+struct ComponentIteratorStorageImpl : public B {
   size_t IteratorStorageSize() const { return sizeof(T); }
-  void IteratorStorageConstruct(TerarkContext* ctx, void* ptr) const { ::new(ptr) T(); }
-  void IteratorStorageDestruct(TerarkContext* ctx, void* ptr) const { static_cast<T*>(ptr)->~T(); }
+  void IteratorStorageConstruct(TerarkContext* ctx, void* ptr) const {
+    ::new(ptr) T();
+  }
+  void IteratorStorageDestruct(TerarkContext* ctx, void* ptr) const {
+    static_cast<T*>(ptr)->~T();
+  }
 };
 
-template<>
-struct ComponentIteratorStorageImpl<void> {
+template<class B>
+struct ComponentIteratorStorageImpl<B, void> : public B {
   size_t IteratorStorageSize() const { return 0; }
   void IteratorStorageConstruct(TerarkContext* ctx, void* ptr) const {}
   void IteratorStorageDestruct(TerarkContext* ctx, void* ptr) const {}
 };
 
-struct VirtualPrefixBase {
+struct VirtualPrefixBase : public PrefixBase {
   virtual ~VirtualPrefixBase() {}
 
   virtual size_t IteratorStorageSize() const = 0;
@@ -292,88 +301,13 @@ struct VirtualPrefixBase {
   virtual void Save(std::function<void(const void*, size_t)> append) const = 0;
 };
 
-template<class Prefix>
-struct VirtualPrefixWrapper : public VirtualPrefixBase, public Prefix {
-  using IteratorStorage = typename Prefix::IteratorStorage;
-
-  VirtualPrefixWrapper(Prefix&& prefix) : Prefix(std::move(prefix)) {}
-
-  size_t IteratorStorageSize() const final {
-    return Prefix::IteratorStorageSize();
-  }
-  void IteratorStorageConstruct(TerarkContext* ctx, void* ptr) const final {
-    Prefix::IteratorStorageConstruct(ctx, ptr);
-  }
-  void IteratorStorageDestruct(TerarkContext* ctx, void* ptr) const final {
-    Prefix::IteratorStorageDestruct(ctx, ptr);
-  }
-
-  size_t KeyCount() const final {
-    return Prefix::KeyCount();
-  }
-  size_t TotalKeySize() const final {
-    return Prefix::TotalKeySize();
-  }
-  size_t Find(fstring key, const SuffixBase* suffix, TerarkContext* ctx) const final {
-    return Prefix::Find(key, suffix, ctx);
-  }
-  size_t DictRank(fstring key, const SuffixBase* suffix, TerarkContext* ctx) const final {
-    return Prefix::DictRank(key, suffix, ctx);
-  }
-  size_t AppendMinKey(valvec<byte_t>* buffer, TerarkContext* ctx) const final {
-    return Prefix::AppendMinKey(buffer, ctx);
-  }
-  size_t AppendMaxKey(valvec<byte_t>* buffer, TerarkContext* ctx) const final {
-    return Prefix::AppendMaxKey(buffer, ctx);
-  }
-
-  bool NeedsReorder() const final {
-    return Prefix::NeedsReorder();
-  }
-  void GetOrderMap(UintVecMin0& newToOld) const final {
-    Prefix::GetOrderMap(newToOld);
-  }
-  void BuildCache(double cacheRatio) final {
-    Prefix::BuildCache(cacheRatio);
-  }
-
-  bool IterSeekToFirst(size_t& id, size_t& count, void* iter) const final {
-    return Prefix::IterSeekToFirst(id, count, (IteratorStorage*)iter);
-  }
-  bool IterSeekToLast(size_t& id, size_t* count, void* iter) const final {
-    return Prefix::IterSeekToLast(id, count, (IteratorStorage*)iter);
-  }
-  bool IterSeek(size_t& id, size_t& count, fstring target, void* iter) const final {
-    return Prefix::IterSeek(id, count, target, (IteratorStorage*)iter);
-  }
-  bool IterNext(size_t& id, size_t count, void* iter) const final {
-    return Prefix::IterNext(id, count, (IteratorStorage*)iter);
-  }
-  bool IterPrev(size_t& id, size_t* count, void* iter) const final {
-    return Prefix::IterPrev(id, count, (IteratorStorage*)iter);
-  }
-  fstring IterGetKey(size_t id, const void* iter) const final {
-    return Prefix::IterGetKey(id, (const IteratorStorage*)iter);
-  }
-  size_t IterDictRank(size_t id, const void* iter) const final {
-    return Prefix::IterDictRank(id, (const IteratorStorage*)iter);
-  }
-
-  bool Load(fstring mem) final {
-    return Prefix::Load(mem);
-  }
-  void Save(std::function<void(const void*, size_t)> append) const final {
-    Prefix::Save(append);
-  }
-};
-
 struct VirtualPrefix : public PrefixBase {
   typedef void* IteratorStorage;
 
   template<class Prefix>
   VirtualPrefix(Prefix&& p) {
     flags = p.flags;
-    prefix = new VirtualPrefixWrapper<Prefix>(std::move(p));
+    prefix = new Prefix(std::move(p));
   }
 
   VirtualPrefix(VirtualPrefix&& o) {
@@ -459,7 +393,7 @@ struct VirtualPrefix : public PrefixBase {
   }
 };
 
-struct VirtualSuffixBase {
+struct VirtualSuffixBase : public SuffixBase {
   virtual ~VirtualSuffixBase() {}
 
   virtual size_t IteratorStorageSize() const = 0;
@@ -483,68 +417,13 @@ struct VirtualSuffixBase {
   Reorder(ZReorderMap& newToOld, std::function<void(const void*, size_t)> append, fstring tmpFile) const = 0;
 };
 
-template<class Suffix>
-struct VirtualSuffixWrapper : public VirtualSuffixBase, public Suffix {
-  using IteratorStorage = typename Suffix::IteratorStorage;
-
-  VirtualSuffixWrapper(Suffix&& suffix) : Suffix(std::move(suffix)) {}
-
-  size_t IteratorStorageSize() const final {
-    return Suffix::IteratorStorageSize();
-  }
-  void IteratorStorageConstruct(TerarkContext* ctx, void* ptr) const final {
-    Suffix::IteratorStorageConstruct(ctx, ptr);
-  }
-  void IteratorStorageDestruct(TerarkContext* ctx, void* ptr) const final {
-    Suffix::IteratorStorageDestruct(ctx, ptr);
-  }
-
-  size_t TotalKeySize() const final {
-    return Suffix::TotalKeySize();
-  }
-  virtual LowerBoundResult
-  LowerBound(fstring target, size_t suffix_id, size_t suffix_count, TerarkContext* ctx) const final {
-    return Suffix::LowerBound(target, suffix_id, suffix_count, ctx);
-  }
-  void AppendKey(size_t suffix_id, valvec<byte_t>* buffer, TerarkContext* ctx) const final {
-    return Suffix::AppendKey(suffix_id, buffer, ctx);
-  }
-  void GetMetaData(valvec<fstring>* blocks) const final {
-    return Suffix::GetMetaData(blocks);
-  }
-  void DetachMetaData(const valvec<fstring>& blocks) final {
-    Suffix::DetachMetaData(blocks);
-  }
-
-  void IterSet(size_t suffix_id, void* iter) const final {
-    Suffix::IterSet(suffix_id, (IteratorStorage*)iter);
-  }
-  bool IterSeek(fstring target, size_t& suffix_id, size_t suffix_count, void* iter) const final {
-    return Suffix::IterSeek(target, suffix_id, suffix_count, (IteratorStorage*)iter);
-  }
-  fstring IterGetKey(size_t id, const void* iter) const final {
-    return Suffix::IterGetKey(id, (const IteratorStorage*)iter);
-  }
-
-  bool Load(fstring mem) final {
-    return Suffix::Load(mem);
-  }
-  void Save(std::function<void(const void*, size_t)> append) const final {
-    Suffix::Save(append);
-  }
-  void Reorder(ZReorderMap& newToOld, std::function<void(const void*, size_t)> append,
-               fstring tmpFile) const final {
-    Suffix::Reorder(newToOld, append, tmpFile);
-  }
-};
-
 struct VirtualSuffix : public SuffixBase {
   typedef void* IteratorStorage;
 
   template<class Suffix>
   VirtualSuffix(Suffix&& s) {
     flags = s.flags;
-    suffix = new VirtualSuffixWrapper<Suffix>(std::move(s));
+    suffix = new Suffix(std::move(s));
   }
 
   VirtualSuffix(VirtualSuffix&& o) {
@@ -835,19 +714,6 @@ public:
   const Suffix& suffix() const {
     return static_cast<const Suffix&>(suffix_);
   }
-  typename Prefix::IteratorStorage* prefix_storage() {
-    return (typename Prefix::IteratorStorage*)prefix_storage_;
-  }
-  const typename Prefix::IteratorStorage* prefix_storage() const {
-    return (typename Prefix::IteratorStorage*)prefix_storage_;
-  }
-
-  typename Suffix::IteratorStorage* suffix_storage() {
-    return (typename Suffix::IteratorStorage*)suffix_storage_;
-  }
-  const typename Suffix::IteratorStorage* suffix_storage() const {
-    return (typename Suffix::IteratorStorage*)suffix_storage_;
-  }
 
 private:
   ContextBuffer AllocIteratorStorage_(const IndexParts<Prefix, Suffix>* index, TerarkContext* ctx, void* storage) {
@@ -875,8 +741,8 @@ private:
 
   bool UpdateKey() {
     key_.assign(common_);
-    key_.append(prefix().IterGetKey(m_id, prefix_storage()));
-    key_.append(suffix().IterGetKey(m_id, suffix_storage()));
+    key_.append(prefix().IterGetKey(m_id, prefix_storage_));
+    key_.append(suffix().IterGetKey(m_id, suffix_storage_));
     return true;
   }
 
@@ -899,20 +765,20 @@ public:
 
   bool SeekToFirst() final {
     size_t suffix_count;
-    if (!prefix().IterSeekToFirst(m_id, suffix_count, prefix_storage())) {
+    if (!prefix().IterSeekToFirst(m_id, suffix_count, prefix_storage_)) {
       assert(m_id == size_t(-1));
       return false;
     }
-    suffix().IterSet(m_id, suffix_storage());
+    suffix().IterSet(m_id, suffix_storage_);
     return UpdateKey();
   }
 
   bool SeekToLast() final {
-    if (!prefix().IterSeekToLast(m_id, nullptr, prefix_storage())) {
+    if (!prefix().IterSeekToLast(m_id, nullptr, prefix_storage_)) {
       assert(m_id == size_t(-1));
       return false;
     }
-    suffix().IterSet(m_id, suffix_storage());
+    suffix().IterSet(m_id, suffix_storage_);
     return UpdateKey();
   }
 
@@ -931,9 +797,9 @@ public:
     target = target.substr(cplen);
     size_t suffix_count;
     if (suffix().TotalKeySize() == 0) {
-      if (prefix().IterSeek(m_id, suffix_count, target, prefix_storage())) {
+      if (prefix().IterSeek(m_id, suffix_count, target, prefix_storage_)) {
         assert(suffix_count == 1);
-        suffix().IterSet(m_id, suffix_storage());
+        suffix().IterSet(m_id, suffix_storage_);
         return UpdateKey();
       } else {
         m_id = size_t(-1);
@@ -941,47 +807,48 @@ public:
       }
     }
     fstring prefix_key;
-    if (prefix().IterSeek(m_id, suffix_count, target, prefix_storage())) {
-      prefix_key = prefix().IterGetKey(m_id, prefix_storage());
+    if (prefix().IterSeek(m_id, suffix_count, target, prefix_storage_)) {
+      prefix_key = prefix().IterGetKey(m_id, prefix_storage_);
       assert(prefix_key >= target);
       if (prefix_key != target) {
-        if (prefix().IterPrev(m_id, &suffix_count, prefix_storage())) {
-          prefix_key = prefix().IterGetKey(m_id, prefix_storage());
+        if (prefix().IterPrev(m_id, &suffix_count, prefix_storage_)) {
+          prefix_key = prefix().IterGetKey(m_id, prefix_storage_);
         } else {
           return SeekToFirst();
         }
       }
     } else {
-      if (!prefix().IterSeekToLast(m_id, &suffix_count, prefix_storage())) {
+      if (!prefix().IterSeekToLast(m_id, &suffix_count, prefix_storage_)) {
         assert(m_id == size_t(-1));
         return false;
       }
-      prefix_key = prefix().IterGetKey(m_id, prefix_storage());
+      prefix_key = prefix().IterGetKey(m_id, prefix_storage_);
     }
     if (target.startsWith(prefix_key)) {
       target = target.substr(prefix_key.size());
       size_t suffix_id = m_id;
-      if (suffix().IterSeek(target, suffix_id, suffix_count, suffix_storage())) {
+      if (suffix().IterSeek(target, suffix_id, suffix_count, suffix_storage_)) {
         assert(suffix_id >= m_id);
         assert(suffix_id < m_id + suffix_count);
-        if (suffix_id > m_id && !prefix().IterNext(m_id, suffix_id - m_id, prefix_storage())) {
+        if (suffix_id > m_id &&
+            !prefix().IterNext(m_id, suffix_id - m_id, prefix_storage_)) {
           assert(m_id == size_t(-1));
           return false;
         }
         return UpdateKey();
       }
     }
-    if (!prefix().IterNext(m_id, suffix_count, prefix_storage())) {
+    if (!prefix().IterNext(m_id, suffix_count, prefix_storage_)) {
       assert(m_id == size_t(-1));
       return false;
     }
-    suffix().IterSet(m_id, suffix_storage());
+    suffix().IterSet(m_id, suffix_storage_);
     return UpdateKey();
   }
 
   bool Next() final {
-    if (prefix().IterNext(m_id, 1, prefix_storage())) {
-      suffix().IterSet(m_id, suffix_storage());
+    if (prefix().IterNext(m_id, 1, prefix_storage_)) {
+      suffix().IterSet(m_id, suffix_storage_);
       return UpdateKey();
     } else {
       m_id = size_t(-1);
@@ -990,8 +857,8 @@ public:
   }
 
   bool Prev() final {
-    if (prefix().IterPrev(m_id, nullptr, prefix_storage())) {
-      suffix().IterSet(m_id, suffix_storage());
+    if (prefix().IterPrev(m_id, nullptr, prefix_storage_)) {
+      suffix().IterSet(m_id, suffix_storage_);
       return UpdateKey();
     } else {
       m_id = size_t(-1);
@@ -1000,7 +867,7 @@ public:
   }
 
   size_t DictRank() const final {
-    return prefix().IterDictRank(m_id, prefix_storage());
+    return prefix().IterDictRank(m_id, prefix_storage_);
   }
 
   fstring key() const final {
@@ -1008,11 +875,11 @@ public:
   }
 
   fstring pkey() const {
-    return prefix().IterGetKey(m_id, prefix_storage());
+    return prefix().IterGetKey(m_id, prefix_storage_);
   }
 
   fstring skey() const {
-    return suffix().IterGetKey(m_id, suffix_storage());
+    return suffix().IterGetKey(m_id, suffix_storage_);
   }
 };
 
@@ -1234,28 +1101,37 @@ public:
   }
 };
 
-template<class Prefix, size_t PV, class Suffix, size_t SV>
+template<class Prefix, class Suffix>
 struct IndexDeclare {
-  typedef Index<
-      typename std::conditional<PV, VirtualPrefix, Prefix>::type,
-      typename std::conditional<SV, VirtualSuffix, Suffix>::type
-  > index_type;
+ private:
+  template<class T>
+  using UseVirtual = std::is_base_of<VirtualPrefixBase, T>;
+  template<class VT, class T>
+  using SelectType =
+      typename std::conditional<UseVirtual<T>::value, VT, T>::type;
+
+ public:
+  typedef Index<SelectType<VirtualPrefix, Prefix>,
+                SelectType<VirtualSuffix, Suffix>> index_type;
 };
 
 
-template<class PrefixInfo, class Prefix, class SuffixInfo, class Suffix>
+template<class PrefixName, class Prefix, class SuffixName, class Suffix>
 class IndexFactory : public IndexFactoryBase {
 public:
-  typedef typename IndexDeclare<Prefix, PrefixInfo::use_virtual, Suffix, SuffixInfo::use_virtual>::index_type index_type;
+  typedef typename IndexDeclare<Prefix, Suffix>::index_type index_type;
 
   IndexFactory() {
-    auto prefix_name = PrefixInfo::Name();
-    auto suffix_name = SuffixInfo::Name();
-    valvec<char> name(prefix_name.size() + suffix_name.size(), valvec_reserve());
+    auto prefix_name = PrefixName::Name();
+    auto suffix_name = SuffixName::Name();
+    valvec<char> name(prefix_name.size() + suffix_name.size(),
+                      valvec_reserve());
     name.assign(prefix_name);
     name.append(suffix_name);
     map_id = g_TerarkIndexFactroy.insert_i(name, this).first;
-    g_TerarkIndexTypeFactroy[std::make_pair(std::type_index(typeid(Prefix)), std::type_index(typeid(Suffix)))] = this;
+    auto type_pair = std::make_pair(std::type_index(typeid(Prefix)),
+                                    std::type_index(typeid(Suffix)));
+    g_TerarkIndexTypeFactroy[type_pair] = this;
   }
 
   fstring Name() const final {
@@ -1282,7 +1158,7 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 template<class WithHint>
-struct IndexUintPrefixIteratorStorage {
+struct UintPrefixIteratorStorage {
   byte_t buffer[8];
   size_t pos;
   mutable size_t hint = 0;
@@ -1293,7 +1169,7 @@ struct IndexUintPrefixIteratorStorage {
 };
 
 template<>
-struct IndexUintPrefixIteratorStorage<std::false_type> {
+struct UintPrefixIteratorStorage<std::false_type> {
   byte_t buffer[8];
   size_t pos;
 
@@ -1303,24 +1179,33 @@ struct IndexUintPrefixIteratorStorage<std::false_type> {
 };
 
 template<class RankSelect>
-struct IndexAscendingUintPrefix
-    : public PrefixBase,
-      public ComponentIteratorStorageImpl<IndexUintPrefixIteratorStorage<typename RankSelectNeedHint<RankSelect>::type>> {
-  using IteratorStorage = IndexUintPrefixIteratorStorage<typename RankSelectNeedHint<RankSelect>::type>;
+using UintPrefixSelectIteratorStorage =
+    UintPrefixIteratorStorage<typename RankSelectNeedHint<RankSelect>::type>;
+
+template<class RankSelect>
+using UintPrefixBase =
+    ComponentIteratorStorageImpl<
+        typename std::conditional<RankSelectNeedHint<RankSelect>::value,
+                                  VirtualPrefixBase, PrefixBase>::type,
+        UintPrefixSelectIteratorStorage<RankSelect>>;
+
+template<class RankSelect>
+struct IndexAscendingUintPrefix : public UintPrefixBase<RankSelect> {
+  using IteratorStorage = UintPrefixSelectIteratorStorage<RankSelect>;
+  using UintPrefixBase<RankSelect>::flags;
+  using SelfType = IndexAscendingUintPrefix<RankSelect>;
 
   IndexAscendingUintPrefix() = default;
-  IndexAscendingUintPrefix(const IndexAscendingUintPrefix&) = delete;
-  IndexAscendingUintPrefix(IndexAscendingUintPrefix&& other) {
-    *this = std::move(other);
-  }
+  IndexAscendingUintPrefix(const SelfType&) = delete;
+  IndexAscendingUintPrefix(SelfType&& other) { *this = std::move(other); }
   IndexAscendingUintPrefix(PrefixBase* base) {
-    assert(dynamic_cast<IndexAscendingUintPrefix<RankSelect>*>(base) != nullptr);
-    auto other = static_cast<IndexAscendingUintPrefix<RankSelect>*>(base);
+    assert(dynamic_cast<SelfType*>(base) != nullptr);
+    auto other = static_cast<SelfType*>(base);
     *this = std::move(*other);
     delete other;
   }
-  IndexAscendingUintPrefix& operator = (const IndexAscendingUintPrefix&) = delete;
-  IndexAscendingUintPrefix& operator = (IndexAscendingUintPrefix&& other) {
+  IndexAscendingUintPrefix& operator = (const SelfType&) = delete;
+  IndexAscendingUintPrefix& operator = (SelfType&& other) {
     rank_select.swap(other.rank_select);
     key_length = other.key_length;
     min_value = other.min_value;
@@ -1402,8 +1287,8 @@ struct IndexAscendingUintPrefix
     return rank_select.max_rank1() - 1;
   }
 
-  std::integral_constant<bool, false> NeedsReorder() const {
-    return std::integral_constant<bool, false>();
+  bool NeedsReorder() const {
+    return false;
   }
   void GetOrderMap(terark::UintVecMin0& newToOld) const {
     assert(false);
@@ -1411,14 +1296,16 @@ struct IndexAscendingUintPrefix
   void BuildCache(double cacheRatio) {
   }
 
-  bool IterSeekToFirst(size_t& id, size_t& count, IteratorStorage* iter) const {
+  bool IterSeekToFirst(size_t& id, size_t& count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     id = 0;
     iter->pos = 0;
     count = 1;
     UpdateBuffer(iter);
     return true;
   }
-  bool IterSeekToLast(size_t& id, size_t* count, IteratorStorage* iter) const {
+  bool IterSeekToLast(size_t& id, size_t* count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     id = rank_select.max_rank1() - 1;
     iter->pos = rank_select.size() - 1;
     if (count != nullptr) {
@@ -1427,7 +1314,9 @@ struct IndexAscendingUintPrefix
     UpdateBuffer(iter);
     return true;
   }
-  bool IterSeek(size_t& id, size_t& count, fstring target, IteratorStorage* iter) const {
+  bool IterSeek(size_t& id, size_t& count, fstring target,
+                void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     if (!SeekImpl(target, id, iter->pos, iter->get_hint()).first) {
       return false;
     }
@@ -1435,7 +1324,8 @@ struct IndexAscendingUintPrefix
     UpdateBuffer(iter);
     return true;
   }
-  bool IterNext(size_t& id, size_t count, IteratorStorage* iter) const {
+  bool IterNext(size_t& id, size_t count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     auto rs = make_rank_select_hint_wrapper(rank_select, iter->get_hint());
     assert(id != size_t(-1));
     assert(count > 0);
@@ -1453,7 +1343,8 @@ struct IndexAscendingUintPrefix
     UpdateBuffer(iter);
     return true;
   }
-  bool IterPrev(size_t& id, size_t* count, IteratorStorage* iter) const {
+  bool IterPrev(size_t& id, size_t* count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     auto rs = make_rank_select_hint_wrapper(rank_select, iter->get_hint());
     assert(id != size_t(-1));
     assert(rs[iter->pos]);
@@ -1471,13 +1362,14 @@ struct IndexAscendingUintPrefix
       return true;
     }
   }
-  size_t IterDictRank(size_t id, const IteratorStorage* iter) const {
+  size_t IterDictRank(size_t id, const void* /*iter*/) const {
     if (id == size_t(-1)) {
       return rank_select.max_rank1();
     }
     return id;
   }
-  fstring IterGetKey(size_t id, const IteratorStorage* iter) const {
+  fstring IterGetKey(size_t id, const void* iter_ptr) const {
+    auto iter = static_cast<const IteratorStorage*>(iter_ptr);
     return fstring(iter->buffer, key_length);
   }
 
@@ -1555,24 +1447,22 @@ struct IndexAscendingUintPrefix
 
 
 template<class RankSelect>
-struct IndexNonDescendingUintPrefix
-    : public PrefixBase,
-      public ComponentIteratorStorageImpl<IndexUintPrefixIteratorStorage<typename RankSelectNeedHint<RankSelect>::type>> {
-  using IteratorStorage = IndexUintPrefixIteratorStorage<typename RankSelectNeedHint<RankSelect>::type>;
+struct IndexNonDescendingUintPrefix : public UintPrefixBase<RankSelect> {
+  using IteratorStorage = UintPrefixSelectIteratorStorage<RankSelect>;
+  using UintPrefixBase<RankSelect>::flags;
+  using SelfType = IndexNonDescendingUintPrefix<RankSelect>;
 
   IndexNonDescendingUintPrefix() = default;
-  IndexNonDescendingUintPrefix(const IndexNonDescendingUintPrefix&) = delete;
-  IndexNonDescendingUintPrefix(IndexNonDescendingUintPrefix&& other) {
-    *this = std::move(other);
-  }
+  IndexNonDescendingUintPrefix(const SelfType&) = delete;
+  IndexNonDescendingUintPrefix(SelfType&& other) { *this = std::move(other); }
   IndexNonDescendingUintPrefix(PrefixBase* base) {
-    assert(dynamic_cast<IndexNonDescendingUintPrefix<RankSelect>*>(base) != nullptr);
-    auto other = static_cast<IndexNonDescendingUintPrefix<RankSelect>*>(base);
+    assert(dynamic_cast<SelfType*>(base) != nullptr);
+    auto other = static_cast<SelfType*>(base);
     *this = std::move(*other);
     delete other;
   }
-  IndexNonDescendingUintPrefix& operator = (const IndexNonDescendingUintPrefix&) = delete;
-  IndexNonDescendingUintPrefix& operator = (IndexNonDescendingUintPrefix&& other) {
+  IndexNonDescendingUintPrefix& operator = (const SelfType&) = delete;
+  IndexNonDescendingUintPrefix& operator = (SelfType&& other) {
     rank_select.swap(other.rank_select);
     key_length = other.key_length;
     min_value = other.min_value;
@@ -1664,8 +1554,8 @@ struct IndexNonDescendingUintPrefix
     return rank_select.max_rank1() - 1;
   }
 
-  std::integral_constant<bool, false> NeedsReorder() const {
-    return std::integral_constant<bool, false>();
+  bool NeedsReorder() const {
+    return false;
   }
   void GetOrderMap(terark::UintVecMin0& newToOld) const {
     assert(false);
@@ -1673,7 +1563,8 @@ struct IndexNonDescendingUintPrefix
   void BuildCache(double cacheRatio) {
   }
 
-  bool IterSeekToFirst(size_t& id, size_t& count, IteratorStorage* iter) const {
+  bool IterSeekToFirst(size_t& id, size_t& count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     auto rs = make_rank_select_hint_wrapper(rank_select, iter->get_hint());
     id = 0;
     iter->pos = 1;
@@ -1681,7 +1572,8 @@ struct IndexNonDescendingUintPrefix
     UpdateBuffer(iter);
     return true;
   }
-  bool IterSeekToLast(size_t& id, size_t* count, IteratorStorage* iter) const {
+  bool IterSeekToLast(size_t& id, size_t* count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     auto rs = make_rank_select_hint_wrapper(rank_select, iter->get_hint());
     if (count == nullptr) {
       id = rs.max_rank1() - 1;
@@ -1696,14 +1588,17 @@ struct IndexNonDescendingUintPrefix
     UpdateBuffer(iter);
     return true;
   }
-  bool IterSeek(size_t& id, size_t& count, fstring target, IteratorStorage* iter) const {
+  bool IterSeek(size_t& id, size_t& count, fstring target,
+                void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     if (!SeekImpl(target, id, count, iter->pos, iter->get_hint()).first) {
       return false;
     }
     UpdateBuffer(iter);
     return true;
   }
-  bool IterNext(size_t& id, size_t count, IteratorStorage* iter) const {
+  bool IterNext(size_t& id, size_t count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     auto rs = make_rank_select_hint_wrapper(rank_select, iter->get_hint());
     assert(id != size_t(-1));
     assert(count > 0);
@@ -1726,7 +1621,8 @@ struct IndexNonDescendingUintPrefix
     }
     return true;
   }
-  bool IterPrev(size_t& id, size_t* count, IteratorStorage* iter) const {
+  bool IterPrev(size_t& id, size_t* count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     auto rs = make_rank_select_hint_wrapper(rank_select, iter->get_hint());
     assert(id != size_t(-1));
     assert(rs[iter->pos]);
@@ -1758,13 +1654,14 @@ struct IndexNonDescendingUintPrefix
       return true;
     }
   }
-  size_t IterDictRank(size_t id, const IteratorStorage* iter) const {
+  size_t IterDictRank(size_t id, const void* /*iter*/) const {
     if (id == size_t(-1)) {
       return rank_select.max_rank1();
     }
     return id;
   }
-  fstring IterGetKey(size_t id, const IteratorStorage* iter) const {
+  fstring IterGetKey(size_t id, const void* iter_ptr) const {
+    auto iter = static_cast<const IteratorStorage*>(iter_ptr);
     return fstring(iter->buffer, key_length);
   }
 
@@ -1909,8 +1806,7 @@ public:
 };
 
 template<class NestLoudsTrieDAWG>
-struct IndexNestLoudsTriePrefix
-    : public PrefixBase {
+struct IndexNestLoudsTriePrefix : public VirtualPrefixBase {
   using IteratorStorage = IndexNestLoudsTriePrefixIterator<NestLoudsTrieDAWG>;
 
   IndexNestLoudsTriePrefix() = default;
@@ -2034,8 +1930,8 @@ struct IndexNestLoudsTriePrefix
     return flags.is_bfs_suffix ? id : trie_->num_words() - 1;
   }
 
-  std::integral_constant<bool, true> NeedsReorder() const {
-    return std::integral_constant<bool, true>();
+  bool NeedsReorder() const {
+    return true;
   }
   void GetOrderMap(terark::UintVecMin0& newToOld) const {
     NonRecursiveDictionaryOrderToStateMapGenerator gen;
@@ -2052,21 +1948,26 @@ struct IndexNestLoudsTriePrefix
     }
   }
 
-  bool IterSeekToFirst(size_t& id, size_t& count, IteratorStorage* iter) const {
+  bool IterSeekToFirst(size_t& id, size_t& count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     count = 1;
     return iter->SeekToFirst(id, flags.is_bfs_suffix);
   }
-  bool IterSeekToLast(size_t& id, size_t* count, IteratorStorage* iter) const {
+  bool IterSeekToLast(size_t& id, size_t* count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     if (count != nullptr) {
       *count = 1;
     }
     return iter->SeekToLast(id, flags.is_bfs_suffix);
   }
-  bool IterSeek(size_t& id, size_t& count, fstring target, IteratorStorage* iter) const {
+  bool IterSeek(size_t& id, size_t& count, fstring target,
+                void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     count = 1;
     return iter->Seek(id, flags.is_bfs_suffix, target);
   }
-  bool IterNext(size_t& id, size_t count, IteratorStorage* iter) const {
+  bool IterNext(size_t& id, size_t count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     assert(count > 0);
     do {
       if (!iter->Next(id, flags.is_bfs_suffix)) {
@@ -2075,16 +1976,19 @@ struct IndexNestLoudsTriePrefix
     } while (--count > 0);
     return true;
   }
-  bool IterPrev(size_t& id, size_t* count, IteratorStorage* iter) const {
+  bool IterPrev(size_t& id, size_t* count, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     if (count != nullptr) {
       *count = 1;
     }
     return iter->Prev(id, flags.is_bfs_suffix);
   }
-  size_t IterDictRank(size_t id, const IteratorStorage* iter) const {
+  size_t IterDictRank(size_t id, const void* iter_ptr) const {
+    auto iter = static_cast<const IteratorStorage*>(iter_ptr);
     return iter->DictRank(id, flags.is_bfs_suffix);
   }
-  fstring IterGetKey(size_t id, const IteratorStorage* iter) const {
+  fstring IterGetKey(size_t id, const void* iter_ptr) const {
+    auto iter = static_cast<const IteratorStorage*>(iter_ptr);
     return iter->GetKey();
   }
 
@@ -2104,7 +2008,7 @@ struct IndexNestLoudsTriePrefix
 };
 
 struct IndexEmptySuffix
-    : public SuffixBase, public ComponentIteratorStorageImpl<void> {
+    : public ComponentIteratorStorageImpl<SuffixBase, void> {
   typedef void IteratorStorage;
 
   IndexEmptySuffix() = default;
@@ -2116,8 +2020,8 @@ struct IndexEmptySuffix
   IndexEmptySuffix& operator = (const IndexEmptySuffix&) = delete;
   IndexEmptySuffix& operator = (IndexEmptySuffix&&) = default;
 
-  std::integral_constant<size_t, 0> TotalKeySize() const {
-    return {};
+  size_t TotalKeySize() const {
+    return 0;
   }
   LowerBoundResult
   LowerBound(fstring target, size_t suffix_id, size_t suffix_count, TerarkContext* ctx) const override {
@@ -2149,8 +2053,7 @@ struct IndexEmptySuffix
   }
 };
 
-struct IndexFixedStringSuffix
-    : public SuffixBase, public ComponentIteratorStorageImpl<void> {
+struct IndexFixedStringSuffix : ComponentIteratorStorageImpl<SuffixBase, void> {
   typedef void IteratorStorage;
 
   IndexFixedStringSuffix() = default;
@@ -2288,8 +2191,7 @@ struct IndexFixedStringSuffix
 };
 
 template<class BlobStoreType>
-struct IndexBlobStoreSuffix
-    : public SuffixBase {
+struct IndexBlobStoreSuffix : public VirtualSuffixBase {
   typedef BlobStore::CacheOffsets IteratorStorage;
 
   IndexBlobStoreSuffix() = default;
@@ -2376,7 +2278,8 @@ struct IndexBlobStoreSuffix
     store_.detach_meta_blocks(blocks);
   }
 
-  void IterSet(size_t suffix_id, IteratorStorage* iter) const {
+  void IterSet(size_t suffix_id, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     iter->recData.risk_set_size(0);
     if (flags.is_rev_suffix) {
       store_.get_record_append(store_.num_records() - suffix_id - 1, iter);
@@ -2384,7 +2287,9 @@ struct IndexBlobStoreSuffix
       store_.get_record_append(suffix_id, iter);
     }
   }
-  bool IterSeek(fstring target, size_t& suffix_id, size_t suffix_count, IteratorStorage* iter) const {
+  bool IterSeek(fstring target, size_t& suffix_id, size_t suffix_count,
+                void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage*>(iter_ptr);
     if (flags.is_rev_suffix) {
       size_t num_records = store_.num_records();
       suffix_id = num_records - suffix_id - suffix_count;
@@ -2399,7 +2304,8 @@ struct IndexBlobStoreSuffix
       return suffix_id != end;
     }
   }
-  fstring IterGetKey(size_t /*suffix_id*/, const IteratorStorage* iter) const {
+  fstring IterGetKey(size_t /*suffix_id*/, const void* iter_ptr) const {
+    auto iter = static_cast<const IteratorStorage*>(iter_ptr);
     return iter->recData;
   }
 
@@ -3498,17 +3404,9 @@ struct StringHolder {
   _G(s, 0),_G(s, 1),_G(s, 2),_G(s, 3),_G(s, 4),_G(s, 5),_G(s, 6),_G(s, 7), \
   _G(s, 8),_G(s, 9),_G(s,10),_G(s,11),_G(s,12),_G(s,13),_G(s,14),_G(s,15)>
 
-template<class N, size_t V>
-struct ComponentInfo {
-  static fstring Name() {
-    return N::Name();
-  }
-  static constexpr size_t use_virtual = V;
-};
-
-template<class I, class T>
+template<class N, class T>
 struct Component {
-  using info = I;
+  using name = N;
   using type = T;
 };
 
@@ -3531,69 +3429,71 @@ struct ComponentList<> {
 template<class list_t = ComponentList<>>
 struct ComponentRegister {
   using list = list_t;
-  template<class N, size_t V, class T>
-  using reg = ComponentRegister<typename list::template push_back<Component<ComponentInfo<N, V>, T>>::type>;
+  template<class N, class T>
+  using reg = ComponentRegister<typename list::template push_back<Component<N, T>>::type>;
 };
 
 using namespace index_detail;
 
+template<class NLT>
+using IndexNLT = IndexNestLoudsTriePrefix<NLT>;
+
 using PrefixComponentList_0 = ComponentRegister<>
-::reg<NAME(IL_256      ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_IL_256            >>
-::reg<NAME(IL_256_FL   ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_IL_256_32_FL      >>
-::reg<NAME(M_SE_512    ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_Mixed_SE_512      >>
-::reg<NAME(M_SE_512_FL ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_Mixed_SE_512_32_FL>>
-::reg<NAME(M_IL_256    ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_Mixed_IL_256      >>
-::reg<NAME(M_IL_256_FL ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_Mixed_IL_256_32_FL>>
-::reg<NAME(M_XL_256    ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_Mixed_XL_256      >>
-::reg<NAME(M_XL_256_FL ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_Mixed_XL_256_32_FL>>
-::reg<NAME(SE_512_64   ), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_SE_512_64         >>
-::reg<NAME(SE_512_64_FL), 1, IndexNestLoudsTriePrefix<NestLoudsTrieDAWG_SE_512_64_FL      >>
-::reg<NAME(A_AllOne    ), 0, IndexAscendingUintPrefix<rank_select_allone    >>
-::reg<NAME(A_FewZero_3 ), 1, IndexAscendingUintPrefix<rank_select_fewzero<3>>>
-::reg<NAME(A_FewZero_4 ), 1, IndexAscendingUintPrefix<rank_select_fewzero<4>>>
-::reg<NAME(A_FewZero_5 ), 1, IndexAscendingUintPrefix<rank_select_fewzero<5>>>
-::reg<NAME(A_FewZero_6 ), 1, IndexAscendingUintPrefix<rank_select_fewzero<6>>>
-::reg<NAME(A_FewZero_7 ), 1, IndexAscendingUintPrefix<rank_select_fewzero<7>>>
-::reg<NAME(A_FewZero_8 ), 1, IndexAscendingUintPrefix<rank_select_fewzero<8>>>
-::reg<NAME(A_IL_256_32 ), 0, IndexAscendingUintPrefix<rank_select_il_256_32>>
-::reg<NAME(A_SE_512_64 ), 0, IndexAscendingUintPrefix<rank_select_se_512_64>>
-::reg<NAME(A_FewOne_3  ), 1, IndexAscendingUintPrefix<rank_select_fewone<3>>>
-::reg<NAME(A_FewOne_4  ), 1, IndexAscendingUintPrefix<rank_select_fewone<4>>>
-::reg<NAME(A_FewOne_5  ), 1, IndexAscendingUintPrefix<rank_select_fewone<5>>>
-::reg<NAME(A_FewOne_6  ), 1, IndexAscendingUintPrefix<rank_select_fewone<6>>>
-::reg<NAME(A_FewOne_7  ), 1, IndexAscendingUintPrefix<rank_select_fewone<7>>>
-::reg<NAME(A_FewOne_8  ), 1, IndexAscendingUintPrefix<rank_select_fewone<8>>>
+::reg<NAME(IL_256      ), IndexNLT<NestLoudsTrieDAWG_IL_256            >>
+::reg<NAME(IL_256_FL   ), IndexNLT<NestLoudsTrieDAWG_IL_256_32_FL      >>
+::reg<NAME(M_SE_512    ), IndexNLT<NestLoudsTrieDAWG_Mixed_SE_512      >>
+::reg<NAME(M_SE_512_FL ), IndexNLT<NestLoudsTrieDAWG_Mixed_SE_512_32_FL>>
+::reg<NAME(M_IL_256    ), IndexNLT<NestLoudsTrieDAWG_Mixed_IL_256      >>
+::reg<NAME(M_IL_256_FL ), IndexNLT<NestLoudsTrieDAWG_Mixed_IL_256_32_FL>>
+::reg<NAME(M_XL_256    ), IndexNLT<NestLoudsTrieDAWG_Mixed_XL_256      >>
+::reg<NAME(M_XL_256_FL ), IndexNLT<NestLoudsTrieDAWG_Mixed_XL_256_32_FL>>
+::reg<NAME(SE_512_64   ), IndexNLT<NestLoudsTrieDAWG_SE_512_64         >>
+::reg<NAME(SE_512_64_FL), IndexNLT<NestLoudsTrieDAWG_SE_512_64_FL      >>
+::reg<NAME(A_AllOne    ), IndexAscendingUintPrefix<rank_select_allone    >>
+::reg<NAME(A_FewZero_3 ), IndexAscendingUintPrefix<rank_select_fewzero<3>>>
+::reg<NAME(A_FewZero_4 ), IndexAscendingUintPrefix<rank_select_fewzero<4>>>
+::reg<NAME(A_FewZero_5 ), IndexAscendingUintPrefix<rank_select_fewzero<5>>>
+::reg<NAME(A_FewZero_6 ), IndexAscendingUintPrefix<rank_select_fewzero<6>>>
+::reg<NAME(A_FewZero_7 ), IndexAscendingUintPrefix<rank_select_fewzero<7>>>
+::reg<NAME(A_FewZero_8 ), IndexAscendingUintPrefix<rank_select_fewzero<8>>>
+::reg<NAME(A_IL_256_32 ), IndexAscendingUintPrefix<rank_select_il_256_32>>
+::reg<NAME(A_SE_512_64 ), IndexAscendingUintPrefix<rank_select_se_512_64>>
+::reg<NAME(A_FewOne_3  ), IndexAscendingUintPrefix<rank_select_fewone<3>>>
+::reg<NAME(A_FewOne_4  ), IndexAscendingUintPrefix<rank_select_fewone<4>>>
+::reg<NAME(A_FewOne_5  ), IndexAscendingUintPrefix<rank_select_fewone<5>>>
+::reg<NAME(A_FewOne_6  ), IndexAscendingUintPrefix<rank_select_fewone<6>>>
+::reg<NAME(A_FewOne_7  ), IndexAscendingUintPrefix<rank_select_fewone<7>>>
+::reg<NAME(A_FewOne_8  ), IndexAscendingUintPrefix<rank_select_fewone<8>>>
 ::list;
 
 using SuffixComponentList_0 = ComponentRegister<>
-::reg<NAME(Empty  ), 0, IndexEmptySuffix                        >
-::reg<NAME(FixLen ), 0, IndexFixedStringSuffix                  >
-::reg<NAME(VarLen ), 1, IndexBlobStoreSuffix<ZipOffsetBlobStore>>
-::reg<NAME(Entropy), 1, IndexEntropySuffix                      >
-::reg<NAME(DictZip), 1, IndexBlobStoreSuffix<DictZipBlobStore  >>
+::reg<NAME(Empty  ), IndexEmptySuffix                        >
+::reg<NAME(FixLen ), IndexFixedStringSuffix                  >
+::reg<NAME(VarLen ), IndexBlobStoreSuffix<ZipOffsetBlobStore>>
+::reg<NAME(Entropy), IndexEntropySuffix                      >
+::reg<NAME(DictZip), IndexBlobStoreSuffix<DictZipBlobStore  >>
 ::list;
 
 using PrefixComponentList_1 = ComponentRegister<>
-::reg<NAME(ND_IL_256_32), 0, IndexNonDescendingUintPrefix<rank_select_il_256_32>>
-::reg<NAME(ND_SE_512_64), 0, IndexNonDescendingUintPrefix<rank_select_se_512_64>>
-::reg<NAME(ND_FewOne_3 ), 1, IndexNonDescendingUintPrefix<rank_select_fewone<3>>>
-::reg<NAME(ND_FewOne_4 ), 1, IndexNonDescendingUintPrefix<rank_select_fewone<4>>>
-::reg<NAME(ND_FewOne_5 ), 1, IndexNonDescendingUintPrefix<rank_select_fewone<5>>>
-::reg<NAME(ND_FewOne_6 ), 1, IndexNonDescendingUintPrefix<rank_select_fewone<6>>>
-::reg<NAME(ND_FewOne_7 ), 1, IndexNonDescendingUintPrefix<rank_select_fewone<7>>>
-::reg<NAME(ND_FewOne_8 ), 1, IndexNonDescendingUintPrefix<rank_select_fewone<8>>>
+::reg<NAME(ND_IL_256_32), IndexNonDescendingUintPrefix<rank_select_il_256_32>>
+::reg<NAME(ND_SE_512_64), IndexNonDescendingUintPrefix<rank_select_se_512_64>>
+::reg<NAME(ND_FewOne_3 ), IndexNonDescendingUintPrefix<rank_select_fewone<3>>>
+::reg<NAME(ND_FewOne_4 ), IndexNonDescendingUintPrefix<rank_select_fewone<4>>>
+::reg<NAME(ND_FewOne_5 ), IndexNonDescendingUintPrefix<rank_select_fewone<5>>>
+::reg<NAME(ND_FewOne_6 ), IndexNonDescendingUintPrefix<rank_select_fewone<6>>>
+::reg<NAME(ND_FewOne_7 ), IndexNonDescendingUintPrefix<rank_select_fewone<7>>>
+::reg<NAME(ND_FewOne_8 ), IndexNonDescendingUintPrefix<rank_select_fewone<8>>>
 ::list;
 
 using SuffixComponentList_1 = ComponentRegister<>
-::reg<NAME(FixLen ), 0, IndexFixedStringSuffix                  >
-::reg<NAME(VarLen ), 1, IndexBlobStoreSuffix<ZipOffsetBlobStore>>
-::reg<NAME(Entropy), 1, IndexEntropySuffix                      >
-::reg<NAME(DictZip), 1, IndexBlobStoreSuffix<DictZipBlobStore  >>
+::reg<NAME(FixLen ), IndexFixedStringSuffix                  >
+::reg<NAME(VarLen ), IndexBlobStoreSuffix<ZipOffsetBlobStore>>
+::reg<NAME(Entropy), IndexEntropySuffix                      >
+::reg<NAME(DictZip), IndexBlobStoreSuffix<DictZipBlobStore  >>
 ::list;
 
 
 #if __clang__
-# pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wunused-value"
 #endif
 
@@ -3624,8 +3524,8 @@ struct FactoryExpander {
     template<class SuffixComponent, class ...args_t>
     struct invoke<FactorySet<args_t...>, SuffixComponent> {
       using factory = IndexFactory<
-          typename PreifxComponent::info, typename PreifxComponent::type,
-          typename SuffixComponent::info, typename SuffixComponent::type>;
+          typename PreifxComponent::name, typename PreifxComponent::type,
+          typename SuffixComponent::name, typename SuffixComponent::type>;
       using type = FactorySet<args_t..., factory>;
     };
   };
