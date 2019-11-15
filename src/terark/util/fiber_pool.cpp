@@ -50,11 +50,13 @@ RunOnceFiberPool::~RunOnceFiberPool() {
     assert(m_workers.size() == m_freesize);
     assert(!m_freehead.m_fiber);
     assert(!m_freehead.m_stack_base);
+#ifndef NDEBUG
     for (size_t i = 0; i < m_workers.size(); ++i) {
         auto& w = m_workers[i];
         assert(!w.m_fiber);
         assert(NULL != w.m_stack_base);
     }
+#endif
     m_workers.clear();
     m_freehead.m_prev = m_freehead.m_next = &m_freehead;
 }

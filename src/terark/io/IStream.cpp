@@ -111,8 +111,8 @@ FILE* IInputStream::forInputFILE()
 		NULL,
 		NULL
 	};
-	assert(this);
 	void* cookie = this;
+	assert(cookie);
 	FILE* fp = fopencookie(cookie,"r", func);
 	if (fp == NULL) {
 		perror("fopencookie@IInputStream::forInputFILE");
@@ -132,8 +132,8 @@ FILE* IOutputStream::forOutputFILE()
 		NULL,
 		NULL
 	};
-	assert(this);
 	void* cookie = this;
+	assert(cookie);
 	FILE* fp = fopencookie(cookie,"w", func);
 	if (fp == NULL) {
 		perror("fopencookie@IOutputStream::forOutputFILE");

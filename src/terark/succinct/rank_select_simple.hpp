@@ -95,7 +95,7 @@ public:
     void risk_release_ownership() {}
     void risk_mmap_from(unsigned char* base, size_t length) {
         assert(base != nullptr);
-        assert(length == sizeof(*this));
+        assert(length == sizeof(*this)); (void)length;
         m_size = *((size_t*)base);
     }
     void shrink_to_fit() {}
@@ -108,8 +108,8 @@ public:
     void build_cache(bool, bool) {};
 
     size_t mem_size() const { return sizeof(*this); }
-    void set0(size_t i) { assert(i < m_size); }
-    void set1(size_t i) { assert(i < m_size); }
+    void set0(size_t i) { assert(i < m_size); (void)i; }
+    void set1(size_t i) { assert(i < m_size); (void)i; }
     size_t rank0(size_t bitpos) const { assert(bitpos <= m_size); return bitpos; }
     size_t rank1(size_t /*bitpos*/) const { return 0; }
     size_t select0(size_t id) const { assert(id < m_size); return id; }
@@ -121,9 +121,12 @@ public:
     bool isall1() const { return false; }
 
     const void* data() const { return this; }
-    bool operator[](size_t n) const { assert(n < m_size); return false; }
-    bool is1(size_t i) const { assert(i < m_size); return false; }
-    bool is0(size_t i) const { assert(i < m_size); return true;  }
+    bool operator[](size_t n) const {
+      assert(n < m_size); (void)n;
+      return false;
+    }
+    bool is1(size_t i) const { assert(i < m_size); (void)i; return false; }
+    bool is0(size_t i) const { assert(i < m_size); (void)i; return true;  }
 
     const uint32_t* get_rank_cache() const { return NULL; }
     const uint32_t* get_sel0_cache() const { return NULL; }
@@ -158,7 +161,7 @@ public:
     void risk_release_ownership() {}
     void risk_mmap_from(unsigned char* base, size_t length) {
         assert(base != nullptr);
-        assert(length == sizeof(*this));
+        assert(length == sizeof(*this)); (void)length;
         m_size = *((size_t*)base);
     }
     void shrink_to_fit() {}
@@ -170,8 +173,8 @@ public:
     }
     void build_cache(bool, bool) {};
     size_t mem_size() const { return sizeof(*this); }
-    void set0(size_t i) { assert(i < m_size); }
-    void set1(size_t i) { assert(i < m_size); }
+    void set0(size_t i) { assert(i < m_size); (void)i; }
+    void set1(size_t i) { assert(i < m_size); (void)i; }
     size_t rank0(size_t /*bitpos*/) const { return 0; }
     size_t rank1(size_t bitpos) const { assert(bitpos <= m_size); return bitpos; }
     size_t select0(size_t /*id*/) const { return size_t(-1); }
@@ -183,9 +186,12 @@ public:
     bool isall1() const { return true; }
 
     const void* data() const { return this; }
-    bool operator[](size_t n) const { assert(n < m_size); return true; }
-    bool is1(size_t i) const { assert(i < m_size); return true;  }
-    bool is0(size_t i) const { assert(i < m_size); return false; }
+    bool operator[](size_t n) const {
+      assert(n < m_size); (void)n;
+      return true;
+    }
+    bool is1(size_t i) const { assert(i < m_size); (void)i; return true;  }
+    bool is0(size_t i) const { assert(i < m_size); (void)i; return false; }
 
     const uint32_t* get_rank_cache() const { return NULL; }
     const uint32_t* get_sel0_cache() const { return NULL; }
