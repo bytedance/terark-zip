@@ -108,8 +108,14 @@ GetoptDone:
 				val.append(delim);
 			}
 		}
-		if (!key.empty()) key.pop_n(delim.size());  key.push_back('\n');
-		if (!val.empty()) val.pop_n(delim.size());  val.push_back('\n');
+		if (!key.empty()) {
+			key.pop_n(delim.size());
+		}
+		key.push_back('\n');
+		if (!val.empty()) {
+			val.pop_n(delim.size());
+		}
+		val.push_back('\n');
 		size_t n = fwrite(key.data(), 1, key.size(), ofkeys);
 		if (key.size() != n) {
 			fprintf(stderr, "ERROR: lineno: %zd: fwrite(key, %zd) = %s\n", lineno, key.size(), strerror(errno));

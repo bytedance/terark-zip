@@ -375,8 +375,8 @@ FILE* MemIO::forInputFILE()
 		NULL,
 		NULL
 	};
-	assert(this);
 	void* cookie = this;
+	assert(cookie);
 	FILE* fp = fopencookie(cookie,"r", func);
 	if (fp == NULL) {
 		perror("fopencookie@MemIO::getInputFILE");
@@ -396,8 +396,8 @@ FILE* AutoGrownMemIO::forFILE(const char* mode)
 		AutoGrownMemIO_FILE_seek,
 		NULL
 	};
-	assert(this);
 	void* cookie = this;
+	assert(cookie);
 	FILE* fp = fopencookie(cookie, mode, func);
 	if (fp == NULL) {
 		perror("fopencookie@AutoGrownMemIO::forOutputFILE");

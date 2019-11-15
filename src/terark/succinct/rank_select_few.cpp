@@ -427,7 +427,7 @@ namespace terark {
 
   template <size_t P, size_t W>
   void rank_select_few_builder<P, W>::insert(size_t pos) {
-    assert((W == 8) || (pos <= ~(size_t(-1) << (W * 8))));
+    assert(pos <= (W == 8 ? size_t(-1) : (1ULL << ((W * 8) & 63)) - 1));
     if (P) {
       *(reinterpret_cast<uint64_t *>(m_it)) |= pos;
       m_it = m_rev ? m_it - W : m_it + W;
