@@ -30,8 +30,8 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
 
 #override CXXFLAGS += -Wfatal-errors
-AFR_FLAGS = -O2
-DBG_FLAGS = -O0
+AFR_FLAGS = -O2 -fsanitize=address
+DBG_FLAGS = -O0 -fsanitize=address
 RLS_FLAGS = -Ofast -DNDEBUG
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
@@ -211,6 +211,14 @@ ${EXE_BINS_A}: ${LIB_LIBS_A}
 ${EXE_BINS_D}: ${LIB_LIBS_D}
 ${EXE_BINS_R}: ${LIB_LIBS_R}
 endif
+
+ifneq (${DLL_SRCS},)
+${DLL_BINS_A} : LDFLAGS := -fsanitize=address
+${DLL_BINS_D} : LDFLAGS := -fsanitize=address
+endif
+
+${EXE_BINS_A} : LDFLAGS := -fsanitize=address
+${EXE_BINS_D} : LDFLAGS := -fsanitize=address
 
 ${EXE_BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
 ${EXE_BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}
