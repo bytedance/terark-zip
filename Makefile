@@ -1,8 +1,8 @@
 export SHELL=bash
-DBG_FLAGS ?= -g3 -D_DEBUG
+DBG_FLAGS ?= -g3 -D_DEBUG -fsanitize=address
 RLS_FLAGS ?= -O3 -DNDEBUG -g3
 # 'AFR' means Assert For Release
-AFR_FLAGS ?= -O2 -g3
+AFR_FLAGS ?= -O2 -g3 -fsanitize=address
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
 CMAKE_INSTALL_PREFIX ?= /usr
 
@@ -63,6 +63,12 @@ endif
 override CFLAGS += ${FPIC}
 override CXXFLAGS += ${FPIC}
 override LDFLAGS += ${FPIC}
+
+ASAN_LDFLAGS_a := -fsanitize=address
+ASAN_LDFLAGS_d := -fsanitize=address
+ASAN_LDFLAGS_r :=
+ASAN_LDFLAGS = ${ASAN_LDFLAGS_$(patsubst %-a,a,$(patsubst %-d,d,$(@:%${DLL_SUFFIX}=%)))}
+# ---------- ^-- lazy evaluation, must be '='
 
 ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   ifeq (Linux, ${UNAME_System})
@@ -430,7 +436,8 @@ else
 	@cd ${BUILD_ROOT}; ln -sfT lib_shared lib
 endif
 	@rm -f $@
-	${LD} -shared ${THIS_LIB_OBJS} ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
+	@echo ASAN_LDFLAGS = ${ASAN_LDFLAGS}
+	${LD} -shared ${THIS_LIB_OBJS} ${ASAN_LDFLAGS} ${LDFLAGS} ${LIBS} -o ${CYG_DLL_FILE} ${CYGWIN_LDFLAGS}
 	cd $(dir $@); ln -sf $(notdir $@) $(subst -${COMPILER},,$(notdir $@))
 ifeq (CYGWIN, ${UNAME_System})
 	@cp -l -f ${CYG_DLL_FILE} /usr/bin
