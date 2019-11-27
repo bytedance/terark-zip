@@ -33,6 +33,10 @@
 #else
 #endif
 
+#if !defined(_MSC_VER)
+    #include <pthread.h>
+#endif
+
 namespace terark {
 
 using namespace std;
@@ -331,6 +335,11 @@ void PipelineStage::start(int queue_size)
 		if (NULL == m_out_queue)
 			m_out_queue = NewQueue(euType, queue_size);
 	}
+	if (m_step_name.empty()) {
+		m_step_name.reserve(15);
+		int len = snprintf(&m_step_name[0], 15, "stage-%d", step_ordinal());
+		m_step_name.resize(len);
+	}
 	if (m_threads.size() == 0) {
 		throw std::runtime_error("thread count = 0");
 	}
@@ -409,6 +418,34 @@ void PipelineStage::clean(int threadno)
 
 void PipelineStage::run_wrapper(int threadno)
 {
+#if !defined(_MSC_VER)
+  {
+	static const size_t MAX_TNAME_LEN = 15; // not include trailing '\0'
+	char szbuf[MAX_TNAME_LEN+1];
+	char tname[MAX_TNAME_LEN+1];
+	int tnolen = sprintf(szbuf, "%d", threadno);
+	size_t len1 = std::min(m_step_name.size(), MAX_TNAME_LEN - 1 - tnolen);
+	memcpy(tname, m_step_name.data(), len1);
+	tname[len1] = '-';
+	memcpy(tname + len1 + 1, szbuf, tnolen+1);
+	pthread_t tid = pthread_self();
+  #if BOOST_OS_LINUX
+	int err = pthread_setname_np(tid, tname);
+  #elif BOOST_OS_MACOS
+	int err = pthread_setname_np(tname);
+  #endif
+	if (err) {
+		fprintf(stderr, "pthread_setname_np('%s') = %s\n", tname, strerror(err));
+	}
+  #if !defined(NDEBUG) && 0
+	err = pthread_getname_np(tid, szbuf, MAX_TNAME_LEN+1);
+	if (err) {
+		fprintf(stderr, "pthread_getname_np() = %s\n", strerror(err));
+	}
+	fprintf(stderr, "PipelineStage::runwrapper(): thread-name = %s\n", szbuf);
+  #endif
+  }
+#endif
 	as_atomic(m_running_exec_units)++;
 	m_threads[threadno].m_live_fibers++;
 	bool setup_successed = false;
