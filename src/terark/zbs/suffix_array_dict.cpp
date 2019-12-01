@@ -13,7 +13,7 @@
 
 namespace terark {
 
-static bool g_useHugePage = getEnvBool("TerarkUseHugePage");
+static bool g_useHugePage = getEnvBool("TerarkUseHugePage", true);
 static bool g_suffixDictShowState = getEnvBool("SuffixDictCacheDFA_showStat");
 
 // 0 for sais
@@ -740,6 +740,11 @@ const noexcept {
 			if (terark_likely(pos + zlen < len)) {
 				child = lstates[state].m_child0 + input[pos+zlen];
 				SuffixDict_prefetch(&lstates[child]);
+			}
+			else {
+			  // if this branch is hit, 'child' will not be used later,
+			  // but compiler may warn about 'child maybe uninitialized'
+			  child = size_t(-1); // suppress compiler warning
 			}
 			auto zptr = str + sa[lo];
 			auto zend = std::min(len, pos + zlen);

@@ -64,11 +64,6 @@ void use_hugepage_resize_no_init(valvec<T>* vec, size_t newsize) {
 		vec->risk_set_size(newsize);
 		return;
 	}
-	size_t copySize = sizeof(T) * std::min(vec->size(), newsize);
-	memcpy(amem, vec->data(), copySize);
-	vec->clear();
-	vec->risk_set_data(amem, newsize);
-	vec->risk_set_capacity(nBytes/sizeof(T));
 	err = madvise(amem, nBytes, MADV_HUGEPAGE);
 	if (err) {
 		fprintf(stderr, "WARN: %s: madvise(MADV_HUGEPAGE, size=%zd[0x%zX]) = %s\n",
@@ -78,6 +73,11 @@ void use_hugepage_resize_no_init(valvec<T>* vec, size_t newsize) {
 	//	fprintf(stderr, "INFO: %s: madvise(MADV_HUGEPAGE) = success\n",
 	//		BOOST_CURRENT_FUNCTION);
 	}
+	size_t copySize = sizeof(T) * std::min(vec->size(), newsize);
+	memcpy(amem, vec->data(), copySize);
+	vec->clear();
+	vec->risk_set_data(amem, newsize);
+	vec->risk_set_capacity(nBytes/sizeof(T));
 #endif
 }
 
