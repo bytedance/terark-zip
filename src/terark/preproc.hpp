@@ -8,6 +8,10 @@
 
 #define TERARK_PP_EXTENT(arr) (sizeof(arr)/sizeof(arr[0]))
 
+#define TERARK_PP_IDENTITY_1(...) __VA_ARGS__
+#define TERARK_PP_IDENTITY_2(...) TERARK_PP_IDENTITY_1(__VA_ARGS__)
+#define TERARK_PP_IDENTITY(x,...) TERARK_PP_IDENTITY_2(x,##__VA_ARGS__)
+
 #define TERARK_PP_ARG_X(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,E,F,G,H,I,J,K,L,M,N,...) N
 #define TERARK_PP_ARG_N(...) \
         TERARK_PP_ARG_X("ignored", ##__VA_ARGS__, \
