@@ -190,6 +190,9 @@ struct basic_fstring {
 
 	const std::pair<const Char*, const Char*> range() const { return std::make_pair(p, p+n); }
 
+	template<class AnyStringType>
+	operator AnyStringType() const { return AnyStringType(p, n); }
+
 	typedef ptrdiff_t difference_type;
 	typedef    size_t       size_type;
 	typedef const Char     value_type;
