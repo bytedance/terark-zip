@@ -20,17 +20,19 @@ struct Factoryable<Product, CreatorArgs...>::AutoReg::Impl {
 };
 
 template<class Product, class... CreatorArgs>
-Factoryable<Product>::
-AutoReg::AutoReg(fstring name, function<Product*(CreatorArgs...)> creator) {
-    Impl::RegMap& rmap = Impl::s_get_regmap();
+Factoryable<Product, CreatorArgs...>::
+AutoReg::AutoReg(fstring name,
+		 function<Product*(CreatorArgs...)> creator) {
+    auto& rmap = Impl::s_get_regmap();
     std::pair<size_t, bool> ib = rmap.insert_i(name, creator);
     if (!ib.second) {
-        fprintf(stderr, "ERROR: %s: duplicate name = %.*s\n", name.ilen(), name.p);
+        fprintf(stderr, "ERROR: %s: duplicate name = %.*s\n", BOOST_CURRENT_FUNCTION, name.ilen(), name.p);
     }
 }
 
 template<class Product, class... CreatorArgs>
-Product* Factoryable<Product>::create(fstring name, CreatorArgs... args) {
+Product* Factoryable<Product, CreatorArgs...>::
+create(fstring name, CreatorArgs... args) {
     auto& rmap = AutoReg::Impl::s_get_regmap();
     size_t i = rmap.find_i(name);
     if (rmap.end_i() != i) {
@@ -40,12 +42,21 @@ Product* Factoryable<Product>::create(fstring name, CreatorArgs... args) {
     return nullptr;
 }
 
+template<class Product, class... CreatorArgs>
+Factoryable<Product, CreatorArgs...>::~Factoryable() {
+}
+
 } // namespace terark
 
 /// ---- user land ----
 
 ///@param Product allowing template product, such as
 /// TERARK_FACTORY_INSTANTIATE(SomeProduct<T1, T2, T3>, CreatorArg1...)
+///@note this macro must be called in namespace terark
 #define TERARK_FACTORY_INSTANTIATE(Product, ...) \
-    template class terark::Factoryable<Product, ##__VA_ARGS__ >
+    template class Factoryable<Product, ##__VA_ARGS__ >
+
+///@note this macro must be called in global namespace
+#define TERARK_FACTORY_INSTANTIATE_GNS(Product, ...) \
+    namespace terark { TERARK_FACTORY_INSTANTIATE(Product, ##__VA_ARGS__); }
 
