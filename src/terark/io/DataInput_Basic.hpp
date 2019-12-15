@@ -33,6 +33,13 @@ MyType& operator>>(var_size_t& x) {
 	return *this;
 }
 
+MyType& operator>>(bool& x) {
+	unsigned char cx = x;
+	*this >> cx;
+	x = cx ? true : false;
+	return *this;
+}
+
 //////////////////////////////////////////////////////////////////////////
 //! dual operator, for auto dispatch single serialize proc...
 //!
