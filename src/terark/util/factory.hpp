@@ -30,11 +30,14 @@ public:
 ///@param Product ... can be template such as SomeProduct<T1, T2, T3>
 ///@note if Name has some non-var char, such as "-,." ...
 ///         must use TERARK_FACTORY_REGISTER_EX to set an VarID
-#define TERARK_FACTORY_REGISTER_EX(VarID, Name, Creator, Product, ...) \
+#define TERARK_FACTORY_REGISTER_IMPL(VarID, Name, Creator, Product, ...) \
   TERARK_PP_IDENTITY(Product,##__VA_ARGS__)::AutoReg \
     TERARK_PP_CAT(g_reg_factory_, VarID, __LINE__)(Name, Creator)
 
-#define TERARK_FACTORY_REGISTER(Name, Creator) \
-        TERARK_FACTORY_REGISTER_EX(Name, TERARK_PP_STR(Name), Creator, Name)
+#define TERARK_FACTORY_REGISTER_EX(Class, Name, Creator) \
+        TERARK_FACTORY_REGISTER_IMPL(Class, Name, Creator, Class)
+
+#define TERARK_FACTORY_REGISTER(Class, Creator) \
+        TERARK_FACTORY_REGISTER_EX(Class, TERARK_PP_STR(Class), Creator)
 
 } // namespace terark
