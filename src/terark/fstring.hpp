@@ -145,6 +145,12 @@ struct terark_get_uchar_type;
 template<>struct terark_get_uchar_type<char>{typedef unsigned char type;};
 template<>struct terark_get_uchar_type<uint16_t>{typedef uint16_t type;};
 
+// for SFINAE
+template<class First, class...>
+struct FirstType {
+	typedef First type;
+};
+
 // Fast String: shallow copy, simple, just has char* and length
 // May be short name of: Febird String
 template<class Char>
@@ -191,7 +197,9 @@ struct basic_fstring {
 	const std::pair<const Char*, const Char*> range() const { return std::make_pair(p, p+n); }
 
 	template<class AnyStringType>
-	operator AnyStringType() const { return AnyStringType(p, n); }
+	operator typename
+	FirstType<AnyStringType, decltype(AnyStringType((Char*)0, 1))>::type
+	() const { return AnyStringType(p, n); }
 
 	typedef ptrdiff_t difference_type;
 	typedef    size_t       size_type;
