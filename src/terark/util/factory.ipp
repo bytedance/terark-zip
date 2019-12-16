@@ -4,10 +4,10 @@
 
 namespace terark {
 
-template<class Product, class... CreatorArgs>
-struct Factoryable<Product, CreatorArgs...>::AutoReg::Impl {
+template<class ProductPtr, class... CreatorArgs>
+struct Factoryable<ProductPtr, CreatorArgs...>::AutoReg::Impl {
     typedef hash_strmap<
-        function<Product*(CreatorArgs...)>,
+        function<ProductPtr(CreatorArgs...)>,
         fstring_func::IF_SP_ALIGN(hash_align, hash),
         fstring_func::IF_SP_ALIGN(equal_align, equal),
         ValueInline,
@@ -19,10 +19,10 @@ struct Factoryable<Product, CreatorArgs...>::AutoReg::Impl {
     }
 };
 
-template<class Product, class... CreatorArgs>
-Factoryable<Product, CreatorArgs...>::
+template<class ProductPtr, class... CreatorArgs>
+Factoryable<ProductPtr, CreatorArgs...>::
 AutoReg::AutoReg(fstring name,
-		 function<Product*(CreatorArgs...)> creator) {
+		 function<ProductPtr(CreatorArgs...)> creator) {
     auto& rmap = Impl::s_get_regmap();
     std::pair<size_t, bool> ib = rmap.insert_i(name, creator);
     if (!ib.second) {
@@ -30,8 +30,8 @@ AutoReg::AutoReg(fstring name,
     }
 }
 
-template<class Product, class... CreatorArgs>
-Product* Factoryable<Product, CreatorArgs...>::
+template<class ProductPtr, class... CreatorArgs>
+ProductPtr Factoryable<ProductPtr, CreatorArgs...>::
 create(fstring name, CreatorArgs... args) {
     auto& rmap = AutoReg::Impl::s_get_regmap();
     size_t i = rmap.find_i(name);
@@ -42,21 +42,21 @@ create(fstring name, CreatorArgs... args) {
     return nullptr;
 }
 
-template<class Product, class... CreatorArgs>
-Factoryable<Product, CreatorArgs...>::~Factoryable() {
+template<class ProductPtr, class... CreatorArgs>
+Factoryable<ProductPtr, CreatorArgs...>::~Factoryable() {
 }
 
 } // namespace terark
 
 /// ---- user land ----
 
-///@param Product allowing template product, such as
+///@param ProductPtr allowing template product, such as
 /// TERARK_FACTORY_INSTANTIATE(SomeProduct<T1, T2, T3>, CreatorArg1...)
 ///@note this macro must be called in namespace terark
-#define TERARK_FACTORY_INSTANTIATE(Product, ...) \
-    template class Factoryable<Product, ##__VA_ARGS__ >
+#define TERARK_FACTORY_INSTANTIATE(ProductPtr, ...) \
+    template class Factoryable<ProductPtr, ##__VA_ARGS__ >
 
 ///@note this macro must be called in global namespace
-#define TERARK_FACTORY_INSTANTIATE_GNS(Product, ...) \
-    namespace terark { TERARK_FACTORY_INSTANTIATE(Product, ##__VA_ARGS__); }
+#define TERARK_FACTORY_INSTANTIATE_GNS(ProductPtr, ...) \
+    namespace terark { TERARK_FACTORY_INSTANTIATE(ProductPtr, ##__VA_ARGS__); }
 

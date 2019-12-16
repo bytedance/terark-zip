@@ -13,13 +13,13 @@ namespace terark {
 /// class SomeFactory : public Factoyable<SomeFactory> {
 ///    ...
 /// };
-template<class Product, class... CreatorArgs>
+template<class ProductPtr, class... CreatorArgs>
 class Factoryable {
 public:
     virtual ~Factoryable();
-    static Product* create(fstring name, CreatorArgs...);
+    static ProductPtr create(fstring name, CreatorArgs...);
     struct AutoReg {
-        AutoReg(fstring name, function<Product*(CreatorArgs...)> creator);
+        AutoReg(fstring name, function<ProductPtr(CreatorArgs...)> creator);
         struct Impl;
     };
 };
@@ -27,11 +27,11 @@ public:
 ///@param VarID var identifier
 ///@param Name string of factory name
 ///@param Creator
-///@param Product ... can be template such as SomeProduct<T1, T2, T3>
+///@param ProductPtr ... can be template such as SomeProductPtr<T1, T2, T3>
 ///@note if Name has some non-var char, such as "-,." ...
 ///         must use TERARK_FACTORY_REGISTER_EX to set an VarID
-#define TERARK_FACTORY_REGISTER_IMPL(VarID, Name, Creator, Product, ...) \
-  TERARK_PP_IDENTITY(Product,##__VA_ARGS__)::AutoReg \
+#define TERARK_FACTORY_REGISTER_IMPL(VarID, Name, Creator, ProductPtr, ...) \
+  TERARK_PP_IDENTITY(ProductPtr,##__VA_ARGS__)::AutoReg \
     TERARK_PP_CAT(g_reg_factory_, VarID, __LINE__)(Name, Creator)
 
 #define TERARK_FACTORY_REGISTER_EX(Class, Name, Creator) \
