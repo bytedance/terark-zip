@@ -27,13 +27,16 @@ public:
 ///@param VarID var identifier
 ///@param Name string of factory name
 ///@param Creator
-///@param ProductPtr ... can be template such as SomeProductPtr<T1, T2, T3>
-///@note if Name has some non-var char, such as "-,." ...
-///         must use TERARK_FACTORY_REGISTER_EX to set an VarID
-#define TERARK_FACTORY_REGISTER_IMPL(VarID, Name, Creator, ProductPtr, ...) \
-  TERARK_PP_IDENTITY(ProductPtr,##__VA_ARGS__)::AutoReg \
+///@param Class ... can be qulified template such as:
+///                     SomeNameSpace::SomeProductPtr<T1, T2, T3>
+#define TERARK_FACTORY_REGISTER_IMPL(VarID, Name, Creator, Class, ...) \
+  TERARK_PP_IDENTITY(Class,##__VA_ARGS__)::AutoReg \
     TERARK_PP_CAT(g_reg_factory_, VarID, __LINE__)(Name, Creator)
 
+///@param Class can not be template such as SomeProductPtr<T1, T2, T3>,
+///             can not be qulified class name such as SomeNameSpace::SomeClass
+///@note if Class has some non-var char, such as "-,." ...
+///         must use TERARK_FACTORY_REGISTER_IMPL to set an VarID
 #define TERARK_FACTORY_REGISTER_EX(Class, Name, Creator) \
         TERARK_FACTORY_REGISTER_IMPL(Class, Name, Creator, Class)
 
