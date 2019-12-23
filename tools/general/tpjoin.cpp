@@ -335,7 +335,7 @@ fstring parse_bracket(const char*& cur, const char* szDefault) {
     }
     const char* content = cur + 2;
     cur = closep + 1; // cur point to tail ':'
-    return content == closep ? szDefault : fstring(content, closep);
+    return content == closep ? fstring(szDefault) : fstring(content, closep);
 }
 
 void add_join(const char* js) {

@@ -1,5 +1,6 @@
 #include <terark/preproc.hpp>
 #include <stdio.h>
+#include <string.h>
 
 int main() {
     printf("TERARK_PP_ARG_N(a,b,c) = %s\n", TERARK_PP_STR(TERARK_PP_ARG_N(a,b,c)));
@@ -8,11 +9,11 @@ int main() {
     printf("TERARK_PP_STR(1,2,3,4,5,6,7,8,9,A,B,C,D,E,F,G,H,I,J,K,L,M) = "
                          "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
             TERARK_PP_STR(1,2,3,4,5,6,7,8,9,A,B,C,D,E,F,G,H,I,J,K,L,M));
-    printf("TERARK_PP_STR(1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M) = "
-                         "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
-            TERARK_PP_STR(1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M));
+    printf("TERARK_PP_STR(1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z) = "
+                         "%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s%s\n",
+            TERARK_PP_STR(1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z));
     const char* count[] = {
-            TERARK_PP_STR(1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M)
+            TERARK_PP_STR(1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z)
     };
     printf("MAX_ARGS = %d\n", int(TERARK_PP_EXTENT(count)));
 
@@ -29,6 +30,14 @@ int main() {
         TERARK_PP_CAT(_,1,2,3,4),
         TERARK_PP_CAT(_,1,2,3,4,5));
     printf("_123456789abcdef = %#llx\n", TERARK_PP_CAT(_,1,2,3,4,5,6,7,8,9,a,b,c,d,e,f));
+    printf("strlen(0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ) = %zd\n",
+        strlen(TERARK_PP_STR(
+            TERARK_PP_CAT(0,1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z)
+        )));
+    printf("PP_CAT(0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ) = %s\n",
+        TERARK_PP_STR(
+            TERARK_PP_CAT(0,1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z)
+        ));
 
     return 0;
 }

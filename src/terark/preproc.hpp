@@ -8,11 +8,17 @@
 
 #define TERARK_PP_EXTENT(arr) (sizeof(arr)/sizeof(arr[0]))
 
-#define TERARK_PP_ARG_X(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,E,F,G,H,I,J,K,L,M,N,...) N
+#define TERARK_PP_IDENTITY_1(...) __VA_ARGS__
+#define TERARK_PP_IDENTITY_2(...) TERARK_PP_IDENTITY_1(__VA_ARGS__)
+#define TERARK_PP_IDENTITY(x,...) TERARK_PP_IDENTITY_2(x,##__VA_ARGS__)
+
+#define TERARK_PP_ARG_X(_0,_1,_2,_3,_4,_5,_6,_7,_8,_9, \
+           a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z, \
+           A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z,XX,...) XX
 #define TERARK_PP_ARG_N(...) \
         TERARK_PP_ARG_X("ignored", ##__VA_ARGS__, \
-                                    M,L,K,J,I,H,G,F,E,D,C,B,A, \
-            z,y,x,w,v,u,t,s,r,q,p,o,m,l,k,j,i,h,g,f,e,d,c,b,a, \
+            Z,Y,X,W,V,U,T,S,R,Q,P,O,N,M,L,K,J,I,H,G,F,E,D,C,B,A, \
+            z,y,x,w,v,u,t,s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a, \
                                             9,8,7,6,5,4,3,2,1,0)
 
 ///@{
@@ -68,8 +74,22 @@
 #define TERARK_PP_CAT_K(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_J(y,__VA_ARGS__))
 #define TERARK_PP_CAT_L(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_K(y,__VA_ARGS__))
 #define TERARK_PP_CAT_M(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_L(y,__VA_ARGS__))
+#define TERARK_PP_CAT_N(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_M(y,__VA_ARGS__))
+#define TERARK_PP_CAT_O(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_N(y,__VA_ARGS__))
+#define TERARK_PP_CAT_P(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_O(y,__VA_ARGS__))
+#define TERARK_PP_CAT_Q(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_P(y,__VA_ARGS__))
+#define TERARK_PP_CAT_R(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_Q(y,__VA_ARGS__))
+#define TERARK_PP_CAT_S(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_R(y,__VA_ARGS__))
+#define TERARK_PP_CAT_T(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_S(y,__VA_ARGS__))
+#define TERARK_PP_CAT_U(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_T(y,__VA_ARGS__))
+#define TERARK_PP_CAT_V(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_U(y,__VA_ARGS__))
+#define TERARK_PP_CAT_W(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_V(y,__VA_ARGS__))
+#define TERARK_PP_CAT_X(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_W(y,__VA_ARGS__))
+#define TERARK_PP_CAT_Y(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_X(y,__VA_ARGS__))
+#define TERARK_PP_CAT_Z(x,y,...) TERARK_PP_CAT2(x,TERARK_PP_CAT_Y(y,__VA_ARGS__))
 ///@}
 
+///@param x at least one arg x
 #define TERARK_PP_CAT(x,...) TERARK_PP_CAT2(x,TERARK_PP_CAT2 \
        (TERARK_PP_CAT_,TERARK_PP_ARG_N(__VA_ARGS__))(__VA_ARGS__))
 
@@ -77,9 +97,9 @@
 ///@param m map function
 ///@param c context
 #define TERARK_PP_MAP_0(m,c)
-#define TERARK_PP_MAP_1(m,c,x,...) m(c,x)
-#define TERARK_PP_MAP_2(m,c,x,...) m(c,x),TERARK_PP_MAP_1(m,c,__VA_ARGS__)
-#define TERARK_PP_MAP_3(m,c,x,...) m(c,x),TERARK_PP_MAP_2(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_1(m,c,x)     m(c,x)
+#define TERARK_PP_MAP_2(m,c,x,y)   m(c,x),m(c,y)
+#define TERARK_PP_MAP_3(m,c,x,y,z) m(c,x),m(c,y),m(c,z)
 #define TERARK_PP_MAP_4(m,c,x,...) m(c,x),TERARK_PP_MAP_3(m,c,__VA_ARGS__)
 #define TERARK_PP_MAP_5(m,c,x,...) m(c,x),TERARK_PP_MAP_4(m,c,__VA_ARGS__)
 #define TERARK_PP_MAP_6(m,c,x,...) m(c,x),TERARK_PP_MAP_5(m,c,__VA_ARGS__)
@@ -125,12 +145,26 @@
 #define TERARK_PP_MAP_K(m,c,x,...) m(c,x),TERARK_PP_MAP_J(m,c,__VA_ARGS__)
 #define TERARK_PP_MAP_L(m,c,x,...) m(c,x),TERARK_PP_MAP_K(m,c,__VA_ARGS__)
 #define TERARK_PP_MAP_M(m,c,x,...) m(c,x),TERARK_PP_MAP_L(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_N(m,c,x,...) m(c,x),TERARK_PP_MAP_M(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_O(m,c,x,...) m(c,x),TERARK_PP_MAP_N(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_P(m,c,x,...) m(c,x),TERARK_PP_MAP_O(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_Q(m,c,x,...) m(c,x),TERARK_PP_MAP_P(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_R(m,c,x,...) m(c,x),TERARK_PP_MAP_Q(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_S(m,c,x,...) m(c,x),TERARK_PP_MAP_R(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_T(m,c,x,...) m(c,x),TERARK_PP_MAP_S(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_U(m,c,x,...) m(c,x),TERARK_PP_MAP_T(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_V(m,c,x,...) m(c,x),TERARK_PP_MAP_U(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_W(m,c,x,...) m(c,x),TERARK_PP_MAP_V(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_X(m,c,x,...) m(c,x),TERARK_PP_MAP_W(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_Y(m,c,x,...) m(c,x),TERARK_PP_MAP_X(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_Z(m,c,x,...) m(c,x),TERARK_PP_MAP_Y(m,c,__VA_ARGS__)
 ///@}
 
 /// @param map map function, can be a macro, called as map(ctx,arg)
 /// @param ctx context
 /// @param ... arg list to apply map function: map(ctx,arg)
 /// @returns comma seperated list: map(ctx,arg1), map(ctx,arg2), ...
+/// @note at least zero args
 #define TERARK_PP_MAP(map,ctx,...) TERARK_PP_CAT2 \
        (TERARK_PP_MAP_,TERARK_PP_ARG_N(__VA_ARGS__))(map,ctx,##__VA_ARGS__)
 

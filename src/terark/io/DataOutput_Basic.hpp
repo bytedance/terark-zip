@@ -114,4 +114,8 @@
 		return *this;
 	}
 
+	MyType& operator<<(const bool x) {
+		this->writeByte(static_cast<unsigned char>(x ? 1 : 0));
+		return *this;
+	}
 
