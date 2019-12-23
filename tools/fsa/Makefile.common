@@ -30,9 +30,12 @@ override CXXFLAGS += -D_FILE_OFFSET_BITS=64 -D_LARGEFILE_SOURCE -D_LARGEFILE64_S
 #CXXFLAGS += -Wconversion -Wno-sign-conversion
 
 #override CXXFLAGS += -Wfatal-errors
-AFR_FLAGS = -O2 -fsanitize=address
-DBG_FLAGS = -O0 -fsanitize=address
-RLS_FLAGS = -Ofast -DNDEBUG
+DBG_ASAN ?= -fsanitize=address
+AFR_ASAN ?= -fsanitize=address
+RLS_ASAN ?=
+AFR_FLAGS = -O1 ${AFR_ASAN}
+DBG_FLAGS = -O0 ${DBG_ASAN}
+RLS_FLAGS = -Ofast -DNDEBUG ${RLS_ASAN}
 
 tmpfile := $(shell mktemp -u compiler-XXXXXX)
 COMPILER := $(shell ${CXX} ${TERARK_HOME}/tools/configure/compiler.cpp -o ${tmpfile}.exe && ./${tmpfile}.exe; rm -f ${tmpfile}*)
@@ -213,12 +216,14 @@ ${EXE_BINS_R}: ${LIB_LIBS_R}
 endif
 
 ifneq (${DLL_SRCS},)
-${DLL_BINS_A} : LDFLAGS := -fsanitize=address
-${DLL_BINS_D} : LDFLAGS := -fsanitize=address
+${DLL_BINS_A} : LDFLAGS := ${AFR_ASAN}
+${DLL_BINS_D} : LDFLAGS := ${DBG_ASAN}
+${DLL_BINS_R} : LDFLAGS := ${RLS_ASAN}
 endif
 
-${EXE_BINS_A} : LDFLAGS := -fsanitize=address
-${EXE_BINS_D} : LDFLAGS := -fsanitize=address
+${EXE_BINS_A} : LDFLAGS := ${AFR_ASAN}
+${EXE_BINS_D} : LDFLAGS := ${DBG_ASAN}
+${EXE_BINS_R} : LDFLAGS := ${RLS_ASAN}
 
 ${EXE_BINS_A} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-a,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-a ${LIBS}
 ${EXE_BINS_D} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPILER}-d,${TERARK_EXT_LIBS})) -lterark-core-${COMPILER}-d ${LIBS}

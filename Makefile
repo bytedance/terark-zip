@@ -1,8 +1,13 @@
 export SHELL=bash
-DBG_FLAGS ?= -g3 -D_DEBUG -fsanitize=address
-RLS_FLAGS ?= -O3 -DNDEBUG -g3
+DBG_ASAN ?= -fsanitize=address
+AFR_ASAN ?= -fsanitize=address
+RLS_ASAN ?=
+
+DBG_FLAGS ?= -O0 -D_DEBUG -g3 ${DBG_ASAN}
+RLS_FLAGS ?= -O3 -DNDEBUG -g3 ${RLS_ASAN}
 # 'AFR' means Assert For Release
-AFR_FLAGS ?= -O2 -g3 -fsanitize=address
+AFR_FLAGS ?= -O1 -g3 ${AFR_ASAN}
+
 WITH_BMI2 ?= $(shell bash ./cpu_has_bmi2.sh)
 CMAKE_INSTALL_PREFIX ?= /usr
 
@@ -64,9 +69,9 @@ override CFLAGS += ${FPIC}
 override CXXFLAGS += ${FPIC}
 override LDFLAGS += ${FPIC}
 
-ASAN_LDFLAGS_a := -fsanitize=address
-ASAN_LDFLAGS_d := -fsanitize=address
-ASAN_LDFLAGS_r :=
+ASAN_LDFLAGS_a := ${AFR_ASAN}
+ASAN_LDFLAGS_d := ${DBG_ASAN}
+ASAN_LDFLAGS_r := ${RLS_ASAN}
 ASAN_LDFLAGS = ${ASAN_LDFLAGS_$(patsubst %-a,a,$(patsubst %-d,d,$(@:%${DLL_SUFFIX}=%)))}
 # ---------- ^-- lazy evaluation, must be '='
 
