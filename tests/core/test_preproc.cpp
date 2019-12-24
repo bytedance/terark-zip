@@ -1,6 +1,11 @@
 #include <terark/preproc.hpp>
+#include <terark/fstring.hpp>
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+
+TERARK_ENUM_PLAIN(EPlain, Value1, Value2, Value3)
+TERARK_ENUM_CLASS(EClass, Value1, Value2, Value3)
 
 int main() {
     printf("TERARK_PP_ARG_N(a,b,c) = %s\n", TERARK_PP_STR(TERARK_PP_ARG_N(a,b,c)));
@@ -38,6 +43,38 @@ int main() {
         TERARK_PP_STR(
             TERARK_PP_CAT(0,1,2,3,4,5,6,7,8,9,a,b,c,d,e,f,g,h,i,j,k,l,m,n,o,p,q,r,s,t,u,v,w,x,y,z,A,B,C,D,E,F,G,H,I,J,K,L,M,N,O,P,Q,R,S,T,U,V,W,X,Y,Z)
         ));
+
+    printf("EPlain: num_of_EPlain(Value2) = %zd\n", num_of_EPlain());
+    printf("EPlain: name_of_EPlain(Value2) = %s\n", name_of_EPlain(Value2));
+    printf("EPlain: name_of_EPlain(Value3) = %s\n", name_of_EPlain(Value3));
+
+    printf("EPlain: value_of_EPlain('Value1') = %d\n", value_of_EPlain("Value1"));
+    printf("EPlain: value_of_EPlain('Value2') = %d\n", value_of_EPlain("Value2"));
+    printf("EPlain: value_of_EPlain('Value3') = %d\n", value_of_EPlain("Value3"));
+
+    try {
+        printf("EPlain: value_of_EPlain('Unknown') = %d\n", value_of_EPlain("Unknown"));
+        assert(false);
+    }
+    catch (const std::invalid_argument& ex) {
+        printf("EPlain: catched: %s\n", ex.what());
+    }
+
+    printf("EClass: num_of_EClass(Value2) = %zd\n", num_of_EClass());
+    printf("EClass: name_of_EClass(Value2) = %s\n", name_of_EClass(EClass::Value2));
+    printf("EClass: name_of_EClass(Value3) = %s\n", name_of_EClass(EClass::Value3));
+
+    printf("EClass: value_of_EClass('Value1') = %d\n", value_of_EClass("Value1"));
+    printf("EClass: value_of_EClass('Value2') = %d\n", value_of_EClass("Value2"));
+    printf("EClass: value_of_EClass('Value3') = %d\n", value_of_EClass("Value3"));
+
+    try {
+        printf("EClass: value_of_EClass('Unknown') = %d\n", value_of_EClass("Unknown"));
+        assert(false);
+    }
+    catch (const std::invalid_argument& ex) {
+        printf("EClass: catched: %s\n", ex.what());
+    }
 
     return 0;
 }
