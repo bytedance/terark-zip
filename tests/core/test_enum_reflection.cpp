@@ -83,6 +83,7 @@ int main() {
     }
 
     printf("EPlain define = %.*s\n", DOT_STAR_S(EnumReflection<EPlain>::s_define));
+    printf("ns1::EPlain define = %.*s\n", DOT_STAR_S(EnumReflection<ns1::EPlain>::s_define));
 
     return 0;
 }

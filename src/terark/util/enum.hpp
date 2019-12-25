@@ -101,7 +101,10 @@ std::string str_all_of_enum() {
   }; \
   template<class TIntRep> \
   const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_define = {\
-    #__VA_ARGS__ }; \
+    TERARK_PP_STR(nsKeyword nsName nsBeg enum Class EnumType ColonIntRep) \
+      " { " #__VA_ARGS__ " };" \
+    #nsEnd \
+  }; \
   template<class TIntRep> \
   const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_names[] = {\
     TERARK_PP_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
@@ -148,20 +151,20 @@ std::string str_all_of_enum() {
         TERARK_ENUM_PLAIN_EX(EnumType, int, __VA_ARGS__)
 
 #define TERARK_ENUM_PLAIN_EX(EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(,,,,,, EnumType, :IntRep, IntRep, -, __VA_ARGS__)
+  TERARK_ENUM_IMPL(,,,,,, EnumType, : IntRep, IntRep, -, __VA_ARGS__)
 
 #define TERARK_ENUM_PLAIN_NS(nsName, EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(namespace,nsName,nsName::,{,},,EnumType,:IntRep,IntRep,-nsName::,__VA_ARGS__)
+  TERARK_ENUM_IMPL(namespace,nsName,nsName::,{,},,EnumType,: IntRep,IntRep,-nsName::,__VA_ARGS__)
 
 ///@param ... enum values
 #define TERARK_ENUM_CLASS(EnumType, ...) \
         TERARK_ENUM_CLASS_EX(EnumType, int, __VA_ARGS__)
 
 #define TERARK_ENUM_CLASS_EX(EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(,,,,,class,EnumType,:IntRep,IntRep,-EnumType::,__VA_ARGS__)
+  TERARK_ENUM_IMPL(,,,,,class,EnumType,: IntRep,IntRep,-EnumType::,__VA_ARGS__)
 
 #define TERARK_ENUM_CLASS_NS(nsName, EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(namespace,nsName,nsName::,{,},class,EnumType,:IntRep,IntRep,-nsName::EnumType::,__VA_ARGS__)
+  TERARK_ENUM_IMPL(namespace,nsName,nsName::,{,},class,EnumType,: IntRep,IntRep,-nsName::EnumType::,__VA_ARGS__)
 
 #else
 
