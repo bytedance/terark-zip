@@ -38,6 +38,30 @@ template<class Enum, class TIntRep = typename EnumRepType<Enum>::type>
 class EnumReflection;
 
 template<class Enum>
+terark::fstring
+name_of_enum(const terark::fstring* names, const Enum* values, size_t num,
+             Enum v) {
+  for (size_t i = 0; i < num; ++i) {
+      if (v == values[i])
+          return names[i];
+  }
+  return "";
+}
+
+template<class Enum>
+bool
+value_of_enum(const terark::fstring* names, const Enum* values, size_t num,
+              const terark::fstring& name, Enum* result) {
+  for (size_t i = 0; i < num; ++i) {
+      if (name == names[i]) {
+          *result = values[i];
+          return true;
+      }
+  }
+  return false;
+}
+
+template<class Enum>
 std::string str_all_name_of_enum() {
   std::string s;
   EnumReflection<Enum>::for_each(
@@ -87,11 +111,24 @@ std::string str_all_of_enum() {
     static const terark::fstring s_define; \
     static const terark::fstring s_names[]; \
     static const nsQualify EnumType s_values[]; \
-    static terark::fstring name(const nsQualify EnumType v); \
-    static nsQualify EnumType value(const terark::fstring name); \
+    static terark::fstring name(const nsQualify EnumType v) { \
+      return name_of_enum(s_names, s_values, num(), v); \
+    } \
+    static nsQualify EnumType value(terark::fstring name) { \
+      nsQualify EnumType result;  \
+      if (value(name, &result)) return result; \
+      else throw std::invalid_argument( \
+        std::string("enum " #nsQualify #EnumType ": invalid name = \"")+name+"\""); \
+    } \
+    static bool value(terark::fstring name, nsQualify EnumType* result) { \
+      return value_of_enum(s_names, s_values, num(), name, result); \
+    } \
     static size_t num(); \
     template<class Func> \
-    static void for_each(Func fn); \
+    static void for_each(Func fn) { \
+      for (size_t i = 0; i < num(); ++i) \
+        fn(s_names[i], s_values[i]); \
+    } \
     static std::string str_all_name() { \
       return str_all_name_of_enum<nsQualify EnumType>(); \
     } \
@@ -114,37 +151,10 @@ std::string str_all_of_enum() {
                   terark::EnumValueInit<nsQualify EnumType>() EnumScope, \
                   __VA_ARGS__) }; \
   template<class TIntRep> \
-  terark::fstring \
-  EnumReflection<nsQualify EnumType, TIntRep>::name(nsQualify EnumType v) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_values); ++i) { \
-        if (v == s_values[i]) \
-            return s_names[i]; \
-    } \
-    return ""; \
-  } \
-  template<class TIntRep> \
-  nsQualify EnumType \
-  EnumReflection<nsQualify EnumType, TIntRep>::value(terark::fstring name) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_names); ++i) { \
-        if (name == s_names[i]) { \
-            return s_values[i]; \
-        } \
-    } \
-    throw std::invalid_argument( \
-        std::string(TERARK_PP_STR(nsQualify EnumType) ": invalid name = \"") + name + "\"" \
-    ); \
-  } \
-  template<class TIntRep> \
   size_t EnumReflection<nsQualify EnumType, TIntRep>::num() { \
     return TERARK_PP_EXTENT(s_names); \
-  } \
-  template<class TIntRep> \
-  template<class Func> \
-  void EnumReflection<nsQualify EnumType, TIntRep>::for_each(Func fn) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_names); ++i) { \
-      fn(s_names[i], s_values[i]); \
-    } \
   }
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ///@param ... enum values
 #define TERARK_ENUM_PLAIN(EnumType, ...) \
