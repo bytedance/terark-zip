@@ -91,6 +91,12 @@ std::string str_all_of_enum() {
     static size_t num(); \
     template<class Func> \
     static void for_each(Func fn); \
+    static std::string str_all_name() { \
+      return str_all_name_of_enum<nsQualify EnumType>(); \
+    } \
+    static std::string str_all() { \
+      return str_all_of_enum<nsQualify EnumType>(); \
+    } \
   }; \
   template<class TIntRep> \
   const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_names[] = {\
@@ -103,12 +109,12 @@ std::string str_all_of_enum() {
   template<class TIntRep> \
   terark::fstring \
   EnumReflection<nsQualify EnumType, TIntRep>::name(nsQualify EnumType v) { \
-        for (size_t i = 0; i < TERARK_PP_EXTENT(s_values); ++i) { \
-            if (v == s_values[i]) \
-                return s_names[i]; \
-        } \
-        return ""; \
+    for (size_t i = 0; i < TERARK_PP_EXTENT(s_values); ++i) { \
+        if (v == s_values[i]) \
+            return s_names[i]; \
     } \
+    return ""; \
+  } \
   template<class TIntRep> \
   nsQualify EnumType \
   EnumReflection<nsQualify EnumType, TIntRep>::value(terark::fstring name) { \
