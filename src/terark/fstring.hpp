@@ -151,6 +151,8 @@ struct FirstType {
 	typedef First type;
 };
 
+#define DOT_STAR_S(s) (int)((s).size()), (s).data()
+
 // Fast String: shallow copy, simple, just has char* and length
 // May be short name of: Febird String
 template<class Char>
