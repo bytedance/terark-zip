@@ -1,6 +1,8 @@
 #ifndef __terark_preproc_hpp__
 #define __terark_preproc_hpp__
 
+#define TERARK_PP_EMPTY
+
 #define TERARK_PP_CAT2_1(a,b)    a##b
 #define TERARK_PP_CAT2(a,b)      TERARK_PP_CAT2_1(a,b)
 #define TERARK_PP_CAT3(a,b,c)    TERARK_PP_CAT2(TERARK_PP_CAT2(a,b),c)
@@ -188,66 +190,6 @@
 /// @param ... arg list to be stringized
 #define TERARK_PP_STR(...) TERARK_PP_MAP(TERARK_PP_STR_2,~, __VA_ARGS__)
 /// @}
-
-///@param ... enum values
-#define TERARK_ENUM_PLAIN(EnumType, ...) \
-  enum EnumType { \
-    __VA_ARGS__ \
-  }; \
-  static const char* s_name_of_##EnumType[] = { \
-    TERARK_PP_STR(__VA_ARGS__) }; \
-  static const enum EnumType s_value_of_##EnumType[] = { \
-    __VA_ARGS__ }; \
-  static const char* name_of_##EnumType(const enum EnumType v) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_value_of_##EnumType); ++i) { \
-      if (v == s_value_of_##EnumType[i]) { \
-        return s_name_of_##EnumType[i]; \
-      } \
-    } \
-    return nullptr; \
-  } \
-  static enum EnumType value_of_##EnumType(const char* name) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_name_of_##EnumType); ++i) { \
-      const char * sp = s_name_of_##EnumType[i]; \
-      if (strcmp(name, sp) == 0) \
-        return s_value_of_##EnumType[i]; \
-    } \
-    throw std::invalid_argument( \
-      std::string(TERARK_PP_STR(EnumType) ": invalid enum name = \"") + name + "\""); \
-  } \
-  inline size_t num_of_##EnumType() { \
-    return TERARK_PP_EXTENT(s_value_of_##EnumType); \
-  }
-
-///@param ... enum values
-#define TERARK_ENUM_CLASS(EnumType, ...) \
-  enum class EnumType { \
-    __VA_ARGS__ \
-  }; \
-  static const char* s_name_of_##EnumType[] = { \
-    TERARK_PP_STR(__VA_ARGS__) }; \
-  static const EnumType s_value_of_##EnumType[] = { \
-    TERARK_PP_MAP(TERARK_PP_PREPEND, EnumType::, __VA_ARGS__) }; \
-  static const char* name_of_##EnumType(const EnumType v) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_value_of_##EnumType); ++i) { \
-      if (v == s_value_of_##EnumType[i]) { \
-        return s_name_of_##EnumType[i]; \
-      } \
-    } \
-    return nullptr; \
-  } \
-  static EnumType value_of_##EnumType(const char* name) { \
-    for (size_t i = 0; i < TERARK_PP_EXTENT(s_name_of_##EnumType); ++i) { \
-      const char * sp = s_name_of_##EnumType[i]; \
-      if (strcmp(name, sp) == 0) \
-        return s_value_of_##EnumType[i]; \
-    } \
-    throw std::invalid_argument( \
-      std::string(TERARK_PP_STR(EnumType) ": invalid enum name = \"") + name + "\""); \
-  } \
-  inline size_t num_of_##EnumType() { \
-    return TERARK_PP_EXTENT(s_value_of_##EnumType); \
-  }
 
 #endif // __terark_preproc_hpp__
 
