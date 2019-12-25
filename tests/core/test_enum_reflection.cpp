@@ -82,5 +82,7 @@ int main() {
         printf("ns2::EClass: catched: %s\n", ex.what());
     }
 
+    printf("EPlain define = %.*s\n", DOT_STAR_S(EnumReflection<EPlain>::s_define));
+
     return 0;
 }

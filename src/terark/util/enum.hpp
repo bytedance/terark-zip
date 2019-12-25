@@ -83,9 +83,10 @@ std::string str_all_of_enum() {
   template<> struct EnumRepType<nsQualify EnumType> { typedef IntRep type; }; \
   template<class TIntRep> \
   class EnumReflection<nsQualify EnumType, TIntRep> { \
+  public: \
+    static const terark::fstring s_define; \
     static const terark::fstring s_names[]; \
     static const nsQualify EnumType s_values[]; \
-  public: \
     static terark::fstring name(const nsQualify EnumType v); \
     static nsQualify EnumType value(const terark::fstring name); \
     static size_t num(); \
@@ -98,6 +99,9 @@ std::string str_all_of_enum() {
       return str_all_of_enum<nsQualify EnumType>(); \
     } \
   }; \
+  template<class TIntRep> \
+  const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_define = {\
+    #__VA_ARGS__ }; \
   template<class TIntRep> \
   const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_names[] = {\
     TERARK_PP_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
