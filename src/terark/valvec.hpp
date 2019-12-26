@@ -1323,6 +1323,7 @@ bool operator>=(const valvec<T>& x, const valvec<T>& y) {
 
 template<class RanIt, class Key>
 size_t lower_bound_n(RanIt a, size_t low, size_t upp, const Key& key) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1335,6 +1336,7 @@ size_t lower_bound_n(RanIt a, size_t low, size_t upp, const Key& key) {
 }
 template<class RanIt, class Key, class Comp>
 size_t lower_bound_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1348,6 +1350,7 @@ size_t lower_bound_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp)
 
 template<class RanIt, class Key>
 size_t upper_bound_n(RanIt a, size_t low, size_t upp, const Key& key) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1361,6 +1364,7 @@ size_t upper_bound_n(RanIt a, size_t low, size_t upp, const Key& key) {
 
 template<class RanIt, class Key, class Comp>
 size_t upper_bound_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1375,6 +1379,7 @@ size_t upper_bound_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp)
 template<class RanIt, class Key>
 std::pair<size_t, size_t>
 equal_range_n(RanIt a, size_t low, size_t upp, const Key& key) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1393,6 +1398,7 @@ equal_range_n(RanIt a, size_t low, size_t upp, const Key& key) {
 template<class RanIt, class Key, class Comp>
 std::pair<size_t, size_t>
 equal_range_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1411,22 +1417,26 @@ equal_range_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) {
 template<class RanIt, class Key>
 bool
 binary_search_n(RanIt a, size_t low, size_t upp, const Key& key) {
+	assert(low <= upp);
 	size_t f = lower_bound_n<RanIt, Key>(a, low, upp, key);
 	return f < upp && !(key < a[f]);
 }
 template<class RanIt, class Key, class Comp>
 bool
 binary_search_n(RanIt a, size_t low, size_t upp, const Key& key, Comp comp) {
+	assert(low <= upp);
 	size_t f = lower_bound_n<RanIt, Key, Comp>(a, low, upp, key, comp);
 	return f < upp && !comp(key, a[f]);
 }
 
 template<class RanIt>
 void sort_n(RanIt a, size_t low, size_t upp) {
+	assert(low <= upp);
 	std::sort<RanIt>(a + low, a + upp);
 }
 template<class RanIt, class Comp>
 void sort_n(RanIt a, size_t low, size_t upp, Comp comp) {
+	assert(low <= upp);
 	std::sort<RanIt, Comp>(a + low, a + upp, comp);
 }
 
@@ -1502,10 +1512,22 @@ binary_search_0(RanIt a, size_t n, const Key& key, Comp comp) {
 	return binary_search_n<RanIt, Key, Comp>(a, 0, n, key, comp);
 }
 
+template<class Range, class Key>
+bool
+binary_search_a(const Range& a, const Key& key) {
+	return binary_search_n(a.begin(), 0, a.size(), key);
+}
+template<class Range, class Key, class Comp>
+bool
+binary_search_a(const Range& a, const Key& key, Comp comp) {
+	return binary_search_n(a.begin(), 0, a.size(), key, comp);
+}
+
 /////////////////////////////////////////////////////////////////////////////
 template<class RanIt, class Key, class KeyExtractor>
 size_t
 lower_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1519,6 +1541,7 @@ lower_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor k
 template<class RanIt, class Key, class KeyExtractor, class Comp>
 size_t
 lower_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1533,6 +1556,7 @@ lower_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor k
 template<class RanIt, class Key, class KeyExtractor>
 size_t
 upper_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1547,6 +1571,7 @@ upper_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor k
 template<class RanIt, class Key, class KeyExtractor, class Comp>
 size_t
 upper_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1561,6 +1586,7 @@ upper_bound_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor k
 template<class RanIt, class Key, class KeyExtractor>
 std::pair<size_t, size_t>
 equal_range_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1579,6 +1605,7 @@ equal_range_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor k
 template<class RanIt, class Key, class KeyExtractor, class Comp>
 std::pair<size_t, size_t>
 equal_range_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) {
+	assert(low <= upp);
 	size_t i = low, j = upp;
 	while (i < j) {
 		size_t mid = (i + j) / 2;
@@ -1597,12 +1624,14 @@ equal_range_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor k
 template<class RanIt, class Key, class KeyExtractor>
 bool
 binary_search_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx) {
+	assert(low <= upp);
 	size_t f = lower_bound_ex_n<RanIt, Key, KeyExtractor>(a, low, upp, key, keyEx);
 	return f < upp && !(key < keyEx(a[f]));
 }
 template<class RanIt, class Key, class KeyExtractor, class Comp>
 bool
 binary_search_ex_n(RanIt a, size_t low, size_t upp, const Key& key, KeyExtractor keyEx, Comp comp) {
+	assert(low <= upp);
 	size_t f = lower_bound_ex_n<RanIt, Key, KeyExtractor, Comp>(a, low, upp, key, keyEx, comp);
 	return f < upp && !comp(key, keyEx(a[f]));
 }
@@ -1760,6 +1789,16 @@ bool
 binary_search_ex_0(RanIt a, size_t n, const Key& key, KeyExtractor keyEx, Comp comp) {
 	return binary_search_ex_n<RanIt, Key, KeyExtractor, Comp>(a, 0, n, key, keyEx, comp);
 }
+template<class Range, class Key, class KeyExtractor>
+bool
+binary_search_ex_a(const Range& a, const Key& key, KeyExtractor keyEx) {
+	return binary_search_ex_n(a.begin(), 0, a.size(), key, keyEx);
+}
+template<class Range, class Key, class KeyExtractor, class Comp>
+bool
+binary_search_ex_a(const Range& a, const Key& key, KeyExtractor keyEx, Comp comp) {
+	return binary_search_ex_n(a.begin(), 0, a.size(), key, keyEx, comp);
+}
 template<class RanIt, class Key, class KeyExtractor>
 bool
 binary_search_ex(RanIt beg, RanIt end, const Key& key, KeyExtractor keyEx) {
@@ -1821,6 +1860,7 @@ void reverse_a(Container& a, size_t low, size_t upp) {
 
 template<class RanIt>
 size_t unique_n(RanIt a, size_t low, size_t upp) {
+	assert(low <= upp);
 	return std::unique<RanIt>(a + low, a + upp) - a;
 }
 template<class RanIt>

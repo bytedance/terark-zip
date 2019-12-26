@@ -7,6 +7,11 @@
 #include <terark/fstring.hpp>
 #include <terark/util/profiling.hpp>
 
+#ifdef __GNUC__
+  #pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
+
+
 using namespace terark;
 
 void unit_test_bug1() {
@@ -209,8 +214,6 @@ int main(int argc, char* argv[]) {
 	std::unique_ptr<SortedUintVec::Builder>
 		builder(SortedUintVec::createBuilder(mustSorted, 128, fname));
 	for (size_t i = 0; i < trueVals.size(); ++i) {
-		if (i >= 0x404)
-			i = i;
 		builder->push_back(trueVals[i]);
 	}
 	builder->finish(&szipVals);
@@ -218,8 +221,6 @@ int main(int argc, char* argv[]) {
 		size_t t0 = trueVals[i];
 		size_t t1 = trueVals[i+1];
 		size_t z[2];
-		if (i >= 0x4e00)
-			i = i;
 		szipVals.get2(i, z);
 		assert(t0 == z[0]);
 		assert(t1 == z[1]);
