@@ -8,6 +8,10 @@
 #include <terark/util/profiling.hpp>
 #include <terark/util/linebuf.hpp>
 
+#ifdef __GNUC__
+  #pragma GCC diagnostic ignored "-Wunused-variable"
+#endif
+
 using namespace terark;
 
 int main(int argc, char* argv[]) {
