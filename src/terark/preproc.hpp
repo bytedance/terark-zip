@@ -1,3 +1,4 @@
+#pragma once
 #ifndef __terark_preproc_hpp__
 #define __terark_preproc_hpp__
 
