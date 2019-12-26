@@ -2,6 +2,7 @@
 #define __terark_preproc_hpp__
 
 #define TERARK_PP_EMPTY
+#define TERARK_PP_APPLY(func, ...) func(__VA_ARGS__)
 
 #define TERARK_PP_CAT2_1(a,b)    a##b
 #define TERARK_PP_CAT2(a,b)      TERARK_PP_CAT2_1(a,b)
