@@ -1,3 +1,4 @@
+// created by leipeng at 2019-12-25
 #pragma once
 
 #include <terark/preproc.hpp>
@@ -8,6 +9,8 @@
 #if 1
 
 namespace terark {
+fstring var_symbol(const char* s);
+}
 
 template<class Enum>
 class EnumValueInit {
@@ -23,37 +26,23 @@ public:
     EnumValueInit& operator=(IntRep) { return *this; }
 };
 
-fstring var_symbol(const char* s);
-
-} // namespace terark
-
 template<class Enum>
-struct EnumRepType;
-
-///@param IntRep the underlying IntRep of Enum
-///@note the use of IntRep has two goals:
-/// 1. the Integeral Rep of the enum
-/// 2. makes the s_name and s_value can be intantiated in header file
-template<class Enum, class TIntRep = typename EnumRepType<Enum>::type>
-class EnumReflection;
-
-template<class Enum>
-terark::fstring
-name_of_enum(const terark::fstring* names, const Enum* values, size_t num,
-             Enum v) {
-  for (size_t i = 0; i < num; ++i) {
-      if (v == values[i])
-          return names[i];
+terark::fstring enum_name(Enum v) {
+  auto names  = enum_all_names ((Enum*)0);
+  auto values = enum_all_values((Enum*)0);
+  for (size_t i = 0; i < names.second; ++i) {
+    if (v == values[i])
+      return names.first[i];
   }
   return "";
 }
 
 template<class Enum>
-bool
-value_of_enum(const terark::fstring* names, const Enum* values, size_t num,
-              const terark::fstring& name, Enum* result) {
-  for (size_t i = 0; i < num; ++i) {
-      if (name == names[i]) {
+bool enum_value(const terark::fstring& name, Enum* result) {
+  auto names  = enum_all_names ((Enum*)0);
+  auto values = enum_all_values((Enum*)0);
+  for (size_t i = 0; i < names.second; ++i) {
+      if (name == names.first[i]) {
           *result = values[i];
           return true;
       }
@@ -61,14 +50,31 @@ value_of_enum(const terark::fstring* names, const Enum* values, size_t num,
   return false;
 }
 
+/// for convenient
 template<class Enum>
-std::string str_all_name_of_enum() {
+Enum enum_value(const terark::fstring& name, Enum Default) {
+  enum_value(name, &Default);
+  return Default;
+}
+
+template<class Enum, class Func>
+void enum_for_each(Func fn) {
+  auto names  = enum_all_names ((Enum*)0);
+  auto values = enum_all_values((Enum*)0);
+  for (size_t i = 0; i < names.second; ++i) {
+    fn(names.first[i], values[i]);
+  }
+}
+
+template<class Enum>
+std::string enum_str_all_names() {
+  auto names = enum_all_names((Enum*)0);
   std::string s;
-  EnumReflection<Enum>::for_each(
-    [&s](terark::fstring name, Enum) {
-        s.append(name.p, name.n);
-        s.append(", ");
-    });
+  for (size_t i = 0; i < names.second; ++i) {
+    terark::fstring name = names.first[i];
+    s.append(name.p, name.n);
+    s.append(", ");
+  };
   if (s.size()) {
     s.resize(s.size()-2);
   }
@@ -76,105 +82,70 @@ std::string str_all_name_of_enum() {
 }
 
 template<class Enum>
-std::string str_all_of_enum() {
-  typedef typename EnumRepType<Enum>::type IntRep;
+std::string enum_str_all_namevalues() {
+  typedef decltype(enum_rep_type((Enum*)0)) IntRep;
+  auto names = enum_all_names((Enum*)0);
+  auto values = enum_all_values((Enum*)0);
   std::string s;
-  EnumReflection<Enum>::for_each(
-    [&s](terark::fstring name, Enum v) {
-        char buf[32];
-        s.append(name.p, name.n);
-        s.append(" = ");
-        s.append(buf, snprintf(buf, sizeof(buf),
-          std::is_signed<IntRep>::value ? "%zd" : "%zu",
-          size_t(v)));
-        s.append(", ");
-    });
+  for (size_t i = 0; i < names.second; ++i) {
+    terark::fstring name = names.first[i];
+    const Enum v = values[i];
+    char buf[32];
+    s.append(name.p, name.n);
+    s.append(" = ");
+    s.append(buf, snprintf(buf, sizeof(buf),
+      std::is_signed<IntRep>::value ? "%zd" : "%zu",
+      size_t(v)));
+    s.append(", ");
+  };
   if (s.size()) {
     s.resize(s.size()-2);
   }
   return s;
 }
+
 
 #define TERARK_PP_SYMBOL(ctx, arg) terark::var_symbol(#arg)
 
+///@param Inline can be 'inline' or 'friend'
 ///@param ... enum values
-#define TERARK_ENUM_IMPL(nsKeyword, nsName, nsQualify, nsBeg, nsEnd, \
-                         Class, EnumType, ColonIntRep, IntRep, EnumScope, ...) \
-  nsKeyword nsName nsBeg \
-  enum Class EnumType ColonIntRep { \
+#define TERARK_ENUM_IMPL(Inline, Class, EnumType, IntRep, EnumScope, ...) \
+  enum Class EnumType : IntRep { \
     __VA_ARGS__ \
-  }; nsEnd \
-  template<> struct EnumRepType<nsQualify EnumType> { typedef IntRep type; }; \
-  template<class TIntRep> \
-  class EnumReflection<nsQualify EnumType, TIntRep> { \
-  public: \
-    static const terark::fstring s_define; \
-    static const terark::fstring s_names[]; \
-    static const nsQualify EnumType s_values[]; \
-    static terark::fstring name(const nsQualify EnumType v) { \
-      return name_of_enum(s_names, s_values, num(), v); \
-    } \
-    static nsQualify EnumType value(terark::fstring name) { \
-      nsQualify EnumType result;  \
-      if (value(name, &result)) return result; \
-      else throw std::invalid_argument( \
-        std::string("enum " #nsQualify #EnumType ": invalid name = \"")+name+"\""); \
-    } \
-    static bool value(terark::fstring name, nsQualify EnumType* result) { \
-      return value_of_enum(s_names, s_values, num(), name, result); \
-    } \
-    static size_t num(); \
-    template<class Func> \
-    static void for_each(Func fn) { \
-      for (size_t i = 0; i < num(); ++i) \
-        fn(s_names[i], s_values[i]); \
-    } \
-    static std::string str_all_name() { \
-      return str_all_name_of_enum<nsQualify EnumType>(); \
-    } \
-    static std::string str_all() { \
-      return str_all_of_enum<nsQualify EnumType>(); \
-    } \
   }; \
-  template<class TIntRep> \
-  const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_define = {\
-    TERARK_PP_STR(nsKeyword nsName nsBeg enum Class EnumType ColonIntRep) \
-      " { " #__VA_ARGS__ " };" \
-    #nsEnd \
-  }; \
-  template<class TIntRep> \
-  const terark::fstring EnumReflection<nsQualify EnumType, TIntRep>::s_names[] = {\
-    TERARK_PP_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
-  template<class TIntRep> \
-  const nsQualify EnumType EnumReflection<nsQualify EnumType, TIntRep>::s_values[] = { \
-    TERARK_PP_MAP(TERARK_PP_PREPEND, \
-                  terark::EnumValueInit<nsQualify EnumType>() EnumScope, \
-                  __VA_ARGS__) }; \
-  template<class TIntRep> \
-  size_t EnumReflection<nsQualify EnumType, TIntRep>::num() { \
-    return TERARK_PP_EXTENT(s_names); \
-  }
+  IntRep enum_rep_type(EnumType*); \
+  Inline terark::fstring enum_str_define(EnumType*) { \
+    return TERARK_PP_STR(enum Class EnumType : IntRep) \
+      " { " #__VA_ARGS__ " }"; \
+  } \
+  Inline std::pair<const terark::fstring*, size_t> \
+  enum_all_names(EnumType*) { \
+    static const terark::fstring s_names[] = { \
+      TERARK_PP_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
+    return std::make_pair(s_names, TERARK_PP_EXTENT(s_names)); \
+  } \
+  Inline const EnumType* enum_all_values(EnumType*) { \
+    static const EnumType s_values[] = { \
+      TERARK_PP_MAP(TERARK_PP_PREPEND, \
+                    EnumValueInit<EnumType>() - EnumScope, \
+                    __VA_ARGS__) }; \
+      return s_values; \
+   }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ///@param ... enum values
-#define TERARK_ENUM_PLAIN(EnumType, ...) \
-        TERARK_ENUM_PLAIN_EX(EnumType, int, __VA_ARGS__)
+#define TERARK_ENUM_PLAIN(EnumType, IntRep, ...) \
+  TERARK_ENUM_IMPL(inline,,EnumType,IntRep,,__VA_ARGS__)
 
-#define TERARK_ENUM_PLAIN_EX(EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(,,,,,, EnumType, : IntRep, IntRep, -, __VA_ARGS__)
-
-#define TERARK_ENUM_PLAIN_NS(nsName, EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(namespace,nsName,nsName::,{,},,EnumType,: IntRep,IntRep,-nsName::,__VA_ARGS__)
+#define TERARK_ENUM_PLAIN_INCLASS(EnumType, IntRep, ...) \
+  TERARK_ENUM_IMPL(friend,,EnumType,IntRep,,__VA_ARGS__)
 
 ///@param ... enum values
-#define TERARK_ENUM_CLASS(EnumType, ...) \
-        TERARK_ENUM_CLASS_EX(EnumType, int, __VA_ARGS__)
+#define TERARK_ENUM_CLASS(EnumType, IntRep, ...) \
+  TERARK_ENUM_IMPL(inline,class,EnumType,IntRep,EnumType::,__VA_ARGS__)
 
-#define TERARK_ENUM_CLASS_EX(EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(,,,,,class,EnumType,: IntRep,IntRep,-EnumType::,__VA_ARGS__)
-
-#define TERARK_ENUM_CLASS_NS(nsName, EnumType, IntRep, ...) \
-  TERARK_ENUM_IMPL(namespace,nsName,nsName::,{,},class,EnumType,: IntRep,IntRep,-nsName::EnumType::,__VA_ARGS__)
+#define TERARK_ENUM_CLASS_INCLASS(EnumType, IntRep, ...) \
+  TERARK_ENUM_IMPL(friend,class,EnumType,IntRep,EnumType::,__VA_ARGS__)
 
 #else
 
