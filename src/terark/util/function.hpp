@@ -101,4 +101,7 @@ public:
     static UserMemPool* SysMemPool();
 };
 
+///@param __VA_ARGS__ can be 'template some_member_func<1,2,3>()'
+#define TERARK_FIELD(...) [](const auto& x) { return x.__VA_ARGS__; }
+
 } // namespace terark
