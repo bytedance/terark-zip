@@ -5,6 +5,12 @@
 #define TERARK_PP_EMPTY
 #define TERARK_PP_APPLY(func, ...) func(__VA_ARGS__)
 
+///@param arg is parented such as (1,2,3)
+///@returns parents are removed: (1,2,3) to 1,2,3
+///@note TERARK_PP_REMOVE_PARENT((1,2,3)) = 1,2,3
+#define TERARK_PP_REMOVE_PARENT(arg) TERARK_PP_REMOVE_PARENT_AUX arg
+#define TERARK_PP_REMOVE_PARENT_AUX(...) __VA_ARGS__
+
 #define TERARK_PP_CAT2_1(a,b)    a##b
 #define TERARK_PP_CAT2(a,b)      TERARK_PP_CAT2_1(a,b)
 #define TERARK_PP_CAT3(a,b,c)    TERARK_PP_CAT2(TERARK_PP_CAT2(a,b),c)
@@ -248,6 +254,9 @@
 /// @param prefix is param 'c'(context) in TERARK_PP_MAP
 #define TERARK_PP_PREPEND(prefix, x) prefix x
 
+/// @param prefix is param 'c'(context) in TERARK_PP_MAP
+#define TERARK_PP_APPEND(suffix, x) x suffix
+
 /// @{ TERARK_PP_STR is a use case of TERARK_PP_MAP
 /// macro TERARK_PP_STR_2 is the 'map' function
 /// context of TERARK_PP_STR_2 is dummy
@@ -262,6 +271,28 @@
 /// @param ... arg list to be stringized
 #define TERARK_PP_STR(...) TERARK_PP_MAP(TERARK_PP_STR_2,~, __VA_ARGS__)
 /// @}
+
+///@param arg is a list with parent: (1,2,3)
+///@param ctx ignored
+///@returns 1,2,3 -- parents are removed
+#define TERARK_PP_FLATTEN_ONE(ctx,arg) TERARK_PP_REMOVE_PARENT(arg)
+
+///@param __VA_ARGS__ should be  (1,2,3), (4,5,6), ...
+///@returns 1,2,3,4,5,6,...
+#define TERARK_PP_FLATTEN(...) \
+   TERARK_PP_MAP(TERARK_PP_FLATTEN_ONE, ~, __VA_ARGS__)
+
+///@param arg is a list with parent: (1,2,3)
+///@param ctx ignored
+///@returns "1,2,3" -- parents are removed then convert to string
+#define TERARK_PP_STR_FLATTEN_ONE(ctx, arg) TERARK_PP_STR_FLATTEN_ONE_AUX arg
+#define TERARK_PP_STR_FLATTEN_ONE_AUX(...) #__VA_ARGS__
+
+///@param __VA_ARGS__ = (1,2,3), (4,5,6), ...
+///@returns "1,2,3", "4,5,6", ...
+#define TERARK_PP_STR_FLATTEN(...) \
+   TERARK_PP_MAP(TERARK_PP_STR_FLATTEN_ONE, ~, __VA_ARGS__)
+
 
 #endif // __terark_preproc_hpp__
 
