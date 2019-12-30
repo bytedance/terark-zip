@@ -1440,54 +1440,78 @@ void sort_n(RanIt a, size_t low, size_t upp, Comp comp) {
 	std::sort<RanIt, Comp>(a + low, a + upp, comp);
 }
 
-template<class KeyExtrator>
-struct CompareExtrated1 {
+template<class KeyExtractor>
+struct ExtractorLessType {
 	template<class T>
 	bool operator()(const T& x, const T& y) const {
 		return keyEx(x) < keyEx(y);
 	}
-	KeyExtrator keyEx;
+	KeyExtractor keyEx;
 };
-template<class KeyExtrator, class Comparator>
-struct CompareExtrated2 {
+template<class KeyExtractor>
+ExtractorLessType<KeyExtractor>
+ExtractorLess(KeyExtractor ex) {
+	return ExtractorLessType<KeyExtractor>{ex};
+}
+
+template<class KeyExtractor>
+struct ExtractorEqualType {
+	template<class T>
+	bool operator()(const T& x, const T& y) const {
+		return keyEx(x) == keyEx(y);
+	}
+	KeyExtractor keyEx;
+};
+template<class KeyExtractor>
+ExtractorEqualType<KeyExtractor>
+ExtractorEqual(KeyExtractor ex) {
+	return ExtractorEqualType<KeyExtractor>{ex};
+}
+
+template<class KeyExtractor, class Comparator>
+struct ExtractorComparatorType {
 	template<class T>
 	bool operator()(const T& x, const T& y) const {
 		return keyCmp(keyEx(x), keyEx(y));
 	}
-	KeyExtrator keyEx;
+	KeyExtractor keyEx;
 	Comparator  keyCmp;
 };
+template<class KeyExtractor, class Comparator>
+ExtractorComparatorType<KeyExtractor, Comparator>
+ExtractorComparator(KeyExtractor ex, Comparator cmp) {
+	return ExtractorComparatorType<KeyExtractor, Comparator>{ex, cmp};
+}
+
 template<class RanIt, class KeyExtractor>
 void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx) {
 	assert(first <= last);
-	std::sort(first, last, CompareExtrated1<KeyExtractor>{keyEx});
+	std::sort(first, last, ExtractorLess(keyEx));
 }
 template<class RanIt, class KeyExtractor, class Comp>
 void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx, Comp cmp) {
 	assert(first <= last);
-	std::sort(first, last, CompareExtrated2<KeyExtractor,Comp>{keyEx,cmp});
+	std::sort(first, last, ExtractorComparator(keyEx,cmp));
 }
 
 template<class RanIt, class KeyExtractor>
 void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx) {
 	assert(low <= upp);
-	std::sort(a+low, a+upp, CompareExtrated1<KeyExtractor>{keyEx});
+	std::sort(a+low, a+upp, ExtractorLess(keyEx));
 }
 template<class RanIt, class KeyExtractor, class Comp>
 void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx, Comp cmp) {
 	assert(low <= upp);
-	std::sort(a+low, a+upp, CompareExtrated2<KeyExtractor,Comp>{keyEx,cmp});
+	std::sort(a+low, a+upp, ExtractorComparator(keyEx,cmp));
 }
 
 template<class Container, class KeyExtractor>
 void sort_ex_a(Container& a, KeyExtractor keyEx) {
-	std::sort(std::begin(a), std::end(a),
-		CompareExtrated1<KeyExtractor>{keyEx});
+	std::sort(std::begin(a), std::end(a), ExtractorLess(keyEx));
 }
 template<class Container, class KeyExtractor, class Comp>
 void sort_ex_a(Container& a, KeyExtractor keyEx, Comp cmp) {
-	std::sort(std::begin(a), std::end(a),
-		CompareExtrated2<KeyExtractor,Comp>{keyEx,cmp});
+	std::sort(std::begin(a), std::end(a), ExtractorComparator(keyEx,cmp));
 }
 
 template<class RanIt, class Key>
@@ -1926,6 +1950,15 @@ size_t unique_a(Container& a, size_t low, size_t upp) {
 	assert(low <= upp);
 	assert(upp <= a.size());
 	return std::unique(a.begin() + low, a.begin() + upp) - low - a.begin();
+}
+
+template<class Container, class KeyExtractor>
+size_t unique_ex_a(Container& a, KeyExtractor ex) {
+	return std::unique(a.begin(), a.end(), ExtractorEqual(ex)) - a.begin();
+}
+template<class Container, class KeyExtractor, class Equal>
+size_t unique_ex_a(Container& a, KeyExtractor ex, Equal eq) {
+	return std::unique(a.begin(), a.end(), ExtractorComparator(ex, eq)) - a.begin();
 }
 
 } // namespace terark
