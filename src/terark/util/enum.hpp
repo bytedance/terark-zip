@@ -167,17 +167,6 @@ std::string enum_str_all_namevalues() {
 /// there is an extra ", " after value list, this is a valid enum definition.
 /// it is too hard to remove the "," so let it be there.
 
-#define TERARK_BIG_ENUM_ONE_GROUP_STRS(ctx,arg) TERARK_BIG_ENUM_ONE_GROUP_STRS_AUX arg
-#define TERARK_BIG_ENUM_ONE_GROUP_STRS_AUX(...) \
-   TERARK_PP_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__)
-
-///@param InitPrefix is ctx for map function
-#define TERARK_BIG_ENUM_ONE_GROUP_VALS(InitPrefix, arg) \
-   TERARK_PP_APPLY( \
-        TERARK_PP_CAT2(TERARK_PP_MAP_,TERARK_PP_ARG_N arg), \
-        TERARK_PP_PREPEND, \
-        InitPrefix, TERARK_PP_REMOVE_PARENT(arg))
-
 ///@param Inline can be 'inline' or 'friend'
 ///@param ... enum values
 #define TERARK_BIG_ENUM_IMPL(Inline, Class, EnumType, IntRep, EnumScope, ...) \
@@ -198,16 +187,14 @@ std::string enum_str_all_namevalues() {
   Inline std::pair<const terark::fstring*, size_t> \
   enum_all_names(EnumType*) { \
     static const terark::fstring s_names[] = { \
-      TERARK_PP_APPLY( \
-        TERARK_PP_CAT2(TERARK_PP_MAP_,TERARK_PP_ARG_N(__VA_ARGS__)), \
-        TERARK_BIG_ENUM_ONE_GROUP_STRS, ~, __VA_ARGS__) }; \
+      TERARK_PP_BIG_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
     return std::make_pair(s_names, TERARK_PP_EXTENT(s_names)); \
   } \
   Inline const EnumType* enum_all_values(EnumType*) { \
     static const EnumType s_values[] = { \
-      TERARK_PP_MAP(TERARK_BIG_ENUM_ONE_GROUP_VALS, \
-                    EnumValueInit<EnumType>() - EnumScope, \
-                    __VA_ARGS__) }; \
+      TERARK_PP_BIG_MAP(TERARK_PP_PREPEND, \
+                        EnumValueInit<EnumType>() - EnumScope, \
+                        __VA_ARGS__) }; \
       return s_values; \
    }
 
