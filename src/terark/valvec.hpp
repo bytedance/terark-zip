@@ -1479,6 +1479,17 @@ void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx, Comp cmp) {
 	std::sort(a+low, a+upp, CompareExtrated2<KeyExtractor,Comp>{keyEx,cmp});
 }
 
+template<class Container, class KeyExtractor>
+void sort_ex_a(Container& a, KeyExtractor keyEx) {
+	std::sort(std::begin(a), std::end(a),
+		CompareExtrated1<KeyExtractor>{keyEx});
+}
+template<class Container, class KeyExtractor, class Comp>
+void sort_ex_a(Container& a, KeyExtractor keyEx, Comp cmp) {
+	std::sort(std::begin(a), std::end(a),
+		CompareExtrated2<KeyExtractor,Comp>{keyEx,cmp});
+}
+
 template<class RanIt, class Key>
 size_t lower_bound_0(RanIt a, size_t n, const Key& key) {
 	return lower_bound_n<RanIt, Key>(a, 0, n, key);

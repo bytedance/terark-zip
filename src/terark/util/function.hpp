@@ -8,6 +8,7 @@
 #endif
 
 #include <terark/config.hpp>
+#include <terark/preproc.hpp>
 #include <boost/noncopyable.hpp>
 
 namespace terark {
@@ -103,5 +104,35 @@ public:
 
 ///@param __VA_ARGS__ can be 'template some_member_func<1,2,3>()'
 #define TERARK_FIELD(...) [](const auto& x) { return x.__VA_ARGS__; }
+#define TERARK_FIELD_P(...) [](const auto& x) { return x->__VA_ARGS__; }
+
+///@param d '.' or '->'
+#define TERARK_CMP_FIELD_1(d,f) [](const auto& x, const auto& y) { return x d f < y d f; }
+#define TERARK_CMP_FIELD_2(d,f1,f2) [](const auto& x, const auto& y) { \
+    if (x d f1 < y d f1) return true; \
+    else if (y d f1 < x d f1) return false; \
+    return x d f2 < y d f2; }
+#define TERARK_CMP_FIELD_3(d,f1,f2,f3) [](const auto& x, const auto& y) { \
+    if (x d f1 < y d f1) return true; \
+    else if (y d f1 < x d f1) return false; \
+    else if (x d f2 < y d f2) return true; \
+    else if (y d f2 < x d f2) return false; \
+    return x d f3 < y d f3; }
+#define TERARK_CMP_FIELD_4(d,f1,f2,f3,f4) [](const auto& x, const auto& y) { \
+    if (x d f1 < y d f1) return true; \
+    else if (y d f1 < x d f1) return false; \
+    else if (x d f2 < y d f2) return true;  \
+    else if (y d f2 < x d f2) return false; \
+    else if (x d f3 < y d f3) return true;  \
+    else if (y d f3 < x d f3) return false; \
+    return x d f4 < y d f4; }
+
+///@param __VA_ARGS__ at least 1 field
+///@note max support 4 fields
+#define TERARK_CMP_FIELD(...) \
+  TERARK_PP_CAT2(TERARK_CMP_FIELD_,TERARK_PP_ARG_N(__VA_ARGS__))(.,__VA_ARGS__)
+
+#define TERARK_CMP_FIELD_P(...) \
+  TERARK_PP_CAT2(TERARK_CMP_FIELD_,TERARK_PP_ARG_N(__VA_ARGS__))(->,__VA_ARGS__)
 
 } // namespace terark
