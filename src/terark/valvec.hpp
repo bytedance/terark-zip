@@ -10,7 +10,6 @@
 #include <iterator>
 #include <memory>
 #include <stdexcept>
-#include <functional>
 #include <utility>
 
 #include <boost/type_traits.hpp>
@@ -20,6 +19,7 @@
 #include <boost/utility.hpp>
 
 #include <terark/util/autofree.hpp>
+#include <terark/util/function.hpp>
 #include "config.hpp"
 
 #if defined(TERARK_HAS_WEAK_SYMBOL) && 0
@@ -1440,49 +1440,6 @@ void sort_n(RanIt a, size_t low, size_t upp, Comp comp) {
 	std::sort<RanIt, Comp>(a + low, a + upp, comp);
 }
 
-template<class KeyExtractor>
-struct ExtractorLessType {
-	template<class T>
-	bool operator()(const T& x, const T& y) const {
-		return keyEx(x) < keyEx(y);
-	}
-	KeyExtractor keyEx;
-};
-template<class KeyExtractor>
-ExtractorLessType<KeyExtractor>
-ExtractorLess(KeyExtractor ex) {
-	return ExtractorLessType<KeyExtractor>{ex};
-}
-
-template<class KeyExtractor>
-struct ExtractorEqualType {
-	template<class T>
-	bool operator()(const T& x, const T& y) const {
-		return keyEx(x) == keyEx(y);
-	}
-	KeyExtractor keyEx;
-};
-template<class KeyExtractor>
-ExtractorEqualType<KeyExtractor>
-ExtractorEqual(KeyExtractor ex) {
-	return ExtractorEqualType<KeyExtractor>{ex};
-}
-
-template<class KeyExtractor, class Comparator>
-struct ExtractorComparatorType {
-	template<class T>
-	bool operator()(const T& x, const T& y) const {
-		return keyCmp(keyEx(x), keyEx(y));
-	}
-	KeyExtractor keyEx;
-	Comparator  keyCmp;
-};
-template<class KeyExtractor, class Comparator>
-ExtractorComparatorType<KeyExtractor, Comparator>
-ExtractorComparator(KeyExtractor ex, Comparator cmp) {
-	return ExtractorComparatorType<KeyExtractor, Comparator>{ex, cmp};
-}
-
 template<class RanIt, class KeyExtractor>
 void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx) {
 	assert(first <= last);
@@ -1898,19 +1855,11 @@ void sort_0(RanIt a, size_t n, Comp comp) {
 }
 template<class Container>
 void sort_a(Container& a) {
-	std::sort(a.begin(), a.end());
-}
-template<class T, size_t N>
-void sort_a(T (&a)[N]) {
-	std::sort(a, a+N);
+	std::sort(std::begin(a), std::end(a));
 }
 template<class Container, class Comp>
 void sort_a(Container& a, Comp comp) {
-	std::sort(a.begin(), a.end(), comp);
-}
-template<class T, size_t N, class Comp>
-void sort_a(T (&a)[N], Comp comp) {
-	std::sort(a, a+N, comp);
+	std::sort(std::begin(a), std::end(a), comp);
 }
 
 template<class RanIt>
@@ -1945,11 +1894,21 @@ template<class Container>
 size_t unique_a(Container& a) {
 	return std::unique(a.begin(), a.end()) - a.begin();
 }
+template<class Container, class Equal>
+size_t unique_a(Container& a, Equal eq) {
+	return std::unique(a.begin(), a.end(), eq) - a.begin();
+}
 template<class Container>
 size_t unique_a(Container& a, size_t low, size_t upp) {
 	assert(low <= upp);
 	assert(upp <= a.size());
 	return std::unique(a.begin() + low, a.begin() + upp) - low - a.begin();
+}
+template<class Container, class Equal>
+size_t unique_a(Container& a, Equal eq, size_t low, size_t upp) {
+	assert(low <= upp);
+	assert(upp <= a.size());
+	return std::unique(a.begin() + low, a.begin() + upp, eq) - low - a.begin();
 }
 
 template<class Container, class KeyExtractor>
