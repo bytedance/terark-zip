@@ -115,7 +115,10 @@ TERARK_COMPARATOR_OP(CmpEQ,   x ==y );
 TERARK_COMPARATOR_OP(CmpNE, !(x ==y));
 
 struct cmp_placeholder{};
-static cmp_placeholder cmp;
+//static cmp_placeholder cmp; // gcc warns for unused static var
+namespace {
+   cmp_placeholder cmp;
+}
 
 template<class Pred>
 struct NotPredT {
