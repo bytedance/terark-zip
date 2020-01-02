@@ -115,10 +115,7 @@ TERARK_COMPARATOR_OP(CmpEQ,   x ==y );
 TERARK_COMPARATOR_OP(CmpNE, !(x ==y));
 
 struct cmp_placeholder{};
-//static cmp_placeholder cmp; // gcc warns for unused static var
-namespace {
-   cmp_placeholder cmp;
-}
+constexpr cmp_placeholder cmp; // gcc warns for unused static var
 
 template<class Pred>
 struct NotPredT {
@@ -133,8 +130,8 @@ struct NotPredT {
 #define TERARK_BINDER_CMP_OP(BinderName, expr) \
     template<class T> \
     struct BinderName {  const T  y; \
-        BinderName(const T& y1) : y(y1) {} \
-        BinderName(      T&&y1) : y(std::move(y1)) {} \
+        template<class U> \
+        BinderName(U&&y1) : y(std::forward<U>(y1)) {} \
         bool operator()(const T& x) const { return expr; } \
     }; \
     template<class T> \
@@ -253,9 +250,11 @@ struct CombinableExtractorT {
 
 #define TERARK_COMBINE_BIND_OP(Name, op) \
     template<class T> \
-    CombineExtractor<Extractor1, Name<T> > operator op(T&& y) const { \
+    CombineExtractor<Extractor1, Name<typename std::remove_reference<T>::type> > \
+    operator op(T&& y) const { \
         return \
-    CombineExtractor<Extractor1, Name<T> >{ex1, {std::forward<T>(y)}}; } \
+    CombineExtractor<Extractor1, Name<typename std::remove_reference<T>::type> > \
+        {ex1, {std::forward<T>(y)}}; } \
     \
     template<class T> \
     CombineExtractor<Extractor1, Name<std::reference_wrapper<const T> > > \
