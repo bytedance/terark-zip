@@ -31,6 +31,9 @@
             z,y,x,w,v,u,t,s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a, \
                                             9,8,7,6,5,4,3,2,1,0)
 
+#define TERARK_PP_VA_NAME(prefix,...) \
+        TERARK_PP_CAT2(prefix,TERARK_PP_ARG_N(__VA_ARGS__))
+
 ///@{
 //#define TERARK_PP_CAT_0()       error "TERARK_PP_CAT" have at least 2 params
 // allowing TERARK_PP_CAT take just 1 argument
@@ -247,6 +250,50 @@
 /// @note at least zero args
 #define TERARK_PP_MAP(map,ctx,...) TERARK_PP_CAT2 \
        (TERARK_PP_MAP_,TERARK_PP_ARG_N(__VA_ARGS__))(map,ctx,##__VA_ARGS__)
+
+///@{
+///@param m map(c,x,y) is a 3-arg function
+///@param c context
+#define TERARK_PP_MAP_PAIR_0(m,c)
+#define TERARK_PP_MAP_PAIR_2(m,c,x,y)     m(c,x,y)
+#define TERARK_PP_MAP_PAIR_4(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_2(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_6(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_4(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_8(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_6(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_a(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_8(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_c(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_a(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_e(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_c(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_g(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_e(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_i(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_g(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_k(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_i(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_m(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_k(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_o(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_m(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_q(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_o(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_s(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_q(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_u(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_s(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_w(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_u(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_y(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_w(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_A(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_y(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_C(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_A(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_E(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_C(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_G(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_E(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_I(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_G(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_K(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_I(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_M(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_K(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_O(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_M(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_Q(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_O(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_S(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_Q(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_U(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_S(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_W(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_U(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_Y(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_V(m,c,__VA_ARGS__)
+///@}
+
+/// @param map map(c,x,y) 3-arg, function, can be a macro, called as map(ctx,x,y)
+/// @param ctx context
+/// @param ... arg list to apply map function: map(ctx,x,y), arg list len must be even
+/// @returns comma seperated list: map(ctx,x1,y1), map(ctx,x2,y2), ...
+/// @note at least zero args
+#define TERARK_PP_MAP_PAIR(map,ctx,...) TERARK_PP_CAT2 \
+       (TERARK_PP_MAP_PAIR_,TERARK_PP_ARG_N(__VA_ARGS__))(map,ctx,##__VA_ARGS__)
 
 ///@{
 ///@param g group function g(m,c,x) where x is parented such as: (1,2,3)
