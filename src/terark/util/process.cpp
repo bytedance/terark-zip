@@ -17,6 +17,9 @@
     #include <sys/wait.h>
     #include <unistd.h>
 #endif
+#include <terark/num_to_str.hpp>
+#include <terark/util/autoclose.hpp>
+#include <terark/util/linebuf.hpp>
 
 namespace terark {
 
@@ -210,6 +213,58 @@ int ProcPipeStream::xclose() noexcept {
         return m_err;
     }
     return 0;
+}
+
+#define ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET 1
+
+std::string
+ProcPipeStream::run_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
+    bool tmp_file_created = false;
+    if (tmpFilePrefix.empty()) {
+      tmpFilePrefix = "/tmp/ProcPipeStream-";
+    }
+    std::string tmp_file = tmpFilePrefix + "XXXXXX";
+    int fd = mkstemp(&tmp_file[0]);
+    if (fd < 0) {
+      THROW_STD(runtime_error, "mkstemp(%s) = %s", tmp_file.c_str(),
+                strerror(errno));
+    }
+    tmp_file_created = true;
+    {
+      string_appender<> cmdw;
+      cmdw.reserve(cmd.size() + 32);
+#if ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET
+      // use  " > /dev/fd/xxx" will prevent from tmp_file being
+      // deleted unexpected
+      cmdw << cmd << " > /dev/fd/" << fd;
+#else
+      cmdw << cmd << " > " << tmp_file;
+      ::close(fd);
+#endif
+      ProcPipeStream proc(cmdw, "w");
+      proc.ensureWrite(stdinData.data(), stdinData.size());
+    }
+    //
+    // now cmd sub process must have finished
+    //
+    terark::LineBuf result;
+    {
+#if ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET
+        ::lseek(fd, 0, SEEK_SET); // must lseek to begin
+        Auto_fclose tmp_result_file(fdopen(fd, "rb"));
+#else
+        Auto_fclose tmp_result_file(fopen(tmp_file.c_str(), "rb"));
+#endif
+        if (!tmp_result_file) {
+          THROW_STD(runtime_error, "fdopen(fd=%d(fname=%s), rb) = %s", fd,
+                    tmp_file.c_str(), strerror(errno));
+        }
+        result.read_all(tmp_result_file);
+    }
+    if (tmp_file_created) {
+      ::remove(tmp_file.c_str());
+    }
+    return std::string(result.p, result.n);
 }
 
 } // namespace terark

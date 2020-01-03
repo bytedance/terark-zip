@@ -4,6 +4,7 @@
 int main(int argc, char* argv[]) {
 	using namespace terark;
     {
+        printf("1 begin...\n");
         LineBuf line;
         ProcPipeStream pp("echo aaaa", "r");
         printf("reading result\n");
@@ -28,8 +29,10 @@ int main(int argc, char* argv[]) {
         line.chomp();
         assert(fstring(line) == "bbbb");
         printf("2 passed\n");
+        ::remove("proc.test.tmp");
     }
 
+    printf("3 begin...\n");
     try {
         ProcPipeStream pp("test-non-existed-file", "r");
         pp.close();
@@ -38,6 +41,14 @@ int main(int argc, char* argv[]) {
     catch (const std::exception&) {
     }
     printf("3 passed\n");
+
+    {
+        printf("4 begin...\n");
+        auto res = ProcPipeStream::run_cmd("(echo aa; cat)", "bb");
+    //  printf("res.size() = %zd: %s\n", res.size(), res.c_str());
+        assert(res == "aa\nbb");
+        printf("4 passed\n");
+    }
 
 	return 0;
 }

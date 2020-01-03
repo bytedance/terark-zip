@@ -51,6 +51,9 @@ namespace terark {
         void close();
         int xclose() noexcept;
         int err_code() noexcept { return m_err; }
+
+        static std::string
+        run_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
     };
 
 }
