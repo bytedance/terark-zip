@@ -284,7 +284,7 @@
 #define TERARK_PP_MAP_PAIR_S(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_Q(m,c,__VA_ARGS__)
 #define TERARK_PP_MAP_PAIR_U(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_S(m,c,__VA_ARGS__)
 #define TERARK_PP_MAP_PAIR_W(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_U(m,c,__VA_ARGS__)
-#define TERARK_PP_MAP_PAIR_Y(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_V(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_Y(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_W(m,c,__VA_ARGS__)
 ///@}
 
 /// @param map map(c,x,y) 3-arg, function, can be a macro, called as map(ctx,x,y)
