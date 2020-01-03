@@ -19,12 +19,14 @@ namespace terark {
 	using boost::ref;
 	using boost::cref;
 	using boost::reference_wrapper
+	using boost::remove_reference;
 #else
     using std::bind;
 	using std::function;
 	using std::ref;
 	using std::cref;
 	using std::reference_wrapper;
+	using std::remove_reference;
 #endif
 
 	template<class FuncProto>
@@ -140,7 +142,7 @@ struct NotPredT {
         bool operator()(const T* x) const { return expr; } \
     }; \
     template<class T> \
-    struct BinderName<std::reference_wrapper<const T> > { \
+    struct BinderName<reference_wrapper<const T> > { \
         const T& y; \
         BinderName(const T& y1) : y(y1) {} \
         bool operator()(const T& x) const { return expr; } \
@@ -250,17 +252,17 @@ struct CombinableExtractorT {
 
 #define TERARK_COMBINE_BIND_OP(Name, op) \
     template<class T> \
-    CombineExtractor<Extractor1, Name<typename std::remove_reference<T>::type> > \
+    CombineExtractor<Extractor1, Name<typename remove_reference<T>::type> > \
     operator op(T&& y) const { \
         return \
-    CombineExtractor<Extractor1, Name<typename std::remove_reference<T>::type> > \
+    CombineExtractor<Extractor1, Name<typename remove_reference<T>::type> > \
         {ex1, {std::forward<T>(y)}}; } \
     \
     template<class T> \
-    CombineExtractor<Extractor1, Name<std::reference_wrapper<const T> > > \
-    operator op(std::reference_wrapper<const T> y) const { \
+    CombineExtractor<Extractor1, Name<reference_wrapper<const T> > > \
+    operator op(reference_wrapper<const T> y) const { \
         return \
-    CombineExtractor<Extractor1, Name<std::reference_wrapper<const T> > > \
+    CombineExtractor<Extractor1, Name<reference_wrapper<const T> > > \
         {ex1, {y.get()}}; }
 
     ///@{
