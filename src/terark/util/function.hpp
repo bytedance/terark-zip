@@ -360,7 +360,7 @@ CombinableExtractor(Extractor1&& ex1) {
 ///@}
 
 ///@param __VA_ARGS__ at least 1 field
-///@note max support 17 fields, sample usage: TERARK_CMP(f1,>,f2,<,f3,<)
+///@note max support 20 fields, sample usage: TERARK_CMP(f1,>,f2,<,f3,<)
 #define TERARK_CMP(...) \
  [](const auto& x, const auto& y) ->bool { \
   TERARK_PP_VA_NAME(TERARK_CMP_O_,__VA_ARGS__)(__VA_ARGS__) }
