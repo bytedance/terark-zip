@@ -285,53 +285,89 @@ CombinableExtractor(Extractor1&& ex1) {
 }
 
 
-///@param __VA_ARGS__ can be 'template some_member_func<1,2,3>()'
+///@param __VA_ARGS__ can be ' .template some_member_func<1,2,3>()'
+///                       or '->template some_member_func<1,2,3>()'
+///@note '.' or '->' before field is required
 ///@note TERARK_GET() is identity operator
-#define TERARK_GET(...) terark::CombinableExtractor(TERARK_FIELD(__VA_ARGS__))
+#define TERARK_GET(...) terark::CombinableExtractor( \
+  [](const auto&x)->decltype(auto){return(x __VA_ARGS__);})
 
+
+#define TERARK_FIELD_O_0() x
+#define TERARK_FIELD_P_0() x
+#define TERARK_FIELD_O_1(field) x.field
+#define TERARK_FIELD_P_1(field) x->field
+
+///@param __VA_ARGS__ can NOT be 'template some_member_func<1,2,3>()'
 ///@note decltype(auto) is required, () on return is required
 ///@note TERARK_FIELD() is identity operator
-#define TERARK_FIELD(...) [](const auto&x)->decltype(auto){return(x __VA_ARGS__);}
+///@note '.' or '->' can not before field name
+#define TERARK_FIELD(...) [](const auto&x)->decltype(auto) { \
+  return (TERARK_PP_VA_NAME(TERARK_FIELD_O_,__VA_ARGS__)(__VA_ARGS__)); }
 
-#define TERARK_CMP_IMP_2(f1,o1) [](const auto& x, const auto& y) ->bool { return x f1 o1 y f1; }
-#define TERARK_CMP_IMP_4(f1,o1,f2,o2) \
- [](const auto& x, const auto& y) ->bool { \
-    if (x f1 o1 y f1) return true; \
-    else if (y f1 o1 x f1) return false; \
-    return x f2 o2 y f2; }
-#define TERARK_CMP_IMP_6(f1,o1,f2,o2,f3,o3) \
- [](const auto& x, const auto& y) ->bool { \
-    if (x f1 o1 y f1) return true; \
-    else if (y f1 o1 x f1) return false; \
-    else if (x f2 o2 y f2) return true; \
-    else if (y f2 o2 x f2) return false; \
-    return x f3 o3 y f3; }
-#define TERARK_CMP_IMP_8(f1,o1,f2,o2,f3,o3,f4,o4) \
- [](const auto& x, const auto& y) ->bool { \
-    if (x f1 o1 y f1) return true; \
-    else if (y f1 o1 x f1) return false; \
-    else if (x f2 o2 y f2) return true;  \
-    else if (y f2 o2 x f2) return false; \
-    else if (x f3 o3 y f3) return true;  \
-    else if (y f3 o3 x f3) return false; \
-    return x f4 o4 y f4; }
+#define TERARK_FIELD_P(...) [](const auto&x)->decltype(auto) { \
+  return (TERARK_PP_VA_NAME(TERARK_FIELD_P_,__VA_ARGS__)(__VA_ARGS__)); }
 
-#define TERARK_CMP_O_2(f1,o1) TERARK_CMP_IMP_2( .f1,o1)
-#define TERARK_CMP_P_2(f1,o1) TERARK_CMP_IMP_2(->f1,o1)
-#define TERARK_CMP_O_4(f1,o1,f2,o2) TERARK_CMP_IMP_4( .f1,o1, .f2,o2)
-#define TERARK_CMP_P_4(f1,o1,f2,o2) TERARK_CMP_IMP_4(->f1,o1,->f2,o2)
-#define TERARK_CMP_O_6(f1,o1,f2,o2,f3,o3) TERARK_CMP_IMP_6( .f1,o1, .f2,o2, .f3,o3)
-#define TERARK_CMP_P_6(f1,o1,f2,o2,f3,o3) TERARK_CMP_IMP_6(->f1,o1,->f2,o2,->f3,o3)
-#define TERARK_CMP_O_8(f1,o1,f2,o2,f3,o3,f4,o4) TERARK_CMP_IMP_8( .f1,o1, .f2,o2, .f3,o3, .f4,o4)
-#define TERARK_CMP_P_8(f1,o1,f2,o2,f3,o3,f4,o4) TERARK_CMP_IMP_8(->f1,o1,->f2,o2,->f3,o3,->f4,o4)
+///@{
+///@param d '.' or '->'
+///@param f field
+///@param o order/operator, '<' or '>'
+#define TERARK_CMP1(d,f,o) \
+    if (x d f o y d f) return true; \
+    if (y d f o x d f) return false; \
+
+#define TERARK_CMP_O_2(f,o)     return x.f o y.f;
+#define TERARK_CMP_O_4(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_2(__VA_ARGS__)
+#define TERARK_CMP_O_6(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_4(__VA_ARGS__)
+#define TERARK_CMP_O_8(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_6(__VA_ARGS__)
+#define TERARK_CMP_O_a(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_8(__VA_ARGS__)
+#define TERARK_CMP_O_c(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_a(__VA_ARGS__)
+#define TERARK_CMP_O_e(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_c(__VA_ARGS__)
+#define TERARK_CMP_O_g(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_e(__VA_ARGS__)
+#define TERARK_CMP_O_i(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_g(__VA_ARGS__)
+#define TERARK_CMP_O_k(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_i(__VA_ARGS__)
+#define TERARK_CMP_O_m(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_k(__VA_ARGS__)
+#define TERARK_CMP_O_o(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_m(__VA_ARGS__)
+#define TERARK_CMP_O_q(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_o(__VA_ARGS__)
+#define TERARK_CMP_O_s(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_q(__VA_ARGS__)
+#define TERARK_CMP_O_u(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_s(__VA_ARGS__)
+#define TERARK_CMP_O_w(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_u(__VA_ARGS__)
+#define TERARK_CMP_O_y(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_w(__VA_ARGS__)
+#define TERARK_CMP_O_A(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_y(__VA_ARGS__)
+#define TERARK_CMP_O_C(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_A(__VA_ARGS__)
+#define TERARK_CMP_O_E(f,o,...) TERARK_CMP1(. ,f,o)TERARK_CMP_O_C(__VA_ARGS__)
+
+#define TERARK_CMP_P_2(f,o)     return x->f o y->f;
+#define TERARK_CMP_P_4(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_2(__VA_ARGS__)
+#define TERARK_CMP_P_6(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_4(__VA_ARGS__)
+#define TERARK_CMP_P_8(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_6(__VA_ARGS__)
+#define TERARK_CMP_P_a(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_8(__VA_ARGS__)
+#define TERARK_CMP_P_c(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_a(__VA_ARGS__)
+#define TERARK_CMP_P_e(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_c(__VA_ARGS__)
+#define TERARK_CMP_P_g(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_e(__VA_ARGS__)
+#define TERARK_CMP_P_i(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_g(__VA_ARGS__)
+#define TERARK_CMP_P_k(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_i(__VA_ARGS__)
+#define TERARK_CMP_P_m(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_k(__VA_ARGS__)
+#define TERARK_CMP_P_o(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_m(__VA_ARGS__)
+#define TERARK_CMP_P_q(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_o(__VA_ARGS__)
+#define TERARK_CMP_P_s(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_q(__VA_ARGS__)
+#define TERARK_CMP_P_u(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_s(__VA_ARGS__)
+#define TERARK_CMP_P_w(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_u(__VA_ARGS__)
+#define TERARK_CMP_P_y(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_w(__VA_ARGS__)
+#define TERARK_CMP_P_A(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_y(__VA_ARGS__)
+#define TERARK_CMP_P_C(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_A(__VA_ARGS__)
+#define TERARK_CMP_P_E(f,o,...) TERARK_CMP1(->,f,o)TERARK_CMP_P_C(__VA_ARGS__)
+///@}
 
 ///@param __VA_ARGS__ at least 1 field
-///@note max support 4 fields, sample usage: TERARK_CMP(f1,>,f2,<,f3,<)
+///@note max support 17 fields, sample usage: TERARK_CMP(f1,>,f2,<,f3,<)
 #define TERARK_CMP(...) \
-  TERARK_PP_CAT2(TERARK_CMP_O_,TERARK_PP_ARG_N(__VA_ARGS__))(__VA_ARGS__)
+ [](const auto& x, const auto& y) ->bool { \
+  TERARK_PP_VA_NAME(TERARK_CMP_O_,__VA_ARGS__)(__VA_ARGS__) }
 
 #define TERARK_CMP_P(...) \
-  TERARK_PP_CAT2(TERARK_CMP_P_,TERARK_PP_ARG_N(__VA_ARGS__))(__VA_ARGS__)
+ [](const auto& x, const auto& y) ->bool { \
+  TERARK_PP_VA_NAME(TERARK_CMP_P_,__VA_ARGS__)(__VA_ARGS__) }
 
 #define TERARK_EQUAL_MAP(c,f) if (!(x f == y f)) return false;
 #define TERARK_EQUAL_IMP(...) [](const auto& x, const auto& y) { \
