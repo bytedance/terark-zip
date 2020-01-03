@@ -92,6 +92,10 @@ namespace terark {
 #define TERARK_MEM_FUNC(MemFunc)  \
     mf_callback_t<decltype(MemFunc), MemFunc>()
 
+///@param lambda lambda obj
+///@note  this yield two args
+#define TERARK_C_CALLBACK(lambda) terark::c_callback(lambda), &lambda
+
 //--------------------------------------------------------------------
 // User/Application defined MemPool
 class TERARK_DLL_EXPORT UserMemPool : boost::noncopyable {
