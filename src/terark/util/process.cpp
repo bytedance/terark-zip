@@ -12,11 +12,17 @@
     #define NOMINMAX
     #define WIN32_LEAN_AND_MEAN
     #include <windows.h>
+    #include <io.h>
 #else
     #include <sys/types.h>
     #include <sys/wait.h>
     #include <unistd.h>
 #endif
+#include "stat.hpp"
+#include <fcntl.h>
+
+#include <terark/num_to_str.hpp>
+#include <terark/util/function.hpp>
 
 namespace terark {
 
@@ -210,6 +216,71 @@ int ProcPipeStream::xclose() noexcept {
         return m_err;
     }
     return 0;
+}
+
+#define ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET 1
+
+std::string
+vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
+    if (tmpFilePrefix.empty()) {
+      tmpFilePrefix = "/tmp/ProcPipeStream-";
+    }
+    std::string result;
+    std::string tmp_file = tmpFilePrefix + "XXXXXX";
+    int fd = mkstemp(&tmp_file[0]);
+    if (fd < 0) {
+      THROW_STD(runtime_error, "mkstemp(%s) = %s", tmp_file.c_str(),
+                strerror(errno));
+    }
+    TERARK_SCOPE_EXIT(
+        if (fd >= 0) ::close(fd);
+        ::remove(tmp_file.c_str());
+    );
+    {
+      string_appender<> cmdw;
+      cmdw.reserve(cmd.size() + 32);
+#if ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET
+      // use  " > /dev/fd/xxx" will prevent from tmp_file being
+      // deleted unexpected
+      cmdw << cmd << " > /dev/fd/" << fd;
+#else
+      cmdw << cmd << " > " << tmp_file;
+      ::close(fd); fd = -1;
+#endif
+      ProcPipeStream proc(cmdw, "w");
+      proc.ensureWrite(stdinData.data(), stdinData.size());
+    }
+    //
+    // now cmd sub process must have finished
+    //
+    {
+#if ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET
+        ::lseek(fd, 0, SEEK_SET); // must lseek to begin
+#else
+        fd = ::open(tmp_file.c_str(), O_RDONLY);
+        if (fd < 0) {
+          THROW_STD(runtime_error, "::open(fname=%s, O_RDONLY) = %s",
+                    tmp_file.c_str(), strerror(errno));
+        }
+#endif
+        struct ll_stat st;
+        if (::ll_fstat(fd, &st) < 0) {
+            THROW_STD(runtime_error, "::fstat(fname=%s) = %s",
+                      tmp_file.c_str(), strerror(errno));
+        }
+        if (st.st_size) {
+            result.resize(st.st_size);
+            intptr_t rdlen = ::read(fd, &*result.begin(), st.st_size);
+            if (intptr_t(st.st_size) != rdlen) {
+                THROW_STD(runtime_error,
+                          "::read(fname=%s, len=%zd) = %zd : %s",
+                          tmp_file.c_str(),
+                          size_t(st.st_size), size_t(rdlen),
+                          strerror(errno));
+            }
+        }
+    }
+    return result;
 }
 
 } // namespace terark

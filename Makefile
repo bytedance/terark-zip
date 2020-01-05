@@ -75,6 +75,8 @@ ASAN_LDFLAGS_r := ${RLS_ASAN}
 ASAN_LDFLAGS = ${ASAN_LDFLAGS_$(patsubst %-a,a,$(patsubst %-d,d,$(@:%${DLL_SUFFIX}=%)))}
 # ---------- ^-- lazy evaluation, must be '='
 
+CXX_STD := -std=gnu++1y
+
 ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   ifeq (Linux, ${UNAME_System})
     override LDFLAGS += -rdynamic
@@ -83,16 +85,9 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
     COMMON_C_FLAGS += -Wa,-q
   endif
   override CXXFLAGS += -time
-  ifeq "$(shell echo ${COMPILER} | awk -F- '{if ($$2 >= 4.8) print 1;}')" "1"
-    CXX_STD := -std=gnu++1y
-  endif
   ifeq "$(shell echo ${COMPILER} | awk -F- '{if ($$2 >= 9.0) print 1;}')" "1"
     COMMON_C_FLAGS += -Wno-alloc-size-larger-than
   endif
-endif
-
-ifeq "${CXX_STD}" ""
-  CXX_STD := -std=gnu++11
 endif
 
 # icc or icpc

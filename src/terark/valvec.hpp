@@ -10,7 +10,6 @@
 #include <iterator>
 #include <memory>
 #include <stdexcept>
-#include <functional>
 #include <utility>
 
 #include <boost/type_traits.hpp>
@@ -20,6 +19,7 @@
 #include <boost/utility.hpp>
 
 #include <terark/util/autofree.hpp>
+#include <terark/util/function.hpp>
 #include "config.hpp"
 
 #if defined(TERARK_HAS_WEAK_SYMBOL) && 0
@@ -1440,6 +1440,37 @@ void sort_n(RanIt a, size_t low, size_t upp, Comp comp) {
 	std::sort<RanIt, Comp>(a + low, a + upp, comp);
 }
 
+template<class RanIt, class KeyExtractor>
+void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx) {
+	assert(first <= last);
+	std::sort(first, last, ExtractorLess(keyEx));
+}
+template<class RanIt, class KeyExtractor, class Comp>
+void sort_ex(RanIt first, RanIt last, KeyExtractor keyEx, Comp cmp) {
+	assert(first <= last);
+	std::sort(first, last, ExtractorComparator(keyEx,cmp));
+}
+
+template<class RanIt, class KeyExtractor>
+void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx) {
+	assert(low <= upp);
+	std::sort(a+low, a+upp, ExtractorLess(keyEx));
+}
+template<class RanIt, class KeyExtractor, class Comp>
+void sort_ex_n(RanIt a, size_t low, size_t upp, KeyExtractor keyEx, Comp cmp) {
+	assert(low <= upp);
+	std::sort(a+low, a+upp, ExtractorComparator(keyEx,cmp));
+}
+
+template<class Container, class KeyExtractor>
+void sort_ex_a(Container& a, KeyExtractor keyEx) {
+	std::sort(std::begin(a), std::end(a), ExtractorLess(keyEx));
+}
+template<class Container, class KeyExtractor, class Comp>
+void sort_ex_a(Container& a, KeyExtractor keyEx, Comp cmp) {
+	std::sort(std::begin(a), std::end(a), ExtractorComparator(keyEx,cmp));
+}
+
 template<class RanIt, class Key>
 size_t lower_bound_0(RanIt a, size_t n, const Key& key) {
 	return lower_bound_n<RanIt, Key>(a, 0, n, key);
@@ -1824,19 +1855,11 @@ void sort_0(RanIt a, size_t n, Comp comp) {
 }
 template<class Container>
 void sort_a(Container& a) {
-	std::sort(a.begin(), a.end());
-}
-template<class T, size_t N>
-void sort_a(T (&a)[N]) {
-	std::sort(a, a+N);
+	std::sort(std::begin(a), std::end(a));
 }
 template<class Container, class Comp>
 void sort_a(Container& a, Comp comp) {
-	std::sort(a.begin(), a.end(), comp);
-}
-template<class T, size_t N, class Comp>
-void sort_a(T (&a)[N], Comp comp) {
-	std::sort(a, a+N, comp);
+	std::sort(std::begin(a), std::end(a), comp);
 }
 
 template<class RanIt>
@@ -1871,11 +1894,30 @@ template<class Container>
 size_t unique_a(Container& a) {
 	return std::unique(a.begin(), a.end()) - a.begin();
 }
+template<class Container, class Equal>
+size_t unique_a(Container& a, Equal eq) {
+	return std::unique(a.begin(), a.end(), eq) - a.begin();
+}
 template<class Container>
 size_t unique_a(Container& a, size_t low, size_t upp) {
 	assert(low <= upp);
 	assert(upp <= a.size());
 	return std::unique(a.begin() + low, a.begin() + upp) - low - a.begin();
+}
+template<class Container, class Equal>
+size_t unique_a(Container& a, Equal eq, size_t low, size_t upp) {
+	assert(low <= upp);
+	assert(upp <= a.size());
+	return std::unique(a.begin() + low, a.begin() + upp, eq) - low - a.begin();
+}
+
+template<class Container, class KeyExtractor>
+size_t unique_ex_a(Container& a, KeyExtractor ex) {
+	return std::unique(a.begin(), a.end(), ExtractorEqual(ex)) - a.begin();
+}
+template<class Container, class KeyExtractor, class Equal>
+size_t unique_ex_a(Container& a, KeyExtractor ex, Equal eq) {
+	return std::unique(a.begin(), a.end(), ExtractorComparator(ex, eq)) - a.begin();
 }
 
 } // namespace terark
