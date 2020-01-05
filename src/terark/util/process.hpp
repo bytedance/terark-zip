@@ -15,6 +15,10 @@ namespace terark {
 
     TERARK_DLL_EXPORT int system_vfork(const char*);
 
+    TERARK_DLL_EXPORT
+    std::string
+    vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
+
     /// Notes:
     ///   1. If mode = "r", then stdout redirect  in @param cmd is not allowed
     ///   2. If mode = "w", then stdin  redirect  in @param cmd is not allowed
@@ -51,9 +55,6 @@ namespace terark {
         void close();
         int xclose() noexcept;
         int err_code() noexcept { return m_err; }
-
-        static std::string
-        run_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
     };
 
 }

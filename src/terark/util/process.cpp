@@ -221,7 +221,7 @@ int ProcPipeStream::xclose() noexcept {
 #define ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET 1
 
 std::string
-ProcPipeStream::run_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
+vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
     if (tmpFilePrefix.empty()) {
       tmpFilePrefix = "/tmp/ProcPipeStream-";
     }

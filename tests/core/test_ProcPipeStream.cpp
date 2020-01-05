@@ -44,7 +44,7 @@ int main(int argc, char* argv[]) {
 
     {
         printf("4 begin...\n");
-        auto res = ProcPipeStream::run_cmd("(echo aa; cat)", "bb");
+        auto res = vfork_cmd("(echo aa; cat)", "bb");
     //  printf("res.size() = %zd: %s\n", res.size(), res.c_str());
         assert(res == "aa\nbb");
         printf("4 passed\n");
