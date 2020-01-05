@@ -4,16 +4,20 @@
 #include <ctype.h>
 
 TERARK_ENUM_PLAIN(EPlain, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
-TERARK_ENUM_CLASS(EClass, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
+//TERARK_ENUM_CLASS(EClass, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
+TERARK_BIG_ENUM_CLASS(EClass, int, (Value1), (Value2 = 20), (Value3 = 30, MaxVal))
 
 struct ns1 {
-  TERARK_ENUM_PLAIN_INCLASS(EPlain, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
+    TERARK_ENUM_PLAIN_INCLASS(EPlain, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
 };
 struct ns2 {
-  TERARK_ENUM_CLASS_INCLASS(EClass, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
+    TERARK_ENUM_CLASS_INCLASS(EClass, int, Value1, Value2 = 20, Value3 = 30, MaxVal)
 };
 
 int main() {
+    printf("s = %s | %s\n",  TERARK_PP_APPLY(TERARK_PP_MAP_2, TERARK_PP_APPEND, ", ", TERARK_PP_STR_FLATTEN((1,2,3), (4,5,6))));
+    printf("s = %s | %s\n",  TERARK_PP_MAP(TERARK_PP_APPEND, ", ", "1,2,3", "4,5,6"));
+    printf("s = %s | %s\n",  TERARK_PP_STR_FLATTEN((1,2,3), (4,5,6)));
     printf("EPlain: num_of_EPlain(Value2) = %zd\n", enum_all_names((EPlain*)0).second);
     printf("EPlain: name_of_EPlain(Value2) = %.*s\n", DOT_STAR_S(enum_name(Value2)));
     printf("EPlain: name_of_EPlain(Value3) = %.*s\n", DOT_STAR_S(enum_name(Value3)));
@@ -61,6 +65,7 @@ int main() {
     printf("ns2::EClass: value_of_ns2::EClass('Unknown') = %d\n", enum_value("Unknown", ns2::EClass::MaxVal));
 
     printf("EPlain define = %.*s\n", DOT_STAR_S(enum_str_define((EPlain*)0)));
+    printf("EClass define = %.*s\n", DOT_STAR_S(enum_str_define((EClass*)0)));
     printf("ns1::EPlain define = %.*s\n", DOT_STAR_S(enum_str_define((ns1::EPlain*)0)));
 
     return 0;

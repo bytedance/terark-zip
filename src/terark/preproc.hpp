@@ -5,6 +5,12 @@
 #define TERARK_PP_EMPTY
 #define TERARK_PP_APPLY(func, ...) func(__VA_ARGS__)
 
+///@param arg is parented such as (1,2,3)
+///@returns parents are removed: (1,2,3) to 1,2,3
+///@note TERARK_PP_REMOVE_PARENT((1,2,3)) = 1,2,3
+#define TERARK_PP_REMOVE_PARENT(arg) TERARK_PP_REMOVE_PARENT_AUX arg
+#define TERARK_PP_REMOVE_PARENT_AUX(...) __VA_ARGS__
+
 #define TERARK_PP_CAT2_1(a,b)    a##b
 #define TERARK_PP_CAT2(a,b)      TERARK_PP_CAT2_1(a,b)
 #define TERARK_PP_CAT3(a,b,c)    TERARK_PP_CAT2(TERARK_PP_CAT2(a,b),c)
@@ -24,6 +30,9 @@
             Z,Y,X,W,V,U,T,S,R,Q,P,O,N,M,L,K,J,I,H,G,F,E,D,C,B,A, \
             z,y,x,w,v,u,t,s,r,q,p,o,n,m,l,k,j,i,h,g,f,e,d,c,b,a, \
                                             9,8,7,6,5,4,3,2,1,0)
+
+#define TERARK_PP_VA_NAME(prefix,...) \
+        TERARK_PP_CAT2(prefix,TERARK_PP_ARG_N(__VA_ARGS__))
 
 ///@{
 //#define TERARK_PP_CAT_0()       error "TERARK_PP_CAT" have at least 2 params
@@ -96,6 +105,76 @@
 ///@param x at least one arg x
 #define TERARK_PP_CAT(x,...) TERARK_PP_CAT2(x,TERARK_PP_CAT2 \
        (TERARK_PP_CAT_,TERARK_PP_ARG_N(__VA_ARGS__))(__VA_ARGS__))
+
+
+///@{
+#define TERARK_PP_JOIN_0()
+#define TERARK_PP_JOIN_1(x)       x
+#define TERARK_PP_JOIN_2(x,y)     x y
+#define TERARK_PP_JOIN_3(x,y,z)   x y z
+#define TERARK_PP_JOIN_4(x,y,z,w) x y z w
+#define TERARK_PP_JOIN_5(x,y,...) x TERARK_PP_JOIN_4(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_6(x,y,...) x TERARK_PP_JOIN_5(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_7(x,y,...) x TERARK_PP_JOIN_6(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_8(x,y,...) x TERARK_PP_JOIN_7(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_9(x,y,...) x TERARK_PP_JOIN_8(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_a(x,y,...) x TERARK_PP_JOIN_9(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_b(x,y,...) x TERARK_PP_JOIN_a(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_c(x,y,...) x TERARK_PP_JOIN_b(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_d(x,y,...) x TERARK_PP_JOIN_c(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_e(x,y,...) x TERARK_PP_JOIN_d(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_f(x,y,...) x TERARK_PP_JOIN_e(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_g(x,y,...) x TERARK_PP_JOIN_f(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_h(x,y,...) x TERARK_PP_JOIN_g(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_i(x,y,...) x TERARK_PP_JOIN_h(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_j(x,y,...) x TERARK_PP_JOIN_i(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_k(x,y,...) x TERARK_PP_JOIN_j(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_l(x,y,...) x TERARK_PP_JOIN_k(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_m(x,y,...) x TERARK_PP_JOIN_l(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_n(x,y,...) x TERARK_PP_JOIN_m(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_o(x,y,...) x TERARK_PP_JOIN_n(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_p(x,y,...) x TERARK_PP_JOIN_o(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_q(x,y,...) x TERARK_PP_JOIN_p(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_r(x,y,...) x TERARK_PP_JOIN_q(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_s(x,y,...) x TERARK_PP_JOIN_r(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_t(x,y,...) x TERARK_PP_JOIN_s(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_u(x,y,...) x TERARK_PP_JOIN_t(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_v(x,y,...) x TERARK_PP_JOIN_u(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_w(x,y,...) x TERARK_PP_JOIN_v(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_x(x,y,...) x TERARK_PP_JOIN_w(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_y(x,y,...) x TERARK_PP_JOIN_x(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_z(x,y,...) x TERARK_PP_JOIN_y(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_A(x,y,...) x TERARK_PP_JOIN_z(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_B(x,y,...) x TERARK_PP_JOIN_A(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_C(x,y,...) x TERARK_PP_JOIN_B(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_D(x,y,...) x TERARK_PP_JOIN_C(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_E(x,y,...) x TERARK_PP_JOIN_D(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_F(x,y,...) x TERARK_PP_JOIN_E(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_G(x,y,...) x TERARK_PP_JOIN_F(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_H(x,y,...) x TERARK_PP_JOIN_G(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_I(x,y,...) x TERARK_PP_JOIN_H(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_J(x,y,...) x TERARK_PP_JOIN_I(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_K(x,y,...) x TERARK_PP_JOIN_J(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_L(x,y,...) x TERARK_PP_JOIN_K(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_M(x,y,...) x TERARK_PP_JOIN_L(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_N(x,y,...) x TERARK_PP_JOIN_M(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_O(x,y,...) x TERARK_PP_JOIN_N(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_P(x,y,...) x TERARK_PP_JOIN_O(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_Q(x,y,...) x TERARK_PP_JOIN_P(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_R(x,y,...) x TERARK_PP_JOIN_Q(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_S(x,y,...) x TERARK_PP_JOIN_R(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_T(x,y,...) x TERARK_PP_JOIN_S(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_U(x,y,...) x TERARK_PP_JOIN_T(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_V(x,y,...) x TERARK_PP_JOIN_U(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_W(x,y,...) x TERARK_PP_JOIN_V(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_X(x,y,...) x TERARK_PP_JOIN_W(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_Y(x,y,...) x TERARK_PP_JOIN_X(y,__VA_ARGS__)
+#define TERARK_PP_JOIN_Z(x,y,...) x TERARK_PP_JOIN_Y(y,__VA_ARGS__)
+///@}
+
+///@param x at least one arg x
+#define TERARK_PP_JOIN(x,...) x TERARK_PP_CAT2 \
+       (TERARK_PP_JOIN_,TERARK_PP_ARG_N(__VA_ARGS__))(__VA_ARGS__)
 
 ///@{
 ///@param m map function
@@ -172,11 +251,145 @@
 #define TERARK_PP_MAP(map,ctx,...) TERARK_PP_CAT2 \
        (TERARK_PP_MAP_,TERARK_PP_ARG_N(__VA_ARGS__))(map,ctx,##__VA_ARGS__)
 
+///@{
+///@param m map(c,x,y) is a 3-arg function
+///@param c context
+#define TERARK_PP_MAP_PAIR_0(m,c)
+#define TERARK_PP_MAP_PAIR_2(m,c,x,y)     m(c,x,y)
+#define TERARK_PP_MAP_PAIR_4(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_2(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_6(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_4(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_8(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_6(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_a(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_8(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_c(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_a(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_e(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_c(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_g(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_e(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_i(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_g(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_k(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_i(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_m(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_k(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_o(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_m(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_q(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_o(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_s(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_q(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_u(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_s(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_w(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_u(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_y(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_w(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_A(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_y(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_C(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_A(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_E(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_C(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_G(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_E(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_I(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_G(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_K(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_I(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_M(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_K(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_O(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_M(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_Q(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_O(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_S(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_Q(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_U(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_S(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_W(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_U(m,c,__VA_ARGS__)
+#define TERARK_PP_MAP_PAIR_Y(m,c,x,y,...) m(c,x,y),TERARK_PP_MAP_PAIR_W(m,c,__VA_ARGS__)
+///@}
+
+/// @param map map(c,x,y) 3-arg, function, can be a macro, called as map(ctx,x,y)
+/// @param ctx context
+/// @param ... arg list to apply map function: map(ctx,x,y), arg list len must be even
+/// @returns comma seperated list: map(ctx,x1,y1), map(ctx,x2,y2), ...
+/// @note at least zero args
+#define TERARK_PP_MAP_PAIR(map,ctx,...) TERARK_PP_CAT2 \
+       (TERARK_PP_MAP_PAIR_,TERARK_PP_ARG_N(__VA_ARGS__))(map,ctx,##__VA_ARGS__)
+
+///@{
+///@param g group function g(m,c,x) where x is parented such as: (1,2,3)
+///@param m map function
+///@param c context
+#define TERARK_PP_GRP_MAP_0(g,m,c)
+#define TERARK_PP_GRP_MAP_1(g,m,c,x)     g(m,c,x)
+#define TERARK_PP_GRP_MAP_2(g,m,c,x,y)   g(m,c,x),g(m,c,y)
+#define TERARK_PP_GRP_MAP_3(g,m,c,x,y,z) g(m,c,x),g(m,c,y),g(m,c,z)
+#define TERARK_PP_GRP_MAP_4(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_3(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_5(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_4(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_6(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_5(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_7(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_6(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_8(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_7(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_9(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_8(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_a(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_9(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_b(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_a(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_c(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_b(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_d(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_c(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_e(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_d(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_f(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_e(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_g(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_f(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_h(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_g(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_i(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_h(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_j(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_i(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_k(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_j(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_l(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_k(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_m(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_l(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_n(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_m(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_o(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_n(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_p(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_o(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_q(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_p(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_r(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_q(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_s(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_r(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_t(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_s(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_u(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_t(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_v(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_u(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_w(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_v(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_x(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_w(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_y(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_x(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_z(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_y(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_A(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_z(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_B(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_A(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_C(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_B(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_D(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_C(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_E(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_D(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_F(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_E(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_G(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_F(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_H(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_G(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_I(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_H(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_J(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_I(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_K(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_J(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_L(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_K(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_M(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_L(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_N(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_M(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_O(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_N(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_P(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_O(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_Q(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_P(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_R(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_Q(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_S(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_R(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_T(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_S(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_U(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_T(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_V(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_U(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_W(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_V(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_X(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_W(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_Y(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_X(g,m,c,__VA_ARGS__)
+#define TERARK_PP_GRP_MAP_Z(g,m,c,x,...) g(m,c,x),TERARK_PP_GRP_MAP_Y(g,m,c,__VA_ARGS__)
+///@}
+
+///@param parented is parented arglist such as (1,2,3)
+#define TERARK_PP_GRP_MAP_ONE_GROUP(map,ctx,parented) \
+   TERARK_PP_APPLY( \
+     TERARK_PP_CAT2(TERARK_PP_MAP_,TERARK_PP_ARG_N parented), \
+     map, ctx, TERARK_PP_REMOVE_PARENT_AUX parented)
+
+///@param grp group function grp(map,ctx,one_parented_arglist)
+///           in which one_parented_arglist seems like (1,2,3)
+///@param map map function
+///@returns (1,2),(3),(4,5) -> g(m,c,(1,2)),g(m,c,(3)),g(m,c,(4,5))
+#define TERARK_PP_GRP_MAP(grp,map,ctx,...) \
+    TERARK_PP_CAT2(TERARK_PP_GRP_MAP_,TERARK_PP_ARG_N(__VA_ARGS__)) \
+    (grp,map,ctx,##__VA_ARGS__)
+
+///@brief easy use, like TERARK_PP_MAP, but __VA_ARGS__ seems like (1,2),(3),(4,5)
+///@returns (1,2),(3),(4,5) -> m(c,1),m(c,2),m(c,3),m(c,4),m(c,5)
+#define TERARK_PP_BIG_MAP(map,ctx,...) \
+  TERARK_PP_GRP_MAP(TERARK_PP_GRP_MAP_ONE_GROUP,map,ctx,##__VA_ARGS__)
+
 /// @param dummy unused param 'context'
 #define TERARK_PP_IDENTITY_MAP_OP(dummy, x) x
 
 /// @param prefix is param 'c'(context) in TERARK_PP_MAP
 #define TERARK_PP_PREPEND(prefix, x) prefix x
+
+/// @param prefix is param 'c'(context) in TERARK_PP_MAP
+#define TERARK_PP_APPEND(suffix, x) x suffix
 
 /// @{ TERARK_PP_STR is a use case of TERARK_PP_MAP
 /// macro TERARK_PP_STR_2 is the 'map' function
@@ -192,6 +405,28 @@
 /// @param ... arg list to be stringized
 #define TERARK_PP_STR(...) TERARK_PP_MAP(TERARK_PP_STR_2,~, __VA_ARGS__)
 /// @}
+
+///@param arg is a list with parent: (1,2,3)
+///@param ctx ignored
+///@returns 1,2,3 -- parents are removed
+#define TERARK_PP_FLATTEN_ONE(ctx,arg) TERARK_PP_REMOVE_PARENT(arg)
+
+///@param __VA_ARGS__ should be  (1,2,3), (4,5,6), ...
+///@returns 1,2,3,4,5,6,...
+#define TERARK_PP_FLATTEN(...) \
+   TERARK_PP_MAP(TERARK_PP_FLATTEN_ONE, ~, __VA_ARGS__)
+
+///@param arg is a list with parent: (1,2,3)
+///@param ctx ignored
+///@returns "1,2,3" -- parents are removed then convert to string
+#define TERARK_PP_STR_FLATTEN_ONE(ctx, arg) TERARK_PP_STR_FLATTEN_ONE_AUX arg
+#define TERARK_PP_STR_FLATTEN_ONE_AUX(...) #__VA_ARGS__
+
+///@param __VA_ARGS__ = (1,2,3), (4,5,6), ...
+///@returns "1,2,3", "4,5,6", ...
+#define TERARK_PP_STR_FLATTEN(...) \
+   TERARK_PP_MAP(TERARK_PP_STR_FLATTEN_ONE, ~, __VA_ARGS__)
+
 
 #endif // __terark_preproc_hpp__
 
