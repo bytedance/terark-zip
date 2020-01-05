@@ -52,9 +52,11 @@ namespace terark {
 		~OnScopeExit() { on_exit(); }
 	};
 #define TERARK_SCOPE_EXIT(...) \
-    auto BOOST_PP_CAT(func_on_exit_,__LINE__) = [&]() { __VA_ARGS__; }; \
-    terark::OnScopeExit<decltype(BOOST_PP_CAT(func_on_exit_,__LINE__))> \
-        BOOST_PP_CAT(call_on_exit_,__LINE__)(BOOST_PP_CAT(func_on_exit_,__LINE__))
+    auto TERARK_PP_CAT2(func_on_exit_,__LINE__) = [&]() { __VA_ARGS__; }; \
+    terark::OnScopeExit< \
+decltype(TERARK_PP_CAT2(func_on_exit_,__LINE__))> \
+         TERARK_PP_CAT2(call_on_exit_,__LINE__)   \
+        (TERARK_PP_CAT2(func_on_exit_,__LINE__))
 
     template<class R, class... Args>
     using c_callback_fun_t = R (*)(void*, Args...);
