@@ -161,7 +161,7 @@ private:
                 size_t n = m_tls_vec.size(), m = std::min(n-i, dim);
                 auto src = m_tls_vec.data() + i;
                 for (size_t j = 0; j < m; ++j) {
-                    vec[j] = src[j].get(); assert(NULL != vec[i]);
+                    vec[j] = src[j].get(); assert(NULL != vec[j]);
                 }
                 m_tls_mtx.unlock();
                 for (size_t j = 0; j < m; ++j) {
