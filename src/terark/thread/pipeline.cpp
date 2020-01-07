@@ -397,7 +397,7 @@ void PipelineStage::setup(int threadno)
 {
 	if (m_owner->m_logLevel >= 1) {
         size_t live_fibers = m_threads[threadno].m_live_fibers;
-		printf("start step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n",
+		fprintf(stderr, "start step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n",
 		        step_ordinal(), threadno, live_fibers, m_step_name.c_str());
 	}
 }
@@ -407,7 +407,7 @@ void PipelineStage::clean(int threadno)
     size_t live_fibers = m_threads[threadno].m_live_fibers;
 	if (err(threadno).empty()) {
 		if (m_owner->m_logLevel >= 1)
-			printf("ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n"
+			fprintf(stderr, "ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s\n"
 				, step_ordinal(), threadno, live_fibers, m_step_name.c_str());
 	} else {
 		fprintf(stderr, "ended step[ordinal=%d, threadno=%d, live_fibers=%zd]: %s; error: %s\n"

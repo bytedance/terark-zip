@@ -36,7 +36,7 @@ int main(int argc, char* argv[]) {
     try {
         ProcPipeStream pp("test-non-existed-file", "r");
         pp.close();
-        assert(pp.err_code() != 0); // will not goes here
+        assert(pp.err_code() != 0);
     }
     catch (const std::exception&) {
     }
@@ -44,7 +44,8 @@ int main(int argc, char* argv[]) {
 
     {
         printf("4 begin...\n");
-        auto res = vfork_cmd("(echo aa; cat)", "bb");
+        fflush(stdout);
+        std::string res = vfork_cmd("(echo aa; cat)", "bb").get();
     //  printf("res.size() = %zd: %s\n", res.size(), res.c_str());
         assert(res == "aa\nbb");
         printf("4 passed\n");
