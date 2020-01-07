@@ -18,17 +18,13 @@ namespace terark {
 TERARK_DLL_EXPORT int system_vfork(const char*);
 
 TERARK_DLL_EXPORT
-std::string
-vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
-
-TERARK_DLL_EXPORT
 void vfork_cmd(fstring cmd, fstring stdinData,
                 function<void(std::string&& stdoutData, std::exception*)>,
                 fstring tmpFilePrefix = "");
 
 TERARK_DLL_EXPORT
 std::future<std::string>
-vfork_cmd_future(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
+vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix = "");
 
 /// Notes:
 ///   1. If mode = "r", then stdout redirect  in @param cmd is not allowed
@@ -51,7 +47,6 @@ class TERARK_DLL_EXPORT ProcPipeStream : public FileStream {
 
     int m_pipe[2];
     int m_err;
-    int m_childstatus;
     bool m_mode_is_read;
     volatile int m_child_step;
     intptr_t m_childpid;
@@ -81,7 +76,6 @@ public:
     void close();
     int xclose() noexcept;
     int err_code() const noexcept { return m_err; }
-    int childstatus() const noexcept { return m_childstatus; }
 };
 
 } // namespace terark

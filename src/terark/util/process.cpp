@@ -60,7 +60,6 @@ namespace terark {
 ProcPipeStream::ProcPipeStream() noexcept {
     m_pipe[0] = m_pipe[1] = -1;
     m_err = 0;
-    m_childstatus = 0;
     m_child_step = 0;
     m_childpid = -1;
 }
@@ -73,7 +72,6 @@ ProcPipeStream::ProcPipeStream(fstring cmd, fstring mode,
                                function<void(ProcPipeStream*)> onFinish) {
     m_pipe[0] = m_pipe[1] = -1;
     m_err = 0;
-    m_childstatus = 0;
     m_child_step = 0;
     m_childpid = -1;
 
@@ -160,7 +158,7 @@ noexcept {
         return false;
     }
     //this->disbuf();
-    fprintf(stderr, "INFO: fdopen(\"%s\") done\n", m_cmd.c_str());
+    //fprintf(stderr, "INFO: fdopen(\"%s\") done\n", m_cmd.c_str());
 
  // fprintf(stderr, "INFO: onFinish is defined = %d\n", bool(onFinish));
     if (onFinish) {
@@ -203,17 +201,18 @@ void ProcPipeStream::vfork_exec_wait() noexcept {
     }
 //  fprintf(stderr, "INFO: vfork done, childpid = %zd\n", m_childpid);
     m_child_step = 1;
-    m_childstatus = 0;
-    pid_t pid = waitpid(m_childpid, &m_childstatus, 0);
+    int childstatus = 0;
+    pid_t pid = waitpid(m_childpid, &childstatus, 0);
     if (pid != m_childpid) {
         m_err = errno;
         fprintf(stderr, "ERROR: wait /bin/sh -c \"%s\" = %s\n", m_cmd.c_str(), strerror(m_err));
         return;
     }
-//  fprintf(stderr, "INFO: child proc done, m_childstatus = %d ++++\n", m_childstatus);
+//  fprintf(stderr, "INFO: child proc done, childstatus = %d ++++\n", childstatus);
     // const int fnofp = fileno(m_fp); // hang in fileno(m_fp) on Mac
-    fprintf(stderr, "INFO: childstatus = %d\n", m_childstatus);
-    m_err = 0;
+    // fprintf(stderr, "INFO: childstatus = %d\n", childstatus);
+
+    m_err = childstatus;
     // close peer ...
     if (m_mode_is_read) {
     //  fprintf(stderr, "INFO: parent is read(fd=%d), close write peer(fd=%d)\n", m_pipe[0], m_pipe[1]);
@@ -293,12 +292,6 @@ struct VforkCmdPromise {
         }
     }
 };
-
-std::string
-vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
-    auto future = vfork_cmd_future(cmd, stdinData, tmpFilePrefix);
-    return future.get(); // blocking on this line
-}
 
 struct VforkCmdImpl {
     std::string tmp_file;
@@ -387,8 +380,7 @@ vfork_cmd(fstring cmd, fstring stdinData,
                 string_appender<> msg;
                 msg << "vfork_cmd error: ";
                 msg << "realcmd = " << share->cmdw << ", ";
-                msg << "err_code = " << proc->err_code() << ", ";
-                msg << "childstatus = " << proc->childstatus();
+                msg << "err_code/childstatus = " << proc->err_code();
                 std::runtime_error ex(msg);
                 onFinish(share->read_stdout(), &ex);
             }
@@ -402,7 +394,7 @@ vfork_cmd(fstring cmd, fstring stdinData,
 }
 
 std::future<std::string>
-vfork_cmd_future(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
+vfork_cmd(fstring cmd, fstring stdinData, fstring tmpFilePrefix) {
     VforkCmdPromise prom;
     std::future<std::string> future = prom.promise->get_future();
     vfork_cmd(cmd, stdinData, std::move(prom));
