@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef TERARK_COMMON_H
-# define TERARK_COMMON_H
-#endif
-
 #include <terark/io/DataIO.hpp>
 #include <terark/io/FileStream.hpp>
 #include <terark/io/StreamBuffer.hpp>

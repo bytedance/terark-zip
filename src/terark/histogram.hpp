@@ -1,6 +1,4 @@
-﻿#ifndef __terark_histogram_hpp__
-#define __terark_histogram_hpp__
-#pragma once
+﻿#pragma once
 
 #include "gold_hash_map.hpp"
 #include "valvec.hpp"
@@ -55,4 +53,3 @@ typedef Histogram<uint64_t> Uint64Histogram;
 
 } // namespace terark
 
-#endif // __terark_histogram_hpp__

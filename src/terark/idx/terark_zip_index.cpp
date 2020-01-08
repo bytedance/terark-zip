@@ -10,12 +10,14 @@
 #include <terark/io/StreamBuffer.hpp>
 // #include "terark_zip_common.h"
 #include <terark/bitmap.hpp>
+#include <terark/entropy/entropy_base.hpp>
 #include <terark/entropy/huffman_encoding.hpp>
 #include <terark/hash_strmap.hpp>
 #include <terark/fsa/dfa_mmap_header.hpp>
 #include <terark/fsa/fsa_cache.hpp>
 #include <terark/fsa/nest_louds_trie_inline.hpp>
 #include <terark/fsa/nest_trie_dawg.hpp>
+#include <terark/util/common.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/sortable_strvec.hpp>
@@ -46,6 +48,129 @@ static bool g_indexEnableNonDescUint = getEnvBool("TerarkZipTable_enableNonDescU
 static bool g_indexEnableDynamicSuffix = getEnvBool("TerarkZipTable_enableDynamicSuffix", true);
 static bool g_indexEnableEntropySuffix = getEnvBool("TerarkZipTable_enableEntropySuffix", true);
 static bool g_indexEnableDictZipSuffix = getEnvBool("TerarkZipTable_enableDictZipSuffix", true);
+
+using std::unique_ptr;
+
+class TerarkKeyIndexReaderBase : public TerarkKeyReader {
+protected:
+  MmapWholeFile mmap;
+  std::unique_ptr<terark::TerarkIndex> index;
+  valvec<byte_t> buffer;
+  TerarkIndex::Iterator* iter;
+  bool move_next;
+public:
+  TerarkKeyIndexReaderBase(fstring fileName, size_t fileBegin, size_t fileEnd) {
+    MmapWholeFile(fileName).swap(mmap);
+    index = terark::TerarkIndex::LoadMemory(mmap.memory().substr(fileBegin, fileEnd - fileBegin));
+    buffer.resize(index->IteratorSize());
+    iter = index->NewIterator(&buffer, nullptr);
+  }
+  ~TerarkKeyIndexReaderBase() {
+    iter->~Iterator();
+    index.reset();
+    MmapWholeFile().swap(mmap);
+  }
+  void rewind() override final {
+    move_next = false;
+  }
+};
+
+template<bool reverse>
+class TerarkKeyIndexReader : public TerarkKeyIndexReaderBase {
+public:
+  using TerarkKeyIndexReaderBase::TerarkKeyIndexReaderBase;
+  fstring next() override final {
+    move_next = move_next ? reverse ? iter->SeekToLast() : iter->SeekToFirst() : reverse ? iter->Prev() : iter->Next();
+    assert(move_next);
+    return iter->key();
+  }
+};
+
+class TerarkKeyFileReader : public TerarkKeyReader {
+  const valvec<std::shared_ptr<FilePair>>& files;
+  size_t index;
+  NativeDataInput<InputBuffer> reader;
+  valvec<byte_t> buffer;
+  var_uint64_t shared;
+  FileStream stream;
+  bool attach;
+public:
+  TerarkKeyFileReader(const valvec<std::shared_ptr<FilePair>>& _files, bool _attach) : files(_files), attach(_attach) {}
+
+  fstring next() override final {
+    if (reader.eof()) {
+      FileStream* fp;
+      if (attach) {
+        fp = &files[++index]->key.fp;
+      }
+      else {
+        stream.close();
+        stream.open(files[++index]->key.path, "rb");
+        stream.disbuf();
+        fp = &stream;
+      }
+      fp->rewind();
+      reader.attach(fp);
+    }
+    reader >> shared;
+    buffer.risk_set_size(shared);
+    reader.load_add(buffer);
+    return buffer;
+  }
+  void rewind() override final {
+    index = 0;
+    FileStream* fp;
+    if (attach) {
+      fp = &files.front()->key.fp;
+    }
+    else {
+      if (stream) {
+        stream.close();
+      }
+      stream.open(files.front()->key.path, "rb");
+      stream.disbuf();
+      fp = &stream;
+    }
+    fp->rewind();
+    reader.attach(fp);
+    shared = 0;
+  }
+};
+
+class TerarkValueReader {
+  const valvec<std::shared_ptr<FilePair>>& files;
+  size_t index;
+  NativeDataInput<InputBuffer> reader;
+  valvec<byte_t> buffer;
+
+  void checkEOF(){
+    if (reader.eof()) {
+      FileStream* fp = &files[++index]->value.fp;
+      fp->rewind();
+      reader.attach(fp);
+    }
+  }
+
+public:
+  TerarkValueReader(const valvec<std::shared_ptr<FilePair>>& files);
+
+  uint64_t readUInt64(){
+    checkEOF();
+    return reader.load_as<uint64_t>();
+  }
+
+  void appendBuffer(valvec<byte_t>* buffer) {
+    checkEOF();
+    reader.load_add(*buffer);
+  }
+
+  void rewind(){
+    index = 0;
+    FileStream* fp = &files.front()->value.fp;
+    fp->rewind();
+    reader.attach(fp);
+  }
+};
 
 inline uint64_t ReadBigEndianUint64(const byte_t* beg, size_t len) {
   union {
@@ -932,6 +1057,7 @@ public:
 //      BlobStoreSuffix<>
 //        ZipOffsetBlobStore
 //        DictZipBlobStore
+//        EntropyBlobStore
 //    EmptySuffix
 //    FixedStringSuffix
 ////////////////////////////////////////////////////////////////////////////////
@@ -3100,17 +3226,30 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
 };
 
 
-void TerarkIndex::TerarkIndexDebugBuilder::Init(size_t count) {
+class TerarkIndexDebugBuilder {
+  freq_hist_o1 freq;
+  TerarkIndex::KeyStat stat;
+  fstrvec data;
+  size_t keyCount = 0;
+  size_t prevSamePrefix = 0;
+public:
+
+  void Init(size_t count);
+  void Add(fstring key);
+  TerarkKeyReader* Finish(TerarkIndex::KeyStat* output);
+};
+
+void TerarkIndexDebugBuilder::Init(size_t count) {
   freq.clear();
   stat.~KeyStat();
-  ::new(&stat) KeyStat;
+  ::new(&stat) TerarkIndex::KeyStat;
   data.erase_all();
   stat.keyCount = count;
   keyCount = 0;
   prevSamePrefix = 0;
 }
 
-void TerarkIndex::TerarkIndexDebugBuilder::Add(fstring key) {
+void TerarkIndexDebugBuilder::Add(fstring key) {
   freq.add_record(key);
   auto processKey = [&](fstring key, size_t samePrefix) {
     size_t prefixSize = std::min(key.size(), std::max(samePrefix, prevSamePrefix) + 1);
@@ -3151,7 +3290,8 @@ void TerarkIndex::TerarkIndexDebugBuilder::Add(fstring key) {
   }
 }
 
-TerarkKeyReader* TerarkIndex::TerarkIndexDebugBuilder::Finish(KeyStat* output) {
+TerarkKeyReader*
+TerarkIndexDebugBuilder::Finish(TerarkIndex::KeyStat* output) {
   freq.finish();
   stat.entropyLen = freq_hist_o1::estimate_size(freq.histogram());
   *output = std::move(stat);
@@ -3174,7 +3314,7 @@ TerarkKeyReader* TerarkIndex::TerarkIndexDebugBuilder::Finish(KeyStat* output) {
 }
 
 TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIndexOptions& tiopt,
-                                         const TerarkIndex::KeyStat& ks, const UintPrefixBuildInfo* info_ptr) {
+                                         const KeyStat& ks, const UintPrefixBuildInfo* info_ptr) {
   using namespace index_detail;
   struct DefaultInputBuffer {
     TerarkKeyReader* reader;
