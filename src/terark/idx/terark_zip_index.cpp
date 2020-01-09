@@ -137,41 +137,6 @@ public:
   }
 };
 
-class TerarkValueReader {
-  const valvec<std::shared_ptr<FilePair>>& files;
-  size_t index;
-  NativeDataInput<InputBuffer> reader;
-  valvec<byte_t> buffer;
-
-  void checkEOF(){
-    if (reader.eof()) {
-      FileStream* fp = &files[++index]->value.fp;
-      fp->rewind();
-      reader.attach(fp);
-    }
-  }
-
-public:
-  TerarkValueReader(const valvec<std::shared_ptr<FilePair>>& files);
-
-  uint64_t readUInt64(){
-    checkEOF();
-    return reader.load_as<uint64_t>();
-  }
-
-  void appendBuffer(valvec<byte_t>* buffer) {
-    checkEOF();
-    reader.load_add(*buffer);
-  }
-
-  void rewind(){
-    index = 0;
-    FileStream* fp = &files.front()->value.fp;
-    fp->rewind();
-    reader.attach(fp);
-  }
-};
-
 inline uint64_t ReadBigEndianUint64(const byte_t* beg, size_t len) {
   union {
     byte_t bytes[8];
@@ -227,8 +192,6 @@ TerarkKeyReader* TerarkKeyReader::MakeReader(fstring fileName, size_t fileBegin,
 TerarkKeyReader* TerarkKeyReader::MakeReader(const valvec<std::shared_ptr<FilePair>>& files, bool attach) {
   return new TerarkKeyFileReader(files, attach);
 }
-
-TerarkValueReader::TerarkValueReader(const valvec<std::shared_ptr<FilePair>>& _files) : files(_files) {}
 
 template<class RankSelect> struct RankSelectNeedHint : public std::false_type {};
 template<size_t P, size_t W> struct RankSelectNeedHint<rank_select_few<P, W>> : public std::true_type {};
