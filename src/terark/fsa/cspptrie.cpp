@@ -1785,7 +1785,7 @@ assert(pos < key.size());
     uint32_t nil = nil_state;
     if (as_atomic(a[curr+2+ch].child).compare_exchange_weak(
             nil, suffix_node,
-            std::memory_order_relaxed, std::memory_order_relaxed))
+            std::memory_order_release, std::memory_order_relaxed))
     {
         as_atomic(a[curr+1].big.n_children).fetch_add(1, std::memory_order_relaxed);
         lzf->m_n_nodes += 1;
@@ -1904,7 +1904,7 @@ MarkFinalStateOnFastNode: {
     curr_locked.meta.b_is_final = true;
     // compare_exchange_weak() is second check for b_is_final
     if (as_atomic(a[curr]).compare_exchange_weak(lock_curr, curr_locked,
-                  std::memory_order_relaxed, std::memory_order_relaxed)) {
+                  std::memory_order_release, std::memory_order_relaxed)) {
         init_token_value(-1, -1, lzf);
         lzf->m_n_words += 1;
         lzf->m_stat.n_mark_final += 1;
@@ -2391,8 +2391,8 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
         case 4: break_if_match_ch(2, 3); no_break_fallthrough;
 #endif
         case 3: break_if_match_ch(2, 2);
-                break_if_match_ch(2, 1); 
-                break_if_match_ch(2, 0); 
+                break_if_match_ch(2, 1);
+                break_if_match_ch(2, 0);
             fail_return;
         case 7: // cnt in [ 7, 16 ]
             {
