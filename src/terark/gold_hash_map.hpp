@@ -959,7 +959,7 @@ private:
 		reinterpret_cast<LinkTp&>(m_nl.data(slot)) = freelist_head;
 		freelist_size++;
         freelist_freq++; // never decrease
-		freelist_head = slot;
+		freelist_head = LinkTp(slot);
 	}
 	HSM_FORCE_INLINE void
 	erase_to_freelist(const size_t slot) {
