@@ -17,7 +17,7 @@
 #include <terark/fsa/fsa_cache.hpp>
 #include <terark/fsa/nest_louds_trie_inline.hpp>
 #include <terark/fsa/nest_trie_dawg.hpp>
-#include <terark/util/common.hpp>
+#include <terark/util/tmpfile.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/sortable_strvec.hpp>
