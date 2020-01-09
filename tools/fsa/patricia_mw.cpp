@@ -30,6 +30,7 @@ Options:
     -o Output-Trie-File
     -i Condurrent write interleave
     -j Mark readonly for read
+    -d Read Key from mmap
     -r Reader Thread Num
     -t Writer Thread Num
     -w Writer ConcurrentLevel
@@ -106,6 +107,10 @@ int main(int argc, char* argv[]) {
             }
             else if (strncmp(optarg, "MultiWriteMultiRead", 3) == 0) {
                 conLevel = Patricia::MultiWriteMultiRead;
+            }
+            else {
+                fprintf(stderr, "ERROR: -w %s : Invalid ConcurrentLevel\n", optarg);
+                return 1;
             }
             break;
         case 'r':

@@ -96,6 +96,10 @@ int main(int argc, char* argv[]) {
             else if (strncmp(optarg, "MultiWriteMultiRead", 3) == 0) {
                 conLevel = Patricia::MultiWriteMultiRead;
             }
+            else {
+                fprintf(stderr, "ERROR: -w %s : Invalid ConcurrentLevel\n", optarg);
+                return 1;
+            }
             break;
         case 'R':
             random_key = true;
