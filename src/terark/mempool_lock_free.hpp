@@ -236,7 +236,7 @@ public:
             while (list_tail != next) {
                 if (head.compare_exchange_weak(next,
                     *(link_size_t*)(database + AlignSize*size_t(next)),
-                    std::memory_order_relaxed,
+                    std::memory_order_release,
                     std::memory_order_relaxed))
                 {
                     as_atomic(fragment_size).fetch_sub(request, std::memory_order_relaxed);
@@ -283,7 +283,7 @@ public:
             size_t End;
             while ((End = pos + request) <= cap) {
                 if (as_atomic(mem::n).compare_exchange_weak(pos, End,
-                        std::memory_order_relaxed,
+                        std::memory_order_release,
                         std::memory_order_relaxed)) {
                     return pos;
                 }
@@ -306,7 +306,7 @@ public:
         if (newend <= c) {
             size_t oldend = pos + oldlen;
             if (as_atomic(n).compare_exchange_weak(oldend, newend,
-                                std::memory_order_relaxed,
+                                std::memory_order_release,
                                 std::memory_order_relaxed)) {
                 return pos;
             }
@@ -339,7 +339,7 @@ public:
         assert(pos + len <= n);
         size_t End = pos + len;
         if (as_atomic(mem::n).compare_exchange_weak(End, pos,
-                std::memory_order_relaxed,
+                std::memory_order_release,
                 std::memory_order_relaxed))
         {
             return;

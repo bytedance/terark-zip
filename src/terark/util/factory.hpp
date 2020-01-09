@@ -2,8 +2,11 @@
 
 #pragma once
 #include "function.hpp"
+#include <boost/noncopyable.hpp>
 #include <terark/fstring.hpp>
 #include <terark/preproc.hpp>
+#include <typeinfo>
+#include <typeindex>
 
 namespace terark {
 
@@ -18,8 +21,15 @@ class Factoryable {
 public:
     virtual ~Factoryable();
     static ProductPtr create(fstring name, CreatorArgs...);
-    struct AutoReg {
-        AutoReg(fstring name, function<ProductPtr(CreatorArgs...)> creator);
+
+    fstring reg_name() const;
+
+    struct AutoReg : boost::noncopyable {
+        typedef function<ProductPtr(CreatorArgs...)> CreatorFunc;
+        AutoReg(fstring name, CreatorFunc creator, const std::type_info&);
+        ~AutoReg();
+        fstring m_name;
+        std::type_index m_type_idx;
         struct Impl;
     };
 };
@@ -31,7 +41,8 @@ public:
 ///                     SomeNameSpace::SomeProductPtr<T1, T2, T3>
 #define TERARK_FACTORY_REGISTER_IMPL(VarID, Name, Creator, Class, ...) \
   TERARK_PP_IDENTITY(Class,##__VA_ARGS__)::AutoReg \
-    TERARK_PP_CAT(g_reg_factory_, VarID, __LINE__)(Name, Creator)
+    TERARK_PP_CAT(g_reg_factory_, VarID, __LINE__) \
+   (Name, Creator, typeid(TERARK_PP_IDENTITY(Class,##__VA_ARGS__)))
 
 ///@param Class can not be template such as SomeProductPtr<T1, T2, T3>,
 ///             can not be qulified class name such as SomeNameSpace::SomeClass

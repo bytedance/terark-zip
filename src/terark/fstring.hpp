@@ -10,6 +10,7 @@
 #include <iosfwd>
 #include <utility>
 #include <algorithm>
+#include <functional>
 #include <string.h>
 
 #include "config.hpp"
@@ -689,5 +690,9 @@ TERARK_DLL_EXPORT std::string escape(fstring, char quote = '\0');
 
 
 } // namespace terark
+
+namespace std {
+	template<> struct hash<terark::fstring> : terark::fstring_func::hash {};
+}
 
 #endif // __terark_fstring_hpp__

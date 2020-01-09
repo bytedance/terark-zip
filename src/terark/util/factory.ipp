@@ -1,45 +1,99 @@
 #include "factory.hpp"
-#include <terark/hash_strmap.hpp>
+//#include <terark/hash_strmap.hpp>
+#include <terark/gold_hash_map.hpp>
 #include <boost/current_function.hpp>
+#include <mutex>
 
 namespace terark {
 
 template<class ProductPtr, class... CreatorArgs>
 struct Factoryable<ProductPtr, CreatorArgs...>::AutoReg::Impl {
-    typedef hash_strmap<
-        function<ProductPtr(CreatorArgs...)>,
-        fstring_func::IF_SP_ALIGN(hash_align, hash),
-        fstring_func::IF_SP_ALIGN(equal_align, equal),
-        ValueInline,
-        SafeCopy // function is not memory movable on some stdlib
-    > RegMap;
-    static RegMap& s_get_regmap() {
-        static RegMap rmap;
-        return rmap;
-    }
+    using NameToFuncMap = gold_hash_map_p<fstring, CreatorFunc>;
+    using TypeToNameMap = gold_hash_map<std::type_index, fstring>;
+
+    NameToFuncMap func_map;
+    TypeToNameMap type_map;
+    std::mutex    mtx;
+
+    static Impl& s_singleton() { static Impl imp; return imp; }
 };
 
 template<class ProductPtr, class... CreatorArgs>
 Factoryable<ProductPtr, CreatorArgs...>::
-AutoReg::AutoReg(fstring name,
-		 function<ProductPtr(CreatorArgs...)> creator) {
-    auto& rmap = Impl::s_get_regmap();
-    std::pair<size_t, bool> ib = rmap.insert_i(name, creator);
+AutoReg::AutoReg(fstring name, CreatorFunc creator, const std::type_info& ti)
+  : m_name(name), m_type_idx(ti)
+{
+    auto& imp = Impl::s_singleton();
+    auto& func_map = imp.func_map.get_map();
+    CreatorFunc* pFunc = new CreatorFunc(std::move(creator));
+    imp.mtx.lock();
+    std::pair<size_t, bool> ib = func_map.insert_i(name, pFunc);
     if (!ib.second) {
-        fprintf(stderr, "ERROR: %s: duplicate name = %.*s\n", BOOST_CURRENT_FUNCTION, name.ilen(), name.p);
+        fprintf(stderr, "FATAL: %s: duplicate name = %.*s\n"
+            , BOOST_CURRENT_FUNCTION, name.ilen(), name.p);
+        abort();
     }
+    ib = imp.type_map.insert_i(ti, name);
+    if (!ib.second) {
+        fstring oldname = imp.type_map.val(ib.first);
+        fprintf(stderr
+            , "WARN: %s: dup name: {old=\"%.*s\", new=\"%.*s\"} "
+                "for type: %s, new name ignored\n"
+            , BOOST_CURRENT_FUNCTION
+            , oldname.ilen(), oldname.p, name.ilen(), name.p
+            , ti.name());
+    }
+    imp.mtx.unlock();
+}
+
+template<class ProductPtr, class... CreatorArgs>
+Factoryable<ProductPtr, CreatorArgs...>::
+AutoReg::~AutoReg() {
+    auto& imp = Impl::s_singleton();
+    imp.mtx.lock();
+    size_t cnt1 = imp.func_map.erase(m_name);
+    size_t cnt2 = imp.type_map.erase(m_type_idx);
+    if (0 == cnt1) {
+        fprintf(stderr, "FATAL: %s: name = %.*s to creator not found\n"
+            , BOOST_CURRENT_FUNCTION, DOT_STAR_S(m_name));
+        abort();
+    }
+    if (0 == cnt2) {
+        fprintf(stderr, "WARN: %s: type = %s to name not found, ignored\n"
+            , BOOST_CURRENT_FUNCTION, m_type_idx.name());
+    }
+    imp.mtx.unlock();
 }
 
 template<class ProductPtr, class... CreatorArgs>
 ProductPtr Factoryable<ProductPtr, CreatorArgs...>::
 create(fstring name, CreatorArgs... args) {
-    auto& rmap = AutoReg::Impl::s_get_regmap();
-    size_t i = rmap.find_i(name);
-    if (rmap.end_i() != i) {
-        auto& creator = rmap.val(i);
-        return creator(args...);
+    auto& imp = AutoReg::Impl::s_singleton();
+    auto& func_map = imp.func_map.get_map();
+    imp.mtx.lock();
+    size_t i = func_map.find_i(name);
+    if (func_map.end_i() != i) {
+        typename AutoReg::CreatorFunc* creator = func_map.val(i);
+        imp.mtx.unlock();
+        return (*creator)(args...);
     }
-    return nullptr;
+    else {
+        imp.mtx.unlock();
+        return nullptr;
+    }
+}
+
+template<class ProductPtr, class... CreatorArgs>
+fstring Factoryable<ProductPtr, CreatorArgs...>::reg_name() const {
+    auto& imp = AutoReg::Impl::s_singleton();
+    fstring name;
+    imp.mtx.lock();
+    size_t idx = imp.type_map.find_i(std::type_index(typeid(*this)));
+    if (imp.type_map.end_i() != idx) {
+        name = imp.type_map.val(idx);
+    }
+    imp.mtx.unlock();
+    return name;
 }
 
 template<class ProductPtr, class... CreatorArgs>
