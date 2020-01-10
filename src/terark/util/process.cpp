@@ -82,6 +82,18 @@ ProcPipeStream::~ProcPipeStream() {
     if (m_fp) {
         try { close(); } catch (const std::exception&) {}
     }
+    if (m_thr) {
+        assert(2 == m_child_step);
+        assert(!m_thr->joinable());
+    }
+    else {
+        assert(3 == m_child_step); // assert on debug
+        // wait on release:
+        if (3 != m_child_step) {
+            assert(m_child_step < 3);
+            wait_finish();
+        }
+    }
 }
 
 void ProcPipeStream::open(fstring cmd, fstring mode) {
@@ -233,7 +245,9 @@ int ProcPipeStream::xclose() noexcept {
 //  fprintf(stderr, "INFO: xclose(): m_pipe = [%d, %d]\n", m_pipe[0], m_pipe[1]);
     if (m_pipe[0] >= 0 || m_pipe[1] >= 0) {
         close_pipe();
-        wait_proc();
+        if (m_thr) {
+            wait_proc();
+        }
     }
     return m_err;
 }
@@ -258,20 +272,21 @@ void ProcPipeStream::wait_proc() noexcept {
             fprintf(stderr, "INFO: waited_ms = %zd\n", waited_ms);
         }
     }
-    if (m_thr) {
-        assert(m_thr->joinable());
-        m_thr->join();
-    }
-    else {
-        while (m_child_step < 3) {
-            TERARK_IF_MSVC(Sleep(10), usleep(10000)); // 10 ms
-            waited_ms += 10;
-            if (waited_ms % 5000 == 0) {
-                fprintf(stderr, "INFO: wait onFinish = %zd\n", waited_ms);
-            }
+    assert(m_thr != nullptr);
+    assert(m_thr->joinable());
+    m_thr->join();
+//  fprintf(stderr, "INFO: m_thr joined\n");
+}
+
+void ProcPipeStream::wait_finish() noexcept {
+    size_t waited_ms = 0;
+    while (m_child_step < 3) {
+        TERARK_IF_MSVC(Sleep(10), usleep(10000)); // 10 ms
+        waited_ms += 10;
+        if (waited_ms % 5000 == 0) {
+            fprintf(stderr, "INFO: wait onFinish = %zd\n", waited_ms);
         }
     }
-//  fprintf(stderr, "INFO: m_thr joined\n");
 }
 
 #define ProcPipeStream_PREVENT_UNEXPECTED_FILE_DELET 1
