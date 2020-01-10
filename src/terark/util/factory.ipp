@@ -18,6 +18,8 @@ struct Factoryable<ProductPtr, CreatorArgs...>::AutoReg::Impl {
     static Impl& s_singleton() { static Impl imp; return imp; }
 };
 
+//#define TERARK_FACTORY_WARN_ON_DUP_NAME
+
 template<class ProductPtr, class... CreatorArgs>
 Factoryable<ProductPtr, CreatorArgs...>::
 AutoReg::AutoReg(fstring name, CreatorFunc creator, const std::type_info& ti)
@@ -35,6 +37,7 @@ AutoReg::AutoReg(fstring name, CreatorFunc creator, const std::type_info& ti)
     }
     ib = imp.type_map.insert_i(ti, name);
     if (!ib.second) {
+#if defined(TERARK_FACTORY_WARN_ON_DUP_NAME)
         fstring oldname = imp.type_map.val(ib.first);
         fprintf(stderr
             , "WARN: %s: dup name: {old=\"%.*s\", new=\"%.*s\"} "
@@ -42,6 +45,7 @@ AutoReg::AutoReg(fstring name, CreatorFunc creator, const std::type_info& ti)
             , BOOST_CURRENT_FUNCTION
             , oldname.ilen(), oldname.p, name.ilen(), name.p
             , ti.name());
+#endif
     }
     imp.mtx.unlock();
 }
@@ -59,8 +63,10 @@ AutoReg::~AutoReg() {
         abort();
     }
     if (0 == cnt2) {
+#if defined(TERARK_FACTORY_WARN_ON_DUP_NAME)
         fprintf(stderr, "WARN: %s: type = %s to name not found, ignored\n"
             , BOOST_CURRENT_FUNCTION, m_type_idx.name());
+#endif
     }
     imp.mtx.unlock();
 }
