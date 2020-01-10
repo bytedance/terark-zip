@@ -61,9 +61,9 @@ static void DoUnzip(const byte_t* pos, const byte_t* end, valvec<byte_t>* recDat
 #endif
 
 enum class EmbeddedDictType : uint8_t {
-  External,
-  Raw,
-  ZSTD,
+  kExternal,
+  kRaw,
+  kZSTD,
 };
 
 //#define DzTypeBits 3
@@ -1569,7 +1569,7 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
         }
     };
     auto mmapBase = (const DictZipBlobStore::FileHeader*)mem.data();
-    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         if (!dict.memory.empty()) {
             return AbstractBlobStore::MemoryCloseType::RiskRelease;
         }
@@ -1603,12 +1603,12 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
         return AbstractBlobStore::MemoryCloseType::MmapClose;
     }
     fstring dictMem = mmapBase->getEmbeddedDict();
-    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::Raw) {
+    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kRaw) {
         assert(dictMem.size() == mmapBase->globalDictSize);
         dict = AbstractBlobStore::Dictionary(dictMem);
         return AbstractBlobStore::MemoryCloseType::RiskRelease;
     }
-    if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::ZSTD) {
+    if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kZSTD) {
         THROW_STD(logic_error
             , "DictZipBlobStore::ReadDict() bad embeddedDict type");
     }
@@ -1950,7 +1950,7 @@ void DictZipBlobStoreBuilder::EmbedDict(std::unique_ptr<terark::DictZipBlobStore
         MmapWholeFile(m_fpath, true).swap(fmmap);
         hp = (FileHeader*)((byte_t*)fmmap.base + m_fpOffset);
         hp->setEmbeddedDictType(result.second,
-            result.first ? EmbeddedDictType::ZSTD : EmbeddedDictType::Raw);
+            result.first ? EmbeddedDictType::kZSTD : EmbeddedDictType::kRaw);
         *hp->getFileFooter() = footer;
     }
     else {
@@ -1963,14 +1963,14 @@ void DictZipBlobStoreBuilder::EmbedDict(std::unique_ptr<terark::DictZipBlobStore
             size_t zstd_size = ZSTD_compress((byte_t*)hp->getFileFooter(), m_strDict.size(),
                 m_strDict.data(), m_strDict.size(), 0);
             if (!ZSTD_isError(zstd_size)) {
-                hp->setEmbeddedDictType(zstd_size, EmbeddedDictType::ZSTD);
+                hp->setEmbeddedDictType(zstd_size, EmbeddedDictType::kZSTD);
                 *hp->getFileFooter() = footer;
                 m_memStream.stream()->resize(hp->fileSize);
                 return;
             }
         }
         memcpy((byte_t*)hp->getFileFooter(), m_strDict.data(), m_strDict.size());
-        hp->setEmbeddedDictType(m_strDict.size(), EmbeddedDictType::Raw);
+        hp->setEmbeddedDictType(m_strDict.size(), EmbeddedDictType::kRaw);
         m_memStream.stream()->resize(hp->fileSize);
         *hp->getFileFooter() = footer;
     }
@@ -2167,7 +2167,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 
 #ifndef NDEBUG
 	size_t size2 = mmapBase->computeFileSize();
-    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         assert(size2 == size);
     }
 	assert(mmapBase->ptrListBytes % 16 == 0);
@@ -2327,7 +2327,7 @@ void DictZipBlobStore::save_mmap(fstring fpath) const {
         return;
     }
     auto mmapBase = (const FileHeader*)m_mmapBase;
-    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         std::string newDictFname = fpath + "-dict";
         std::string oldDictFname = m_fpath + "-dict";
         FileStream dictFp(newDictFname, "wb");
@@ -2913,7 +2913,7 @@ DictZipBlobStore::reorder_and_load(ZReorderMap& newToOld,
 	}, newFile + ".reorder-tmp");
 	assert(fp.tell() == mmapBase->computeFileSize());
 	fp.close();
-    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         std::string newDictFname = newFile + "-dict";
         std::string oldDictFname = m_fpath + "-dict";
         if (keepOldFile) {
@@ -3025,7 +3025,7 @@ const {
             isOffsetsZipped ? (UintVecMin0&)newZipOffsets : newOffsets,
             fstring((char*)newEntropyBitmap.data(), newEntropyBitmap.mem_size()),
             fstring(entropyMem, entropyLen), maxOffsetEnt);
-        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::External) {
+        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
         }
@@ -3038,7 +3038,7 @@ const {
             // UintVecMin0 & SortedUintVec have same layout ...
             isOffsetsZipped ? (UintVecMin0&)newZipOffsets : newOffsets,
             empty, empty, maxOffsetEnt);
-        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::External) {
+        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
         }
@@ -3082,7 +3082,7 @@ const {
         writeAppend(newEntropyBitmap.data(), newEntropyBitmap.mem_size());
         writeAppend(entropyMem, align_up(entropyLen, 16));
 	}
-    if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
         fstring embeddedDict = mmapBase->getEmbeddedDict();
         writeAppend(embeddedDict.data(), embeddedDict.size());
         if (embeddedDict.size() % 16 != 0)
@@ -3105,7 +3105,7 @@ void DictZipBlobStore::purge_and_load(const bm_uint_t* isDel,
 	});
 	fp.chsize(fp.tell());
 	fp.close();
-    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         std::string newDictFname = newFile + "-dict";
         std::string oldDictFname = m_fpath + "-dict";
         if (keepOldFile) {
@@ -3198,7 +3198,7 @@ const {
         FileHeader h(this, offset, dict, newOffsets,
                      fstring((char*)newEntropyBitmap.data(), newEntropyBitmap.mem_size()),
                      entropy, maxOffsetEnt);
-        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::External) {
+        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
         }
@@ -3208,7 +3208,7 @@ const {
         fstring empty("");
         Dictionary dict(m_strDict.size(), ((const FileHeader*)m_mmapBase)->dictXXHash);
         FileHeader h(this, offset, dict, newOffsets, empty, empty, maxOffsetEnt);
-        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::External) {
+        if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
         }
@@ -3248,7 +3248,7 @@ const {
         writeAppend(newEntropyBitmap.data(), newEntropyBitmap.mem_size());
 		writeAppend(entropyMem, align_up(entropyLen, 16));
 	}
-    if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::External) {
+    if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
         fstring embeddedDict = mmapBase->getEmbeddedDict();
         writeAppend(embeddedDict.data(), embeddedDict.size());
         writeAppend(zeros, 16 - embeddedDict.size() % 16);
