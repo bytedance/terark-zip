@@ -678,8 +678,8 @@ GetoptDone:
     assert(false == b2);
     t3 = pf.now();
     fprintf(stderr, " done!\n");
-    fprintf(stderr, "incr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f\n", pf.sf(t0,t1), 2*sumkeylen/pf.uf(t0,t1), 2*numkeys/pf.uf(t0,t1));
-    fprintf(stderr, "decr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f\n", pf.sf(t2,t3), 2*sumkeylen/pf.uf(t2,t3), 2*numkeys/pf.uf(t2,t3));
+    fprintf(stderr, "incr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f M/sec\n", pf.sf(t0,t1), 2*sumkeylen/pf.uf(t0,t1), 2*numkeys/pf.uf(t0,t1));
+    fprintf(stderr, "decr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f M/sec\n", pf.sf(t2,t3), 2*sumkeylen/pf.uf(t2,t3), 2*numkeys/pf.uf(t2,t3));
   }
     return 0;
 }
