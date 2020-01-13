@@ -644,13 +644,13 @@ GetoptDone:
   }
 
   if (single_thread_write && write_thread_num > 1) {
-    fprintf(stderr, "verify multi-written trie1 iter...\n");
+    fprintf(stderr, "verify multi-written trie iter...\n");
     TERARK_RT_assert(trie1.num_words() == trie2.num_words(), std::logic_error);
     t0 = pf.now();
     Patricia::IterMem iter1, iter2;
     iter1.construct(&trie1);
     iter2.construct(&trie2);
-    fprintf(stderr, "verify multi-written trie iter incr...");
+    fprintf(stderr, "verify multi & single thread written trie iter incr...");
     fflush(stderr);
     bool b1 = iter1.iter()->seek_begin();
     bool b2 = iter2.iter()->seek_begin();
@@ -663,7 +663,7 @@ GetoptDone:
     }
     assert(false == b2);
     t1 = pf.now();
-    fprintf(stderr, " done, decr...\n");
+    fprintf(stderr, " done, decr...");
     fflush(stderr);
     t2 = pf.now();
     b1 = iter1.iter()->seek_end();
