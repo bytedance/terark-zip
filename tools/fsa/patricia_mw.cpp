@@ -523,16 +523,20 @@ GetoptDone:
             trie2.save_mmap(std::string(patricia_trie_fname) + ".m");
         }
         t2 = pf.now();
-        fprintf(stderr
+        if (single_thread_write) {
+          fprintf(stderr
             , "patricia s.save: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, mem_size = %9.3f M\n"
             , pf.sf(t0, t1), trie1.mem_size() / pf.uf(t0, t1), numkeys / pf.uf(t0, t1)
             , trie1.mem_size() / 1e6
-        );
-        fprintf(stderr
+          );
+        }
+        if (write_thread_num) {
+          fprintf(stderr
             , "patricia m.save: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, mem_size = %9.3f M\n"
             , pf.sf(t1, t2), trie1.mem_size() / pf.uf(t1, t2), numkeys / pf.uf(t1, t2)
             , trie1.mem_size() / 1e6
-        );
+          );
+        }
     }
     if (read_thread_num > 0) {
       auto bench_iter = [&](MainPatricia* pt, char smThread) {
