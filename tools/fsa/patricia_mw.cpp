@@ -533,8 +533,8 @@ GetoptDone:
         if (write_thread_num) {
           fprintf(stderr
             , "patricia m.save: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, mem_size = %9.3f M\n"
-            , pf.sf(t1, t2), trie1.mem_size() / pf.uf(t1, t2), numkeys / pf.uf(t1, t2)
-            , trie1.mem_size() / 1e6
+            , pf.sf(t1, t2), trie2.mem_size() / pf.uf(t1, t2), numkeys / pf.uf(t1, t2)
+            , trie2.mem_size() / 1e6
           );
         }
     }
