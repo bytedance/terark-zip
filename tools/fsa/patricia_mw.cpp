@@ -493,22 +493,22 @@ GetoptDone:
   }
 	if (read_thread_num > 0 && single_thread_write) {
 		fprintf(stderr
-			, "patricia spoint: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, "patricia s.find: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(t2,t3), sumkeylen/pf.uf(t2,t3), numkeys/pf.uf(t2,t3)
 		);
 		fprintf(stderr
-			, "patricia slower: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
+			, "patricia s.lowb: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
 			, pf.sf(t3,t4), sumkeylen/pf.uf(t3,t4), numkeys/pf.uf(t3,t4)
 			, 100.0*(t3-t2)/(t4-t3)
 		);
 	}
 	if (read_thread_num > 0 && write_thread_num > 0) {
 		fprintf(stderr
-			, "patricia mpoint: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, "patricia m.find: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(t4,t5), sumkeylen/pf.uf(t4,t5), numkeys/pf.uf(t4,t5)
 		);
 		fprintf(stderr
-			, "patricia mlower: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
+			, "patricia m.lowb: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
 			, pf.sf(t5,t6), sumkeylen/pf.uf(t5,t6), numkeys/pf.uf(t5,t6)
 			, 100.0*(t5-t4)/(t6-t5)
 		);
