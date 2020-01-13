@@ -176,7 +176,7 @@ GetoptDone:
     SortableStrVec strVec;
     MainPatricia trie(sizeof(size_t), maxMem, conLevel);
     MainPatricia trie2(sizeof(size_t), maxMem, Patricia::MultiWriteMultiRead);
-    MainPatricia* pt = write_thread_num > 1 ? &trie2 : &trie;
+    MainPatricia* pt = single_thread_write ? &trie2 : &trie;
     size_t sumkeylen = 0;
     size_t sumvaluelen = 0;
     size_t numkeys = 0;
@@ -623,5 +623,43 @@ GetoptDone:
     assert(pt->mem_frag_size() - sum_fast_size == ms.huge_size);
     assert(pt->mem_frag_size() == ms.frag_size);
     assert(sum_fast_size == ms.frag_size - ms.huge_size);
+
+    if (single_thread_write && write_thread_num > 1) {
+        fprintf(stderr, "verify multi-written trie iter...\n");
+        TERARK_RT_assert(trie.num_words() == trie2.num_words(), std::logic_error);
+        t0 = pf.now();
+        Patricia::IterMem iter1, iter2;
+        iter1.construct(&trie);
+        iter2.construct(&trie2);
+        fprintf(stderr, "verify multi-written trie iter incr...\n");
+        bool b1 = iter1.iter()->seek_begin();
+        bool b2 = iter2.iter()->seek_begin();
+        TERARK_RT_assert(b1 == b2, std::logic_error);
+        while (b1) {
+            TERARK_RT_assert(true == b2, std::logic_error);
+            TERARK_RT_assert(iter1.iter()->word() == iter2.iter()->word(), std::logic_error);
+            b1 = iter1.iter()->incr();
+            b2 = iter2.iter()->incr();
+        }
+        assert(false == b2);
+        t1 = pf.now();
+        fprintf(stderr, "verify multi-written trie iter decr...\n");
+        t2 = pf.now();
+        bool b1 = iter1.iter()->seek_end();
+        bool b2 = iter2.iter()->seek_end();
+        TERARK_RT_assert(b1 == b2, std::logic_error);
+        while (b1) {
+            TERARK_RT_assert(true == b2, std::logic_error);
+            TERARK_RT_assert(iter1.iter()->word() == iter2.iter()->word(), std::logic_error);
+            b1 = iter1.iter()->decr();
+            b2 = iter2.iter()->decr();
+        }
+        assert(false == b2);
+        t3 = pf.now();
+        fprintf(stderr, "verify multi-written trie iter decr...\n");
+        fprintf(stderr, "verify multi-written trie iter done!\n");
+        fprintf(stderr, "incr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f\n", pf.sf(t0,t1), 2*sumkeylen/pf.uf(t0,t1), 2*numkeys/pf.uf(t0,t1));
+        fprintf(stderr, "decr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f\n", pf.sf(t2,t3), 2*sumkeylen/pf.uf(t2,t3), 2*numkeys/pf.uf(t2,t3));
+    }
     return 0;
 }
