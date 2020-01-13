@@ -650,7 +650,8 @@ GetoptDone:
     Patricia::IterMem iter1, iter2;
     iter1.construct(&trie1);
     iter2.construct(&trie2);
-    fprintf(stderr, "verify multi-written trie1 iter incr...\n");
+    fprintf(stderr, "verify multi-written trie iter incr...");
+    fflush(stderr);
     bool b1 = iter1.iter()->seek_begin();
     bool b2 = iter2.iter()->seek_begin();
     TERARK_RT_assert(b1 == b2, std::logic_error);
@@ -662,7 +663,8 @@ GetoptDone:
     }
     assert(false == b2);
     t1 = pf.now();
-    fprintf(stderr, "verify multi-written trie1 iter decr...\n");
+    fprintf(stderr, " done, decr...\n");
+    fflush(stderr);
     t2 = pf.now();
     b1 = iter1.iter()->seek_end();
     b2 = iter2.iter()->seek_end();
@@ -675,8 +677,7 @@ GetoptDone:
     }
     assert(false == b2);
     t3 = pf.now();
-    fprintf(stderr, "verify multi-written trie1 iter decr...\n");
-    fprintf(stderr, "verify multi-written trie1 iter done!\n");
+    fprintf(stderr, " done!\n");
     fprintf(stderr, "incr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f\n", pf.sf(t0,t1), 2*sumkeylen/pf.uf(t0,t1), 2*numkeys/pf.uf(t0,t1));
     fprintf(stderr, "decr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f\n", pf.sf(t2,t3), 2*sumkeylen/pf.uf(t2,t3), 2*numkeys/pf.uf(t2,t3));
   }
