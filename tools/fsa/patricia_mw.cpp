@@ -646,8 +646,8 @@ GetoptDone:
         t1 = pf.now();
         fprintf(stderr, "verify multi-written trie iter decr...\n");
         t2 = pf.now();
-        bool b1 = iter1.iter()->seek_end();
-        bool b2 = iter2.iter()->seek_end();
+        b1 = iter1.iter()->seek_end();
+        b2 = iter2.iter()->seek_end();
         TERARK_RT_assert(b1 == b2, std::logic_error);
         while (b1) {
             TERARK_RT_assert(true == b2, std::logic_error);
