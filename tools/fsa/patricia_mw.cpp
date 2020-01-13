@@ -151,6 +151,12 @@ GetoptDone:
     else {
         fprintf(stderr, "Reading from stdin...\n");
     }
+    if (read_thread_num > 0 && !single_thread_write) {
+        fprintf(stderr
+          , "WARN: read_thread_num = %d > 0, auto enable single thread write\n"
+          , read_thread_num);
+        single_thread_write = true;
+    }
     maximize(write_thread_num, 1);
     MmapWholeFile mmap;
     {
@@ -175,22 +181,19 @@ GetoptDone:
     size_t sumvaluelen = 0;
     size_t numkeys = 0;
     long long t0, t1, t2, t3, t4, t5, t6, t7;
-    t0 = pf.now();
-    if (mmap.base) {
-        if (!concWriteInterleave && !direct_read_input) {
-            strVec.m_strpool.reserve(mmap.size);
-            strVec.m_index.reserve(mmap.size / 16);
-            char* line = (char*)mmap.base;
-            char* endp = line + mmap.size;
-            while (line < endp) {
-                char* next = std::find(line, endp, '\n');
-                strVec.push_back(fstring(line, next - line));
-                line = next + 1;
-            }
-            sumkeylen = strVec.str_size();
+    auto mmapReadStrVec = [&]() {
+        strVec.m_strpool.reserve(mmap.size);
+        strVec.m_index.reserve(mmap.size / 16);
+        char* line = (char*)mmap.base;
+        char* endp = line + mmap.size;
+        while (line < endp) {
+            char* next = std::find(line, endp, '\n');
+            strVec.push_back(fstring(line, next - line));
+            line = next + 1;
         }
-    }
-    else {
+        sumkeylen = strVec.str_size();
+    };
+    auto lineReadStrVec = [&]() {
         LineBuf line;
         while (line.getline(fp.self_or(stdin)) > 0) {
             line.chomp();
@@ -201,19 +204,34 @@ GetoptDone:
             strVec.push_back(line);
         }
         as_atomic(sumvaluelen).fetch_add(8*strVec.size());
-    }
-    numkeys = strVec.size();
-    t1 = pf.now();
-    if (strVec.size()) {
-        fprintf(stderr
-            , "read      input: time = %8.3f sec, %8.3f MB/sec, avglen = %8.3f\n"
-            , pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), strVec.avg_size()
-        );
-    }
+    };
+    auto readStrVec = [&]() {
+        t0 = pf.now();
+        if (mmap.base) {
+            if (!concWriteInterleave && !direct_read_input) {
+                mmapReadStrVec();
+            }
+            else {
+                // do not read strVec
+            }
+        }
+        else {
+            lineReadStrVec();
+        }
+        numkeys = strVec.size();
+        t1 = pf.now();
+        if (strVec.size()) {
+            fprintf(stderr
+                , "read      input: time = %8.3f sec, %8.3f MB/sec, avglen = %8.3f\n"
+                , pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), strVec.avg_size()
+            );
+        }
+    };
+    readStrVec();
     t0 = pf.now();
     valvec<size_t> randvec(strVec.size(), valvec_no_init());
     fstrvecll fstrVec;
-	if (read_thread_num > 0) {
+	if (read_thread_num > 0 && single_thread_write) {
 		for (size_t i = 0; i < randvec.size(); ++i) randvec[i] = i;
 		shuffle(randvec.begin(), randvec.end(), std::mt19937_64());
 		t1 = pf.now();
@@ -293,6 +311,10 @@ GetoptDone:
         iter.~Iterator();
     };
     auto exec_read = [&](std::function<void(int,size_t,size_t)> read) {
+        if (!single_thread_write) {
+            fprintf(stderr, "single_thread_write = false, skip read test\n");
+            return;
+        }
         valvec<std::thread> thrVec(read_thread_num - 1, valvec_reserve());
         for (int i = 0; i < read_thread_num; ++i) {
             size_t Beg = (i + 0) * fstrVec.size() / read_thread_num;
@@ -489,7 +511,7 @@ GetoptDone:
         , trie2.num_words() / double(trie2.v_gnode_states() - trie2.num_words())
         , pf.uf(t0, t1) / pf.uf(t6, t7)
     );
-	if (read_thread_num > 0) {
+	if (read_thread_num > 0 && single_thread_write) {
 		fprintf(stderr
 			, "patricia  point: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(t2,t3), sumkeylen/pf.uf(t2,t3), numkeys/pf.uf(t2,t3)

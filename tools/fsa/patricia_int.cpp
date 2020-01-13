@@ -125,6 +125,12 @@ int main(int argc, char* argv[]) {
         }
     }
 GetoptDone:
+    if (read_thread_num > 0 && !single_thread_write) {
+        fprintf(stderr
+          , "WARN: read_thread_num = %zd > 0, auto enable single thread write\n"
+          , read_thread_num);
+        single_thread_write = true;
+    }
     size_t maxNum = 1000000;
     if (optind < argc) {
         maxNum = strtoull(argv[optind], NULL, 0);
