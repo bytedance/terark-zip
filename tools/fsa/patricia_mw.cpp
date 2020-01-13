@@ -52,11 +52,6 @@ size_t maxMem = 0;
 const char* bench_input_fname = NULL;
 const char* patricia_trie_fname = NULL;
 
-struct MyTrie : MainPatricia {
-    using MainPatricia::MainPatricia;
-    const char* name = NULL;
-};
-
 int main(int argc, char* argv[]) {
     int write_thread_num = std::thread::hardware_concurrency();
     int read_thread_num = 0;
@@ -157,8 +152,8 @@ GetoptDone:
         }
     }
     SortableStrVec strVec;
-    MyTrie trie1(sizeof(size_t), maxMem, conLevel);
-    MyTrie trie2(sizeof(size_t), maxMem, Patricia::MultiWriteMultiRead);
+    MainPatricia trie1(sizeof(size_t), maxMem, conLevel);
+    MainPatricia trie2(sizeof(size_t), maxMem, Patricia::MultiWriteMultiRead);
     size_t sumkeylen = 0;
     size_t sumvaluelen = 0;
     size_t numkeys = 0;
@@ -263,7 +258,7 @@ GetoptDone:
 			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1)
 		);
 	}
-    auto patricia_find = [&](MyTrie* pt, int tid, size_t Beg, size_t End) {
+    auto patricia_find = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
         Patricia::ReaderToken& token = *pt->acquire_tls_reader_token();
         if (mark_readonly) {
             for (size_t i = Beg; i < End; ++i) {
@@ -282,7 +277,7 @@ GetoptDone:
         }
         token.release();
     };
-    auto patricia_lb = [&](MyTrie* pt, int tid, size_t Beg, size_t End) {
+    auto patricia_lb = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
         char iter_mem[Patricia::ITER_SIZE];
         pt->construct_iter(iter_mem);
         auto& iter = *reinterpret_cast<Patricia::Iterator*>(iter_mem);
@@ -293,8 +288,8 @@ GetoptDone:
         }
         iter.~Iterator();
     };
-    auto exec_read = [&](MyTrie* pt,
-      std::function<void(MyTrie*,int,size_t,size_t)> read) {
+    auto exec_read = [&](MainPatricia* pt,
+      std::function<void(MainPatricia*,int,size_t,size_t)> read) {
         if (read_thread_num < 1) {
             return;
         }
@@ -309,7 +304,7 @@ GetoptDone:
         }
         for (auto& t : thrVec) t.join();
     };
-	auto pt_write = [&](int tnum, MyTrie* ptrie) {
+	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
 		auto fins = [&](int tid) {
 			//fprintf(stderr, "thread-%03d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
             auto& ptoken = ptrie->tls_writer_token();
@@ -336,7 +331,7 @@ GetoptDone:
                 struct PosLen { uint32_t pos, len; };
                 PosLen pl{UINT32_MAX, uint32_t(valueRatio*key.size())};
                 pl.pos = ptrie->mem_alloc(std::max(pl.len, 1u));
-                if (uint32_t(MyTrie::mem_alloc_fail) == pl.pos) {
+                if (uint32_t(MainPatricia::mem_alloc_fail) == pl.pos) {
                     fprintf(stderr
                         , "thread-%02d value alloc %d run out of maxMem = %zd, i = %zd, fragments = %zd\n"
                         , int(pl.len)
@@ -540,7 +535,7 @@ GetoptDone:
         );
     }
     if (read_thread_num > 0) {
-      auto bench_iter = [&](MyTrie* pt, char smThread) {
+      auto bench_iter = [&](MainPatricia* pt, char smThread) {
         t0 = pf.now();
         std::unique_ptr<ADFA_LexIterator> iter(pt->adfa_make_iter());
         bool ok = iter->seek_begin();
@@ -560,7 +555,7 @@ GetoptDone:
       if (single_thread_write) { bench_iter(&trie1, 's'); }
       if (write_thread_num)    { bench_iter(&trie2, 'm'); }
     }
-  auto stat_trie = [&](MyTrie* pt) {
+  auto stat_trie = [&](MainPatricia* pt) {
     auto stat = pt->trie_stat();
     double sum = stat.sum() / 100.0;
     fprintf(stderr, "fstrVec    size: %8zd\n", fstrVec.size());
