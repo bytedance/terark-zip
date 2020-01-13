@@ -19,6 +19,7 @@
 #include <fcntl.h>
 #include <random>
 #include <thread>
+#include <terark/num_to_str.hpp>
 
 using namespace terark;
 
