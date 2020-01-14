@@ -249,6 +249,7 @@ GetoptDone:
 		{
 			fstrVec.offsets.erase_all();
 			fstrVec.strpool.erase_all();
+			fstrVec.offsets.push_back(0);
 			for (size_t i = 0; i < strVec.size(); ++i)
 				fstrVec.push_back(strVec[i]);
 		}
