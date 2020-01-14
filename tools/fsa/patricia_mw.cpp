@@ -214,8 +214,9 @@ GetoptDone:
 		shuffle(randvec.begin(), randvec.end(), std::mt19937_64());
 		t1 = pf.now();
 		fprintf(stderr
-			, "generate  shuff: time = %8.3f sec, %8.3f MB/sec\n"
+			, "generate  shuff: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(t0,t1), randvec.used_mem_size()/pf.uf(t0,t1)
+            , strVec.size() / pf.uf(t0,t1)
 		);
 		t0 = pf.now();
 		fstrVec.reserve(strVec.size());
@@ -226,8 +227,8 @@ GetoptDone:
 		}
 		t1 = pf.now();
 		fprintf(stderr
-			, "fstrVec   shuff: time = %8.3f sec, %8.3f MB/sec\n"
-			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1)
+			, "fstrVec   shuff: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), numkeys/pf.uf(t0,t1)
 		);
 		t0 = pf.now(); // fstrVec memcpy
 		{
@@ -242,8 +243,8 @@ GetoptDone:
 		}
 		t1 = pf.now();
 		fprintf(stderr
-			, "fstrVec  memcpy: time = %8.3f sec, %8.3f MB/sec\n"
-			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1)
+			, "fstrVec  memcpy: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), numkeys/pf.uf(t0,t1)
 		);
 		t0 = pf.now(); // fstrVec append
 		{
@@ -255,8 +256,8 @@ GetoptDone:
 		}
 		t1 = pf.now();
 		fprintf(stderr
-			, "fstrVec  append: time = %8.3f sec, %8.3f MB/sec\n"
-			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1)
+			, "fstrVec  append: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), numkeys/pf.uf(t0,t1)
 		);
 	}
     auto patricia_find = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
