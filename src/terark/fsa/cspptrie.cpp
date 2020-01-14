@@ -1434,11 +1434,14 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
     auto sync_tls = [this,lzf,token]() {
         auto header = const_cast<DFA_MmapHeader*>(mmap_base);
-        m_token_mutex.lock();
         if (header) {
+            m_token_mutex.lock();
             header->dawg_num_words += lzf->m_n_words;
             header->transition_num += lzf->m_n_nodes;
             header->file_size = sizeof(DFA_MmapHeader) + m_mempool.size();
+        }
+        else {
+            m_token_mutex.lock();
         }
         lzf->sync_no_atomic(this);
         token->update_list(this);
