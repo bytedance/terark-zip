@@ -200,7 +200,8 @@ GetoptDone:
         t1 = pf.now();
         if (strVec.size()) {
             fprintf(stderr
-                , "read      input: time = %8.3f sec, %8.3f MB/sec, avglen = %8.3f\n"
+                , "read %s input: time = %8.3f sec, %8.3f MB/sec, avglen = %8.3f\n"
+                , mmap.base ? "mmap" : "line"
                 , pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), strVec.avg_size()
             );
         }
@@ -216,7 +217,7 @@ GetoptDone:
 		fprintf(stderr
 			, "generate  shuff: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(t0,t1), randvec.used_mem_size()/pf.uf(t0,t1)
-            , strVec.size() / pf.uf(t0,t1)
+			, strVec.size() / pf.uf(t0,t1)
 		);
 		t0 = pf.now();
 		fstrVec.reserve(strVec.size());
