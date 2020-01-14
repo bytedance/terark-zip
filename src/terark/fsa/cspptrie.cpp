@@ -309,7 +309,7 @@ inline void Patricia::update_min_age_inlock(TokenLink* token) {
     // if there is no m_min_age, m_token_head.m_next->m_age is the
     // minimum age,
     // we need to lock m_token_mutex to read m_token_head.m_next->m_age
-    if (token == m_token_head.m_next) {
+    if (&m_token_head == token->m_prev) {
         // token is the oldest ( age is the minimum )
         // token is being deleted when calling this function, so --
         // token->m_next is the new oldest
