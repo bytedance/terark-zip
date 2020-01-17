@@ -272,7 +272,7 @@ GetoptDone:
         }
         else {
             for (size_t i = Beg; i < End; ++i) {
-                token.update_lazy();
+                token.update();
                 fstring s = fstrVec[i];
                 if (!pt->lookup(s, &token))
                     fprintf(stderr, "pttrie not found: %.*s\n", s.ilen(), s.data());
@@ -281,15 +281,13 @@ GetoptDone:
         token.release();
     };
     auto patricia_lb = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
-        char iter_mem[Patricia::ITER_SIZE];
-        pt->construct_iter(iter_mem);
-        auto& iter = *reinterpret_cast<Patricia::Iterator*>(iter_mem);
+        auto& iter = *pt->new_iter();
         for (size_t i = Beg; i < End; ++i) {
             fstring s = fstrVec[i];
             if (!iter.seek_lower_bound(s))
                 fprintf(stderr, "pttrie lower_bound failed: %.*s\n", s.ilen(), s.data());
         }
-        iter.~Iterator();
+        iter.dispose();
     };
     auto exec_read = [&](MainPatricia* pt,
       std::function<void(MainPatricia*,int,size_t,size_t)> read) {
@@ -650,39 +648,39 @@ GetoptDone:
     fprintf(stderr, "verify multi-written trie iter...\n");
     TERARK_RT_assert(trie1.num_words() == trie2.num_words(), std::logic_error);
     t0 = pf.now();
-    Patricia::IterMem iter1, iter2;
-    iter1.construct(&trie1);
-    iter2.construct(&trie2);
+    Patricia::IteratorPtr iter1(trie1.new_iter());
+    Patricia::IteratorPtr iter2(trie2.new_iter());
     fprintf(stderr, "verify multi & single thread written trie iter incr...");
     fflush(stderr);
-    bool b1 = iter1.iter()->seek_begin();
-    bool b2 = iter2.iter()->seek_begin();
+    bool b1 = iter1->seek_begin();
+    bool b2 = iter2->seek_begin();
     TERARK_RT_assert(b1 == b2, std::logic_error);
     while (b1) {
         TERARK_RT_assert(true == b2, std::logic_error);
-        TERARK_RT_assert(iter1.iter()->word() == iter2.iter()->word(), std::logic_error);
-        b1 = iter1.iter()->incr();
-        b2 = iter2.iter()->incr();
+        TERARK_RT_assert(iter1->word() == iter2->word(), std::logic_error);
+        b1 = iter1->incr();
+        b2 = iter2->incr();
     }
     assert(false == b2);
     t1 = pf.now();
     fprintf(stderr, " done, decr...");
     fflush(stderr);
     t2 = pf.now();
-    b1 = iter1.iter()->seek_end();
-    b2 = iter2.iter()->seek_end();
+    b1 = iter1->seek_end();
+    b2 = iter2->seek_end();
     TERARK_RT_assert(b1 == b2, std::logic_error);
     while (b1) {
         TERARK_RT_assert(true == b2, std::logic_error);
-        TERARK_RT_assert(iter1.iter()->word() == iter2.iter()->word(), std::logic_error);
-        b1 = iter1.iter()->decr();
-        b2 = iter2.iter()->decr();
+        TERARK_RT_assert(iter1->word() == iter2->word(), std::logic_error);
+        b1 = iter1->decr();
+        b2 = iter2->decr();
     }
     assert(false == b2);
     t3 = pf.now();
     fprintf(stderr, " done!\n");
     fprintf(stderr, "incr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f M/sec\n", pf.sf(t0,t1), 2*sumkeylen/pf.uf(t0,t1), 2*numkeys/pf.uf(t0,t1));
     fprintf(stderr, "decr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f M/sec\n", pf.sf(t2,t3), 2*sumkeylen/pf.uf(t2,t3), 2*numkeys/pf.uf(t2,t3));
+
   }
     return 0;
 }

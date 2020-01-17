@@ -219,13 +219,13 @@ GetoptDone:
                         , nth, long(reclen-4), datalen);
                 break;
             }
-            Patricia::WriterToken token(&trie);
-            if (trie.insert(buf, &nth, &token)) {
+            Patricia::WriterTokenPtr token(new Patricia::WriterToken(&trie));
+            if (trie.insert(buf, &nth, token.get())) {
                 nth++;
             } else {
                 fprintf(stderr, "dup binary key, len = %zd\n", buf.size());
             }
-            if (token.value() == NULL) { // run out of maxMem
+            if (token->value() == NULL) { // run out of maxMem
                 fprintf(stderr
                     , "write concurrent run out of maxMem = %zd, fragments = %zd (%.2f%%)\n"
                     , maxMem, trie.mem_frag_size(), 100.0*trie.mem_frag_size()/trie.mem_size());
@@ -339,7 +339,7 @@ GetoptDone:
     long long t_append_fstrVec = t1 - t0;
     std::map<std::string, size_t> stdmap;
     auto patricia_find = [&](int tid, size_t Beg, size_t End) {
-        Patricia::ReaderToken token(&trie);
+        Patricia::ReaderToken& token = *trie.acquire_tls_reader_token();
         if (mark_readonly) {
             for (size_t i = Beg; i < End; ++i) {
                 fstring s = fstrVec[i];
@@ -349,23 +349,22 @@ GetoptDone:
         }
         else {
             for (size_t i = Beg; i < End; ++i) {
-                token.update_lazy();
+                token.update();
                 fstring s = fstrVec[i];
                 if (!trie.lookup(s, &token))
                     fprintf(stderr, "pttrie not found: %.*s\n", s.ilen(), s.data());
             }
         }
+        token.release();
     };
     auto patricia_lb = [&](int tid, size_t Beg, size_t End) {
-        char iter_mem[Patricia::ITER_SIZE];
-        trie.construct_iter(iter_mem);
-        auto& iter = *reinterpret_cast<Patricia::Iterator*>(iter_mem);
+        auto& iter = *trie.new_iter();
         for (size_t i = Beg; i < End; ++i) {
             fstring s = fstrVec[i];
             if (!iter.seek_lower_bound(s))
                 fprintf(stderr, "pttrie lower_bound failed: %.*s\n", s.ilen(), s.data());
         }
-        iter.~Iterator();
+        iter.dispose();
     };
     auto stdmap_find = [&](int tid, size_t Beg, size_t End) {
         std::string strkey;
@@ -422,7 +421,11 @@ GetoptDone:
     size_t nth = 0;
     for (size_t i = 0; i < strVec.size(); ++i) {
         fstring s = strVec[i];
-        Patricia::WriterToken token(&trie);
+        Patricia::WriterTokenPtr& ptoken = trie.tls_writer_token();
+        if (!ptoken) {
+            ptoken.reset(new Patricia::WriterToken(&trie));
+        }
+        auto& token = *ptoken;
         if (trie.insert(s, &nth, &token)) {
             if (token.value()) {
                 nth++;
@@ -433,6 +436,7 @@ GetoptDone:
                 break;
             }
         }
+        token.release();
     }
     if (mark_readonly)
         trie.set_readonly();
@@ -460,7 +464,11 @@ GetoptDone:
     if (write_thread_num > 0) {
         auto fins = [&](int tid, size_t beg, size_t end) {
             fprintf(stderr, "thread-%02d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
-            Patricia::WriterToken token(&trie2);
+            Patricia::WriterTokenPtr& ptoken = trie2.tls_writer_token();
+            if (!ptoken) {
+                ptoken.reset(new Patricia::WriterToken(&trie2));
+            }
+            Patricia::WriterToken& token = *ptoken;
             for (size_t i = beg; i < end; ++i) {
                 fstring s = strVec[i];
                 if (trie2.insert(s, &i, &token)) {
@@ -477,7 +485,11 @@ GetoptDone:
         auto finsInterleave = [&](int tid) {
             size_t tnum = write_thread_num;
             fprintf(stderr, "thread-%02d: interleave, num = %8zd\n", tid, strVec.size()/tnum);
-            Patricia::WriterToken token(&trie2);
+            Patricia::WriterTokenPtr& ptoken = trie2.tls_writer_token();
+            if (!ptoken) {
+                ptoken.reset(new Patricia::WriterToken(&trie2));
+            }
+            Patricia::WriterToken& token = *ptoken;
             for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
                 fstring s = strVec[i];
                 if (trie2.insert(s, &i, &token)) {

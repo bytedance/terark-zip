@@ -70,6 +70,7 @@ public:
     typedef typename std::conditional<Align==4,uint32_t,uint64_t>::type pos_type;
     typedef size_t   state_id_t;
     typedef pos_type transition_t;
+    friend class TokenBase;
     friend class ReaderToken;
     friend class WriterToken;
     friend class Iterator;
@@ -84,7 +85,7 @@ public:
 
     void mem_lazy_free(size_t loc, size_t size);
 
-    std::unique_ptr<WriterToken>& tls_writer_token() final;
+    WriterTokenPtr& tls_writer_token() final;
     ReaderToken* acquire_tls_reader_token() final;
 
 protected:
@@ -93,12 +94,6 @@ protected:
         pos_type node;
         pos_type size;
     };
-    size_t        m_max_word_len;
-    size_t        m_n_nodes;
-
-    byte_t        m_padding2[64-sizeof(size_t)];
-    // following fields are nearly readonly
-
     //  using  LazyFreeListBase = AutoGrowCircularQueue<LazyFreeItem>;
     using  LazyFreeListBase = std::deque<LazyFreeItem>;
     struct LazyFreeList : LazyFreeListBase {
@@ -108,7 +103,7 @@ protected:
     union {
         LazyFreeList    m_lazy_free_list_sgl; // single
     };
-    std::unique_ptr<WriterToken> m_writer_token_sgl;
+    WriterTokenPtr m_writer_token_sgl;
     struct ReaderTokenTLS_Holder;
     struct ReaderTokenTLS_Object : ReaderToken {
         ReaderTokenTLS_Object* m_next_free = nullptr;
@@ -134,16 +129,32 @@ protected:
         //  ThreadCacheMemPool<AlignSize> m_mempool_thread_cache;
         ThreadCacheMemPool<AlignSize> m_mempool_lock_free;
     };
+
     intptr_t            m_fd;
     size_t              m_appdata_offset;
     size_t              m_appdata_length;
+
+//-------------------------------------------------------------
+    byte_t     m_padding2[64-sizeof(size_t)];
+
+    std::mutex m_counter_mutex;
+    // following fields are frequently updating
+
+    size_t     m_max_word_len;
+    size_t     m_n_nodes;
+    size_t     m_n_words;
+    Stat       m_stat;
+    TokenBase* m_token_head;
+    TokenBase* m_token_tail;
+    uint64_t   m_min_age;
+    uint64_t   m_max_age;
 
     void alloc_mempool_space(intptr_t maxMem);
 
     template<ConcurrentLevel>
     void revoke_expired_nodes();
     template<ConcurrentLevel, class LazyList>
-    void revoke_expired_nodes(LazyList&);
+    void revoke_expired_nodes(LazyList&, uint64_t min_age);
     void check_valsize(size_t valsize) const;
     void SingleThreadShared_sync_token_list(byte_t* oldmembase);
 
@@ -166,9 +177,6 @@ protected:
 
     void free_aux(size_t pos, size_t len);
     size_t alloc_aux(size_t len);
-
-    bool update_reader_token(ReaderToken*, TokenUpdatePolicy) final;
-    bool update_writer_token(WriterToken*, TokenUpdatePolicy) final;
 
 public:
     PatriciaMem();
@@ -209,7 +217,10 @@ public:
     size_t mem_align_size() const final { return AlignSize; }
     size_t mem_frag_size() const final { return m_mempool.frag_size(); }
     using Patricia::mem_get_stat;
-    void mem_get_stat(MemStat*) const override final;
+    void mem_get_stat(MemStat*) const final;
+
+    const Stat& trie_stat() const final { return m_stat; }
+    size_t num_words() const final { return m_n_words; }
 
     void* alloc_appdata(size_t len);
     void* appdata_ptr() const {
@@ -591,7 +602,6 @@ public:
     }
 
     bool lookup(fstring key, ReaderToken* token) const override final;
-    void construct_iter(void* ptr) const final;
 
     void set_insert_func(ConcurrentLevel conLevel);
 

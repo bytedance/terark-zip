@@ -11,6 +11,7 @@ template<size_t Align> class PatriciaMem;
 class MainPatricia;
 
 #define TERARK_friend_class_Patricia \
+    friend class Patricia;   \
     friend class MainPatricia;   \
     friend class PatriciaMem<4>; \
     friend class PatriciaMem<8>
@@ -31,16 +32,12 @@ class MainPatricia;
  */
 class TERARK_DLL_EXPORT Patricia : public MatchingDFA, public boost::noncopyable {
 public:
-    TERARK_ENUM_PLAIN_INCLASS(ConcurrentLevel, int,
+    TERARK_ENUM_PLAIN_INCLASS(ConcurrentLevel, byte_t,
         NoWriteReadOnly,     // 0
         SingleThreadStrict,  // 1
         SingleThreadShared,  // 2, iterator with token will keep valid
         OneWriteMultiRead,   // 3
         MultiWriteMultiRead  // 4
-    );
-    TERARK_ENUM_PLAIN_INCLASS(TokenUpdatePolicy, int,
-        UpdateNow,  // 0
-        UpdateLazy  // 1
     );
 protected:
     /*
@@ -51,9 +48,9 @@ protected:
      *    ┌───────────┐    ┌───────────┐    ┌─────────────┐
      *    │ TokenLink ├───>│ TokenBase ├─┬─>│ ReaderToken │
      *    ├───────────┤    ├───────────┤ │  └─────────────┘
-     *    │  m_prev   │    │   m_trie  │ │  ┌─────────────┐
+     *    │  m_state  │    │  m_trie   │ │  ┌─────────────┐
      *    │  m_next   │    │  m_value  │ └─>│ WriterToken │
-     *    │   m_age   │    └───────────┘    ├─────────────┤
+     *    │  m_age    │    └───────────┘    ├─────────────┤
      *    └───────────┘                     │    m_tls    │
      *                                      └─────────────┘
      *
@@ -62,22 +59,41 @@ protected:
      * SingleThreadStrict and SingleThreadShared, token behaves trivally.
      *
      */
-    struct TERARK_DLL_EXPORT TokenLink : private boost::noncopyable {
-        TokenLink*    m_prev;
-        TokenLink*    m_next;
-        uint64_t      m_age;
-    };
 
-    class TERARK_DLL_EXPORT TokenBase : protected TokenLink {
+    class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
     protected:
+        enum TokenState : byte_t {
+            ReleaseDone,
+            AcquireDone,
+            ReleaseWait,
+            DisposeWait,
+            DisposeDone,
+        };
         Patricia*     m_trie;
         void*         m_value;
-    public:
+        void*         m_tls; // unused for ReaderToken
+        uint64_t      m_age;
+    //-------------------------------------
+    // will be updated by other threads
+        uint64_t      m_min_age;
+        TokenBase*    m_next;
+        TokenState    m_state;
+        bool          m_is_head;
+        bool          m_min_age_updated; // update by other threads
+
+        void enqueue(Patricia*);
+        void dequeue(Patricia*);
+        void mt_acquire(Patricia*);
+        void mt_release(Patricia*);
+        void mt_update(Patricia*);
+        TokenBase();
         virtual ~TokenBase();
-        virtual bool update(TokenUpdatePolicy) = 0;
-        inline  bool update_lazy() { return update(UpdateLazy); }
-        inline  bool update_now() { return update(UpdateNow); }
+    public:
+        virtual void update();
+        void release();
+        void dispose(); ///< delete lazy
+
         Patricia* trie() const { return m_trie; }
         const void* value() const { return m_value; }
         template<class T>
@@ -97,60 +113,51 @@ protected:
     };
 
 public:
+    struct TokenDeleter {
+        void operator()(TokenBase* p) const { p->dispose(); }
+    };
     class TERARK_DLL_EXPORT ReaderToken : public TokenBase {
         TERARK_friend_class_Patricia;
     protected:
-        void update_list(ConcurrentLevel, Patricia*);
+        virtual ~ReaderToken();
     public:
         ReaderToken();
         explicit ReaderToken(Patricia*);
-        virtual ~ReaderToken();
         void acquire(Patricia*);
-        void release();
-        bool update(TokenUpdatePolicy) override;
         bool lookup(fstring);
     };
+    using ReaderTokenPtr = std::unique_ptr<ReaderToken, TokenDeleter>;
 
     class TERARK_DLL_EXPORT WriterToken : public TokenBase {
-        void* m_tls;
         TERARK_friend_class_Patricia;
-        void update_list(Patricia*);
     protected:
         virtual bool init_value(void* valptr, size_t valsize) noexcept;
         virtual void destroy_value(void* valptr, size_t valsize) noexcept;
+        virtual ~WriterToken();
     public:
         WriterToken();
         explicit WriterToken(Patricia*);
-        virtual ~WriterToken();
         void acquire(Patricia*);
-        void release();
-        bool update(TokenUpdatePolicy) override;
         bool insert(fstring key, void* value);
     };
+    using WriterTokenPtr = std::unique_ptr<WriterToken, TokenDeleter>;
 
     class TERARK_DLL_EXPORT Iterator : public ReaderToken, public ADFA_LexIterator {
     protected:
-        Iterator(Patricia* sub) : ReaderToken(sub), ADFA_LexIterator(valvec_no_init()) {}
+        Iterator(Patricia*);
+        ~Iterator();
     public:
         virtual void token_detach_iter() = 0;
     };
-    class TERARK_DLL_EXPORT IterMem : boost::noncopyable {
-        byte_t  m_iter[sizeof(Iterator)];
-        union { valvec<uint64_t> m_vstk; };
-        size_t  m_flag;
-    public:
-        IterMem() noexcept;
-        ~IterMem() noexcept;
-        bool is_constructed() const noexcept;
-        void construct(Patricia*);
-        void reset(Patricia*);
-        Iterator* iter() noexcept { return reinterpret_cast<Iterator*>(this); }
-        const Iterator* iter() const noexcept { return reinterpret_cast<const Iterator*>(this); }
-    };
-    static const size_t ITER_SIZE = sizeof(IterMem);
+    using IteratorPtr = std::unique_ptr<Iterator, TokenDeleter>;
 
-    /// ptr size must be allocated ITER_SIZE
-    virtual void construct_iter(void* ptr) const = 0;
+    // template<class TokenType>
+    // TokenType* alloc_token() {
+    //     void* mem = this->alloc_token_imp(sizeof(TokenType));
+    //     TokenType* token = new(mem) TokenType();
+    //     token->m_trie = this;
+    //     return token;
+    // }
 
     struct MemStat {
         valvec<size_t> fastbin;
@@ -185,8 +192,13 @@ public:
     virtual bool lookup(fstring key, ReaderToken* token) const = 0;
     virtual void set_readonly() = 0;
     virtual bool  is_readonly() const = 0;
-    virtual std::unique_ptr<WriterToken>& tls_writer_token() = 0;
+    virtual WriterTokenPtr& tls_writer_token() = 0;
     virtual ReaderToken* acquire_tls_reader_token() = 0;
+
+    Iterator* new_iter(size_t root = initial_state) {
+        auto iter = this->adfa_make_iter(root);
+        return static_cast<Iterator*>(iter);
+    }
 
     struct Stat {
         size_t n_fork;
@@ -195,27 +207,22 @@ public:
         size_t n_add_state_move;
         size_t sum() const { return n_fork + n_split + n_mark_final + n_add_state_move; }
     };
-    const Stat& trie_stat() const { return m_stat; }
     size_t get_valsize() const { return m_valsize; }
-    size_t num_words() const { return m_n_words; }
+    virtual const Stat& trie_stat() const = 0;
+    virtual size_t num_words() const = 0;
     ~Patricia();
 protected:
     Patricia();
-    virtual bool update_reader_token(ReaderToken*, TokenUpdatePolicy) = 0;
-    virtual bool update_writer_token(WriterToken*, TokenUpdatePolicy) = 0;
-    void update_min_age_inlock(TokenLink* token);
+    // void* alloc_token_imp(size_t);
+    // void free_token_imp(TokenBase*);
+    // void update_min_age_inlock(TokenBase* token);
     bool insert_readonly_throw(fstring key, void* value, WriterToken*);
     typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*);
-    insert_func_t m_insert;
-    ConcurrentLevel     m_writing_concurrent_level;
-    ConcurrentLevel     m_mempool_concurrent_level;
-    bool                m_is_virtual_alloc;
-    size_t    m_valsize;
-    size_t    m_n_words;
-    Stat      m_stat;
-    std::mutex    m_token_mutex;
-    TokenLink     m_token_head;
-    size_t        m_min_age;
+    insert_func_t    m_insert;
+    ConcurrentLevel  m_writing_concurrent_level;
+    ConcurrentLevel  m_mempool_concurrent_level;
+    bool             m_is_virtual_alloc;
+    uint32_t         m_valsize;
 };
 
 } // namespace terark

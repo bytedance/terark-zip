@@ -184,7 +184,7 @@ GetoptDone:
         }
         else {
             for (size_t i = Beg; i < End; ++i) {
-                token.update_lazy();
+                token.update();
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (!pt->lookup(s, &token))
                     fprintf(stderr, "pttrie lookup not found: %llu\n", cvtkey(keyvec[i]));
@@ -195,9 +195,7 @@ GetoptDone:
         token.release();
     };
     auto patricia_lb = [&](size_t tid, size_t Beg, size_t End) {
-        char iter_mem[Patricia::ITER_SIZE];
-        pt->construct_iter(iter_mem);
-        auto& iter = *reinterpret_cast<Patricia::Iterator*>(iter_mem);
+        auto& iter = *pt->new_iter();
         for (size_t i = Beg; i < End; ++i) {
             fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
             if (!iter.seek_lower_bound(s) || iter.word() != s)
@@ -205,7 +203,7 @@ GetoptDone:
             if (iter.value_of<ullong>() != unaligned_load<ullong>(s.p))
                 fprintf(stderr, "pttrie lower_bound wrong value: %llu\n", cvtkey(keyvec[i]));
         }
-        iter.~Iterator();
+        iter.dispose();
     };
     auto exec_read = [&](std::function<void(size_t,size_t,size_t)> read) {
         valvec<std::thread> thrVec(read_thread_num - 1, valvec_reserve());
