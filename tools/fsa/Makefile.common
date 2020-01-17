@@ -151,7 +151,7 @@ ALL_EXE := ${EXE_BINS_A} ${EXE_BINS_D} ${EXE_BINS_R}
 ALL_DLL := ${DLL_BINS_A} ${DLL_BINS_D} ${DLL_BINS_R}
 ALL_BIN := ${ALL_EXE} ${ALL_DLL}
 
-ext_ldflags = $(strip $(shell sed -n 's,.*//Makefile\s*:\s*LDFLAGS\s*:\s*\(.*\),\1,p' $(subst .exe,.cpp,$(subst ${AFR_DIR},,$(subst ${RLS_DIR}/,,$(subst ${DBG_DIR}/,,$@))))))
+ext_ldflags = $(strip $(shell sed -n 's,.*//Makefile\s*:\s*LDFLAGS\s*:\s*\(.*\),\1,p' $(subst .exe,.cpp,$(subst ${AFR_DIR}/,,$(subst ${RLS_DIR}/,,$(subst ${DBG_DIR}/,,$@))))))
 ext_cxxflags = $(strip $(shell sed -n 's,.*//Makefile\s*:\s*CXXFLAGS\s*:\s*\(.*\),\1,p' $<))
 ext_cxxflags_delay = $$(strip $$(shell sed -n 's,.*//Makefile\s*:\s*CXXFLAGS\s*:\s*\(.*\),\1,p' $$<))
 
