@@ -250,8 +250,17 @@ void PatriciaMem<Align>::set_readonly() {
         std::map<size_t, size_t> retry_histgram;
         auto sync = [&](TCMemPoolOneThread<AlignSize>* tc) {
             auto lzf = static_cast<LazyFreeListTLS*>(tc);
-            lzf->sync_no_atomic(lzf->m_trie);
+            assert(this == lzf->m_trie);
+            lzf->sync_no_atomic(this);
             lzf->reset_zero();
+
+            this->m_adfa_total_words_len += lzf->m_adfa_total_words_len;
+            this->m_total_zpath_len += lzf->m_total_zpath_len;
+            this->m_zpath_states += lzf->m_zpath_states;
+            lzf->m_adfa_total_words_len = 0;
+            lzf->m_total_zpath_len = 0;
+            lzf->m_zpath_states = 0;
+
             sum_retry += lzf->m_n_retry;
             if (debugConcurrent >= 1) {
                 sum_wait += lzf->m_race_wait;
@@ -609,8 +618,18 @@ void PatriciaMem<Align>::destroy() {
     case  SingleThreadShared: destroy_obj(&m_mempool_lock_none); break;
     case     NoWriteReadOnly: break; // do nothing
     }
+/*
+    if (conLevel >= MultiWriteMultiRead) {
+        assert(m_writer_token_sgl.get() == nullptr);
+        for (TokenBase* token = m_token_head; token; ) {
+            TokenBase* next = token->m_next;
+            token->gc(this);
+            token = next;
+        }
+    }
+*/
     assert(NULL == m_token_head);
-    assert(NULL == m_token_head);
+    assert(NULL == m_token_tail);
 }
 
 template<size_t Align>
@@ -2921,6 +2940,19 @@ void Patricia::TokenBase::release() {
         assert(NULL == m_tls);
         assert(NULL == m_next);
     }
+}
+
+void Patricia::TokenBase::gc(Patricia* trie1) {
+    switch (m_state) {
+    default:          TokenAssert(false); break;
+    case ReleaseDone: break;
+    case ReleaseWait: break;
+    case AcquireDone:
+        fprintf(stderr, "WARN: Patricia::TokenBase::gc(): Token=%p is not released\n", this);
+        break;
+    case DisposeDone: break;
+    }
+    m_state = DisposeDone;
 }
 
 ///////////////////////////////////////////////////////////////////////////////

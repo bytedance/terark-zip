@@ -419,6 +419,7 @@ GetoptDone:
                     }
                 }
             }
+            token.release();
 		};
 		auto finsInterleave = [&](int tid) {
 			//fprintf(stderr, "thread-%03d: interleave, num = %8zd\n", tid, strVec.size() / tnum);
@@ -441,6 +442,7 @@ GetoptDone:
 					}
 				}
 			}
+            token.release();
 		};
 		valvec<std::thread> thrVec(tnum, valvec_reserve());
 		for (int i = 0; i < tnum; ++i) {
