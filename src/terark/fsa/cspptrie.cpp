@@ -3390,7 +3390,7 @@ MainPatricia::IterImpl::IterImpl(const Patricia* sub)
 }
 
 MainPatricia::IterImpl::~IterImpl() {
-    // do nothing
+    TokenAssert(DisposeDone == m_state);
 }
 
 // after calling this function, this->update() will not re-search iter
