@@ -2649,7 +2649,7 @@ void Patricia::TokenBase::assert_fail(const char* file, int line, const char* ex
     abort();
 }
 #if defined(NDEBUG)
-   #define TokenAssert(...) assert_fail(__FILE__, __LINE__, #__VA_ARGS__)
+   #define TokenAssert(...) (__VA_ARGS__) ? (void)0 : assert_fail(__FILE__, __LINE__, #__VA_ARGS__)
 #else
    #define TokenAssert assert
 #endif
