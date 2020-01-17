@@ -2768,7 +2768,7 @@ void Patricia::TokenBase::dequeue(Patricia* trie1) {
     // now token queue is empty
     uint64_t min_age = trie->m_max_age;
     trie->m_token_head = NULL;
-    trie->m_min_age = min_age;
+//  trie->m_min_age = min_age; // danger!!
     this->m_min_age = min_age;
 }
 
@@ -2890,7 +2890,6 @@ void Patricia::TokenBase::update() {
 void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
-    assert(conLevel > NoWriteReadOnly);
     if (conLevel >= SingleThreadShared) {
         assert(AcquireDone == m_state);
         assert(m_age <= trie->m_max_age);
