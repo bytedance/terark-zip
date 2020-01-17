@@ -416,11 +416,12 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 
 boost-include/build-lib-for-terark.done:
 	cd boost-include \
-		&& bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
-		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
-		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
-		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=debug \
-		&& ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=release
+		&& echo "using gcc : : ${CXX} ; " >> tools/build/src/user-config.jam \
+		&& CX=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
+		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
+		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=debug \
+		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=release
 	touch $@
 
 %${DLL_SUFFIX}:
