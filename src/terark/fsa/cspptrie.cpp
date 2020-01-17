@@ -1470,7 +1470,8 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
             }
             token->m_min_age_updated = false;
         }
-        assert(token != m_token_head);
+        //this is a false assert, because m_token_head may be set by others
+        //assert(token != m_token_head);
     }
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     size_t valsize = m_valsize;
@@ -2623,6 +2624,17 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 
 ///////////////////////////////////////////////////////////////////////
 
+void Patricia::TokenBase::assert_fail(const char* file, int line, const char* expr) {
+    fprintf(stderr, "A: %s:%d: %s , m_state = %d\n", file, line, expr, m_state);
+    assert(false);
+    abort();
+}
+#if defined(NDEBUG)
+   #define TokenAssert(...) assert_fail(__FILE__, __LINE__, #__VA_ARGS__)
+#else
+   #define TokenAssert assert
+#endif
+
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
     m_next  = NULL;
@@ -2636,27 +2648,24 @@ Patricia::TokenBase::TokenBase() {
 }
 Patricia::TokenBase::~TokenBase() {
     assert(m_state == DisposeDone);
+    TokenAssert(m_state == DisposeDone);
 }
 
 void Patricia::TokenBase::dispose() {
+    if (AcquireDone == m_state) {
+        release(); // auto release on dispose
+    }
     switch (m_state) {
-    default:
-        abort(); break;
+    default:          TokenAssert(false); break;
+    case AcquireDone: TokenAssert(false); break;
+    case DisposeWait: TokenAssert(false); break;
+    case DisposeDone: TokenAssert(false); break;
     case ReleaseDone:
         m_state = DisposeDone;
         delete this; // safe to delete
         break;
-    case AcquireDone:
-        assert(false); abort();
-        break;
     case ReleaseWait:
         m_state = DisposeWait;
-        break;
-    case DisposeWait:
-        assert(false); abort();
-        break;
-    case DisposeDone:
-        assert(false); abort();
         break;
     }
 }
@@ -2703,11 +2712,9 @@ void Patricia::TokenBase::dequeue(Patricia* trie1) {
     while (curr) {
         auto state = curr->m_state;
         switch (state) {
-        default:
-            abort(); break;
-        case ReleaseDone:
-            assert(false); abort();
-            break;
+        default:          TokenAssert(false); break;
+        case ReleaseDone: TokenAssert(false); break;
+        case DisposeDone: TokenAssert(false); break;
         case AcquireDone: {
             uint64_t min_age = curr->m_age;
             trie->m_token_head = curr;
@@ -2756,9 +2763,6 @@ void Patricia::TokenBase::dequeue(Patricia* trie1) {
                 curr = next;
             }
             break;
-        case DisposeDone:
-            assert(false); abort();
-            break;
         }
     }
     // now token queue is empty
@@ -2771,15 +2775,14 @@ void Patricia::TokenBase::dequeue(Patricia* trie1) {
 void Patricia::TokenBase::mt_acquire(Patricia* trie) {
     TokenState state = m_state;
     switch (state) {
-    default:
-        abort(); break;
+    default:          TokenAssert(false); break;
+    case AcquireDone: TokenAssert(false); break;
+    case DisposeWait: TokenAssert(false); break;
+    case DisposeDone: TokenAssert(false); break;
     case ReleaseDone:
     DoLock:
         TokenBase::enqueue(trie);
         m_state = AcquireDone;
-        break;
-    case AcquireDone:
-        assert(false); abort();
         break;
     case ReleaseWait:
         if (as_atomic(m_state).compare_exchange_strong(
@@ -2796,12 +2799,6 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie) {
             assert(ReleaseDone == m_state);
             goto DoLock;
         }
-        break;
-    case DisposeWait:
-        assert(false); abort();
-        break;
-    case DisposeDone:
-        assert(false); abort();
         break;
     }
 }
@@ -2866,11 +2863,11 @@ void Patricia::TokenBase::update() {
     else if (conLevel == NoWriteReadOnly) {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
-        default:          assert(false); abort(); break;
-        case ReleaseDone: assert(false); abort(); break;
-        case ReleaseWait: assert(false); abort(); break;
-        case DisposeWait: assert(false); abort(); break;
-        case DisposeDone: assert(false); abort(); break;
+        default:          TokenAssert(false); break;
+        case ReleaseDone: TokenAssert(false); break;
+        case ReleaseWait: TokenAssert(false); break;
+        case DisposeWait: TokenAssert(false); break;
+        case DisposeDone: TokenAssert(false); break;
         case AcquireDone:
             m_next = NULL;
             m_tls = NULL;
@@ -2902,10 +2899,10 @@ void Patricia::TokenBase::release() {
     else if (conLevel == NoWriteReadOnly) {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
-        default:          assert(false); abort(); break;
-        case ReleaseDone: assert(false); abort(); break;
-        case ReleaseWait: assert(false); abort(); break;
-        case DisposeDone: assert(false); abort(); break;
+        default:          TokenAssert(false); break;
+        case ReleaseDone: TokenAssert(false); break;
+        case ReleaseWait: TokenAssert(false); break;
+        case DisposeDone: TokenAssert(false); break;
         case AcquireDone:
             m_state = ReleaseDone;
             m_next = NULL;
@@ -2951,10 +2948,10 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     else if (conLevel == NoWriteReadOnly) {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
-        default:          assert(false); abort(); break;
-        case AcquireDone: assert(false); abort(); break;
-        case DisposeWait: assert(false); abort(); break;
-        case DisposeDone: assert(false); abort(); break;
+        default:          TokenAssert(false); break;
+        case AcquireDone: TokenAssert(false); break;
+        case DisposeWait: TokenAssert(false); break;
+        case DisposeDone: TokenAssert(false); break;
         case ReleaseWait:
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
@@ -2978,7 +2975,7 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
 }
 
 Patricia::ReaderToken::~ReaderToken() {
-    assert(m_state == DisposeDone);
+    TokenAssert(m_state == DisposeDone);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -3033,7 +3030,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
 }
 
 Patricia::WriterToken::~WriterToken() {
-    assert(m_state == DisposeDone);
+    TokenAssert(m_state == DisposeDone);
 }
 
 bool Patricia::ReaderToken::lookup(fstring key) {

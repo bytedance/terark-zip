@@ -82,6 +82,7 @@ protected:
         bool          m_is_head;
         bool          m_min_age_updated; // update by other threads
 
+        void assert_fail(const char* file, int line, const char* expr);
         void enqueue(Patricia*);
         void dequeue(Patricia*);
         void mt_acquire(Patricia*);
