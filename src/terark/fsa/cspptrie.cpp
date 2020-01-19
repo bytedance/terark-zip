@@ -1468,8 +1468,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         }
         lzf->sync_no_atomic(this);
         m_max_age++; // crucial!!
-        token->dequeue(this);
-        token->enqueue(this);
+        token->mt_update(this);
         lzf->reset_zero();
     };
     size_t min_age;
@@ -1482,13 +1481,6 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     }
     else {
         min_age = token->m_min_age;
-        if (token->m_min_age_updated) {
-            if (auto next = token->m_next) {
-                next->m_min_age = min_age;
-                next->m_min_age_updated = true;
-            }
-            token->m_min_age_updated = false;
-        }
         //this is a false assert, because m_token_head may be set by others
         //assert(token != m_token_head);
     }
@@ -2663,7 +2655,7 @@ Patricia::TokenBase::TokenBase() {
     m_value = NULL;
     m_state = ReleaseDone;
     m_is_head = false;
-    m_min_age_updated = false;
+//  m_min_age_updated = false;
 }
 Patricia::TokenBase::~TokenBase() {
     assert(m_state == DisposeDone);
@@ -2725,7 +2717,8 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     m_age = trie->m_max_age;
 }
 
-void Patricia::TokenBase::dequeue(Patricia* trie1) {
+Patricia::TokenBase*
+Patricia::TokenBase::dequeue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto curr = m_next;
     while (curr) {
@@ -2734,17 +2727,7 @@ void Patricia::TokenBase::dequeue(Patricia* trie1) {
         default:          TokenAssert(false); break;
         case ReleaseDone: TokenAssert(false); break;
         case DisposeDone: TokenAssert(false); break;
-        case AcquireDone: {
-            uint64_t min_age = curr->m_age;
-            trie->m_token_head = curr;
-            trie->m_min_age = min_age;
-            this->m_min_age = min_age;
-            if (curr->m_min_age != min_age) {
-                curr->m_min_age = min_age;
-                curr->m_min_age_updated = true;
-            }
-            as_atomic(curr->m_is_head).store(true, std::memory_order_release);
-            return; }
+        case AcquireDone: return curr;
         case ReleaseWait:
             {
                 auto next = curr->m_next;
@@ -2789,6 +2772,7 @@ void Patricia::TokenBase::dequeue(Patricia* trie1) {
     trie->m_token_head = NULL;
 //  trie->m_min_age = min_age; // danger!!
     this->m_min_age = min_age;
+    return NULL;
 }
 
 void Patricia::TokenBase::mt_acquire(Patricia* trie) {
@@ -2828,11 +2812,25 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     if (m_is_head) {
         assert(this == trie->m_token_head);
         if (m_state == AcquireDone) {
-            dequeue(trie);
-            m_next = NULL;
-            m_state = ReleaseDone;
-            m_value = NULL;
-            as_atomic(m_age).store(0, std::memory_order_release);
+            if (auto new_head = dequeue(trie)) {
+                m_age = 0;
+                m_state = ReleaseDone;
+                m_value = NULL;
+                uint64_t min_age = new_head->m_age;
+                trie->m_token_head = new_head;
+                trie->m_min_age = min_age;
+                this->m_min_age = min_age;
+                new_head->m_min_age = min_age;
+                as_atomic(new_head->m_is_head)
+                         .store(true, std::memory_order_release);
+            }
+            else {
+                TokenBase* me = this;
+                as_atomic(trie->m_token_tail).compare_exchange_strong(
+                    me, NULL,
+                    std::memory_order_release,
+                    std::memory_order_relaxed);
+            }
         }
         else {
             abort();
@@ -2842,6 +2840,10 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         if (m_state == AcquireDone) {
             m_state = ReleaseWait;
             m_value = NULL;
+            if (auto next = m_next) {
+                m_age = next->m_age;
+                m_min_age = trie->m_min_age;
+            }
         }
         else {
             abort();
@@ -2849,26 +2851,22 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     }
 }
 
+terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(m_state == AcquireDone);
-    if (m_is_head) {
-        assert(this == trie->m_token_head);
-        if (m_state == AcquireDone) {
-            dequeue(trie);
-            enqueue(trie);
-        }
-        else {
-            abort();
-        }
-    }
-    else {
-        if (m_state == AcquireDone) {
-            // do nothing
-        }
-        else {
-            abort();
-        }
+    assert(m_is_head);
+    assert(this == trie->m_token_head);
+    TokenAssert(m_state == AcquireDone);
+    if (auto new_head = dequeue(trie)) {
+        uint64_t min_age = new_head->m_age;
+        trie->m_token_head = new_head;
+        trie->m_min_age = min_age;
+        this->m_min_age = min_age;
+        this->m_age = trie->m_max_age;
+        new_head->m_min_age = min_age;
+        enqueue(trie);
+        as_atomic(new_head->m_is_head)
+                    .store(true, std::memory_order_release);
     }
 }
 
@@ -2877,9 +2875,10 @@ void Patricia::TokenBase::update() {
     auto conLevel = trie->m_writing_concurrent_level;
     assert(m_age <= trie->m_max_age);
     if (conLevel >= SingleThreadShared) {
-        mt_update(trie);
+        if (m_is_head)
+            mt_update(trie);
     }
-    else if (conLevel == NoWriteReadOnly) {
+    else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
         default:          TokenAssert(false); break;
@@ -2893,16 +2892,13 @@ void Patricia::TokenBase::update() {
             m_age = 0;
             break;
         }
-        assert(ReleaseDone == m_state);
-        assert(0 == m_age);
-        assert(NULL == m_tls);
-        assert(NULL == m_next);
-    }
-    else {
-        assert(conLevel == SingleThreadStrict);
-        assert(NULL == m_next);
-        assert(NULL == trie->m_token_head);
-        assert(NULL == trie->m_token_tail);
+      #if !defined(NDEBUG)
+        if (SingleThreadStrict == conLevel) {
+            assert(0 == m_age);
+            assert(NULL == m_tls);
+            assert(NULL == m_next);
+        }
+      #endif
     }
 }
 
@@ -2914,7 +2910,7 @@ void Patricia::TokenBase::release() {
         assert(m_age <= trie->m_max_age);
         mt_release(trie);
     }
-    else if (conLevel == NoWriteReadOnly) {
+    else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
         default:          TokenAssert(false); break;
@@ -2928,17 +2924,13 @@ void Patricia::TokenBase::release() {
             m_age = 0;
             break;
         }
-        assert(ReleaseDone == m_state);
-        assert(0 == m_age);
-        assert(NULL == m_tls);
-        assert(NULL == m_next);
-    }
-    else {
-        assert(SingleThreadStrict == conLevel);
-        assert(ReleaseDone == m_state);
-        assert(0 == m_age);
-        assert(NULL == m_tls);
-        assert(NULL == m_next);
+      #if !defined(NDEBUG)
+        if (SingleThreadStrict == conLevel) {
+            assert(0 == m_age);
+            assert(NULL == m_tls);
+            assert(NULL == m_next);
+        }
+      #endif
     }
 }
 
@@ -2976,7 +2968,7 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     if (conLevel >= SingleThreadShared) {
         mt_acquire(trie);
     }
-    else if (conLevel == NoWriteReadOnly) {
+    else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
         default:          TokenAssert(false); break;
@@ -2992,14 +2984,13 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
             m_age = 0;
             break;
         }
-        assert(ReleaseDone == m_state);
-        assert(0 == m_age);
-        assert(NULL == m_tls);
-        assert(NULL == m_next);
-    }
-    else {
-        assert(SingleThreadStrict == conLevel);
-        assert(ReleaseDone == m_state);
+      #if !defined(NDEBUG)
+        if (SingleThreadStrict == conLevel) {
+            assert(0 == m_age);
+            assert(NULL == m_tls);
+            assert(NULL == m_next);
+        }
+      #endif
         m_age  = 0;
         m_next = NULL;
     }
