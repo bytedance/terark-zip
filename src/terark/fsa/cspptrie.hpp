@@ -73,6 +73,7 @@ protected:
         Patricia*     m_trie;
         void*         m_value;
         void*         m_tls; // unused for ReaderToken
+        uint64_t      m_thread_id;
         uint64_t      m_age;
     //-------------------------------------
     // will be updated by other threads

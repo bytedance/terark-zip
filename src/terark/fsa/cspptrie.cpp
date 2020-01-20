@@ -2656,6 +2656,7 @@ Patricia::TokenBase::TokenBase() {
     m_value = NULL;
     m_state = ReleaseDone;
     m_is_head = false;
+    m_thread_id = UINT64_MAX;
 //  m_min_age_updated = false;
 }
 Patricia::TokenBase::~TokenBase() {
@@ -2665,6 +2666,7 @@ Patricia::TokenBase::~TokenBase() {
 
 void Patricia::TokenBase::dispose() {
     if (AcquireDone == m_state) {
+        assert(std::this_thread::get_id() == (std::thread::id&)m_thread_id);
         release(); // auto release on dispose
     }
     switch (m_state) {
@@ -2846,6 +2848,7 @@ void Patricia::TokenBase::update() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(m_age <= trie->m_dummy.m_age);
+    assert(std::this_thread::get_id() == (std::thread::id&)m_thread_id);
     if (conLevel >= SingleThreadShared) {
         if (m_is_head)
             mt_update(trie);
@@ -2877,6 +2880,7 @@ void Patricia::TokenBase::update() {
 void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
+    assert(std::this_thread::get_id() == (std::thread::id&)m_thread_id);
     if (conLevel >= SingleThreadShared) {
         assert(AcquireDone == m_state);
         assert(m_age <= trie->m_dummy.m_age);
@@ -2936,6 +2940,8 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     assert(ReleaseDone == m_state || ReleaseWait == m_state);
     m_value = NULL;
     m_trie = trie;
+    BOOST_STATIC_ASSERT(sizeof(std::thread::id) <= sizeof(uint64_t));
+    (std::thread::id&)m_thread_id = std::this_thread::get_id();
     auto conLevel = trie->m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared) {
         mt_acquire(trie);
@@ -3002,6 +3008,8 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(NoWriteReadOnly != conLevel);
+    BOOST_STATIC_ASSERT(sizeof(std::thread::id) <= sizeof(uint64_t));
+    (std::thread::id&)m_thread_id = std::this_thread::get_id();
     if (MultiWriteMultiRead == conLevel) {
         mt_acquire(trie);
         auto tc = trie->m_mempool_lock_free.tls();
