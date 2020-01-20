@@ -60,16 +60,16 @@ protected:
      *
      */
 
+    enum TokenState : byte_t {
+        ReleaseDone,
+        AcquireDone,
+        ReleaseWait,
+        DisposeWait,
+        DisposeDone,
+    };
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
     protected:
-        enum TokenState : byte_t {
-            ReleaseDone,
-            AcquireDone,
-            ReleaseWait,
-            DisposeWait,
-            DisposeDone,
-        };
         Patricia*     m_trie;
         void*         m_value;
         void*         m_tls; // unused for ReaderToken

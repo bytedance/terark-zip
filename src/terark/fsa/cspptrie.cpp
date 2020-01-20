@@ -47,6 +47,11 @@ static void rt_assert_fail(const char* file, int line, const char* func, const c
   #define RT_ASSERT assert
 #endif
 
+inline static uint64_t ThisThreadID() {
+    auto id = std::this_thread::get_id();
+    return (uint64_t&)id;
+}
+
 template<class T>
 void cpback(T* dst, const T* src, size_t num) {
     for (size_t i = num; i-- > 0; ) {
@@ -127,7 +132,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     }
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
-    m_dummy.m_state = TokenBase::DisposeDone;
+    m_dummy.m_state = DisposeDone;
     m_token_tail = &m_dummy;
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
@@ -168,12 +173,35 @@ PatriciaMem<Align>::tls_writer_token() {
 }
 
 template<size_t Align>
+bool PatriciaMem<Align>::
+ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
+    switch (token->m_state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+    case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+    case ReleaseWait: break; // OK
+    case ReleaseDone: break; // OK
+    }
+    return true;
+}
+
+template<size_t Align>
 Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
     if (MultiWriteMultiRead == m_mempool_concurrent_level) {
         auto tc = m_mempool_lock_free.tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
-        if (nullptr == lzf->m_reader_token->m_trie) {
+        auto tok = lzf->m_reader_token.get();
+        assert(NULL != lzf->m_reader_token.get());
+        switch (tok->m_state) {
+        default: RT_ASSERT(!"UnknownEnum == m_state"); break;
+        case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+        case ReleaseWait: // OK
+        case ReleaseDone: // OK
             lzf->m_reader_token->acquire(this);
+            break;
         }
         return lzf->m_reader_token.get();
     }
@@ -638,9 +666,9 @@ void PatriciaMem<Align>::destroy() {
     }
 */
     assert(m_token_tail->m_next == NULL);
-    assert(m_token_tail->m_state != TokenBase::AcquireDone);
+    assert(m_token_tail->m_state != AcquireDone);
     if (&m_dummy != m_token_tail) {
-        m_token_tail->m_state = TokenBase::DisposeDone;
+        m_token_tail->m_state = DisposeDone;
         delete m_token_tail;
     }
 }
@@ -2665,7 +2693,7 @@ Patricia::TokenBase::~TokenBase() {
 
 void Patricia::TokenBase::dispose() {
     if (AcquireDone == m_state) {
-        assert(std::this_thread::get_id() == (std::thread::id&)m_thread_id);
+        RT_ASSERT(ThisThreadID() == m_thread_id);
         release(); // auto release on dispose
     }
     switch (m_state) {
@@ -2847,7 +2875,7 @@ void Patricia::TokenBase::update() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(m_age <= trie->m_dummy.m_age);
-    assert(std::this_thread::get_id() == (std::thread::id&)m_thread_id);
+    assert(ThisThreadID() == m_thread_id);
     if (conLevel >= SingleThreadShared) {
         if (m_is_head)
             mt_update(trie);
@@ -2879,7 +2907,7 @@ void Patricia::TokenBase::update() {
 void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
-    assert(std::this_thread::get_id() == (std::thread::id&)m_thread_id);
+    assert(ThisThreadID() == m_thread_id);
     if (conLevel >= SingleThreadShared) {
         assert(AcquireDone == m_state);
         assert(m_age <= trie->m_dummy.m_age);

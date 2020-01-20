@@ -113,6 +113,7 @@ protected:
     };
     struct ReaderTokenTLS_Holder
         : instance_tls_owner<ReaderTokenTLS_Holder, ReaderTokenTLS_Object> {
+        bool reuse(ReaderTokenTLS_Object* token);
     };
     union {
         ReaderTokenTLS_Holder m_reader_token_tls;
