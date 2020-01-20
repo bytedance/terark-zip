@@ -36,6 +36,17 @@ namespace terark {
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 
+#if defined(NDEBUG)
+static void rt_assert_fail(const char* file, int line, const char* func, const char* expr) {
+    fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed.\n", file, line, func, expr);
+    abort();
+}
+  #define RT_ASSERT(...) (__VA_ARGS__) ? (void)0 : \
+    rt_assert_fail(__FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #__VA_ARGS__)
+#else
+  #define RT_ASSERT assert
+#endif
+
 template<class T>
 void cpback(T* dst, const T* src, size_t num) {
     for (size_t i = num; i-- > 0; ) {
@@ -342,7 +353,7 @@ inline void Patricia::update_min_age_inlock(TokenLink* token) {
 
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
-default: assert(false); abort(); break;
+default: RT_ASSERT(!"Unknown == conLevel"); break;
 case NoWriteReadOnly    : m_insert = (insert_func_t)&MainPatricia::insert_readonly_throw;                 break;
 case SingleThreadStrict : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadStrict>; break;
 case SingleThreadShared : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadShared>; break;
@@ -1160,7 +1171,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: assert(false); abort(); break;
+    default: RT_ASSERT(!"Invalid == cnt_type"); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -1694,7 +1705,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: assert(false); abort(); break;
+    default: RT_ASSERT(!"Invalid == cnt_type"); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -2167,8 +2178,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             a[node].big.n_children = n_children + 1;
         break; }
     case 15: // direct update curr_slot later
-        assert(false);
-        abort();
+        RT_ASSERT(!"15 == cnt_type");
         break;
     }
 #if !defined(NDEBUG)
@@ -2636,17 +2646,6 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 
 ///////////////////////////////////////////////////////////////////////
 
-void Patricia::TokenBase::assert_fail(const char* file, int line, const char* expr) {
-    fprintf(stderr, "A: %s:%d: %s , m_state = %d\n", file, line, expr, m_state);
-    assert(false);
-    abort();
-}
-#if defined(NDEBUG)
-   #define TokenAssert(...) (__VA_ARGS__) ? (void)0 : assert_fail(__FILE__, __LINE__, #__VA_ARGS__)
-#else
-   #define TokenAssert assert
-#endif
-
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
     m_next  = NULL;
@@ -2661,7 +2660,7 @@ Patricia::TokenBase::TokenBase() {
 }
 Patricia::TokenBase::~TokenBase() {
     assert(m_state == DisposeDone);
-    TokenAssert(m_state == DisposeDone);
+    RT_ASSERT(m_state == DisposeDone);
 }
 
 void Patricia::TokenBase::dispose() {
@@ -2670,10 +2669,10 @@ void Patricia::TokenBase::dispose() {
         release(); // auto release on dispose
     }
     switch (m_state) {
-    default:          TokenAssert(false); break;
-    case AcquireDone: TokenAssert(false); break;
-    case DisposeWait: TokenAssert(false); break;
-    case DisposeDone: TokenAssert(false); break;
+    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+    case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
     case ReleaseDone:
         m_state = DisposeDone;
         delete this; // safe to delete
@@ -2720,9 +2719,9 @@ Patricia::TokenBase::dequeue() {
     while (next) {
         auto state = curr->m_state;
         switch (state) {
-        default:          TokenAssert(false); break;
-        case ReleaseDone: TokenAssert(false); break;
-        case DisposeDone: TokenAssert(false); break;
+        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
         case AcquireDone: return curr;
         case ReleaseWait:
             if (as_atomic(curr->m_state).compare_exchange_weak(
@@ -2754,10 +2753,10 @@ Patricia::TokenBase::dequeue() {
 void Patricia::TokenBase::mt_acquire(Patricia* trie) {
     TokenState state = m_state;
     switch (state) {
-    default:          TokenAssert(false); break;
-    case AcquireDone: TokenAssert(false); break;
-    case DisposeWait: TokenAssert(false); break;
-    case DisposeDone: TokenAssert(false); break;
+    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+    case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
     case ReleaseDone:
     DoLock:
         TokenBase::enqueue(trie);
@@ -2787,7 +2786,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     assert(m_state == AcquireDone);
     if (m_is_head) {
         assert(this == trie->m_dummy.m_next); // is head
-        TokenAssert(m_state == AcquireDone);
+        RT_ASSERT(m_state == AcquireDone);
         if (m_next) {
             auto new_head = dequeue();
             uint64_t min_age = new_head->m_age;
@@ -2809,7 +2808,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
     }
     else {
-        TokenAssert(m_state == AcquireDone);
+        RT_ASSERT(m_state == AcquireDone);
         m_state = ReleaseWait;
         m_value = NULL;
         // if (auto next = m_next) {
@@ -2824,7 +2823,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(m_is_head);
     assert(this == trie->m_dummy.m_next);
-    TokenAssert(m_state == AcquireDone);
+    RT_ASSERT(m_state == AcquireDone);
     if (m_next) {
         auto new_head = dequeue();
         uint64_t min_age = new_head->m_age;
@@ -2856,11 +2855,11 @@ void Patricia::TokenBase::update() {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
-        default:          TokenAssert(false); break;
-        case ReleaseDone: TokenAssert(false); break;
-        case ReleaseWait: TokenAssert(false); break;
-        case DisposeWait: TokenAssert(false); break;
-        case DisposeDone: TokenAssert(false); break;
+        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_state"); break;
+        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
         case AcquireDone:
             m_next = NULL;
             m_tls = NULL;
@@ -2889,10 +2888,11 @@ void Patricia::TokenBase::release() {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
-        default:          TokenAssert(false); break;
-        case ReleaseDone: TokenAssert(false); break;
-        case ReleaseWait: TokenAssert(false); break;
-        case DisposeDone: TokenAssert(false); break;
+        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_state"); break;
+        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
         case AcquireDone:
             m_state = ReleaseDone;
             m_next = NULL;
@@ -2912,7 +2912,7 @@ void Patricia::TokenBase::release() {
 
 void Patricia::TokenBase::gc(Patricia* trie1) {
     switch (m_state) {
-    default:          TokenAssert(false); break;
+    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
     case ReleaseDone: break;
     case ReleaseWait: break;
     case AcquireDone:
@@ -2949,10 +2949,10 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_state) {
-        default:          TokenAssert(false); break;
-        case AcquireDone: TokenAssert(false); break;
-        case DisposeWait: TokenAssert(false); break;
-        case DisposeDone: TokenAssert(false); break;
+        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+        case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
         case ReleaseWait:
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
@@ -2975,7 +2975,7 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
 }
 
 Patricia::ReaderToken::~ReaderToken() {
-    TokenAssert(m_state == DisposeDone);
+    RT_ASSERT(DisposeDone == m_state);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -3032,7 +3032,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
 }
 
 Patricia::WriterToken::~WriterToken() {
-    TokenAssert(m_state == DisposeDone);
+    RT_ASSERT(DisposeDone == m_state);
 }
 
 bool Patricia::ReaderToken::lookup(fstring key) {
@@ -3126,7 +3126,7 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
                 }
             }
         }
-        assert(false); abort();
+        RT_ASSERT(!"cnt_type == 8, must found ch");
         break;
     case 15:
         assert(256 == p->big.n_children);
@@ -3361,7 +3361,7 @@ MainPatricia::IterImpl::IterImpl(const Patricia* sub)
 }
 
 MainPatricia::IterImpl::~IterImpl() {
-    TokenAssert(DisposeDone == m_state);
+    RT_ASSERT(DisposeDone == m_state);
 }
 
 // after calling this function, this->update() will not re-search iter
@@ -3539,7 +3539,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         assert(ch <= 255);
 #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
-        default: assert(false); abort(); break;
+        default: RT_ASSERT(!"Invalid == cnt_type"); break;
         case 0:
             assert(p->meta.b_is_final);
             assert(calc_word_len() == m_word.size());
@@ -3785,7 +3785,7 @@ seek_lower_bound_fast:
 #undef  SetNth
 #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
         switch (cnt_type) {
-        default: assert(false); abort(); break;
+        default: RT_ASSERT(!"Invalid == cnt_type"); break;
         case 0:
             assert(p->meta.b_is_final);
             goto RewindStackForNext;
@@ -3981,8 +3981,8 @@ rewind_stack_for_next:
             byte_t* pch = &m_word.back();
             assert (p->meta.n_zpath_len == top.zpath_len);
             switch (cnt_type) {
-            default: assert(false); abort(); break;
-            case 0: assert(p->meta.b_is_final); abort(); break;
+            default: RT_ASSERT(!"Invalid == cnt_type"); break;
+            case 0:  RT_ASSERT(p->meta.b_is_final); break;
             case 1:
                 assert(0 == nth);
                 assert(1 == top.n_children);
@@ -4111,15 +4111,8 @@ bool MainPatricia::IterImpl::incr() {
         size_t  nth_child = m_iter[top].nth_child;
         assert (nth_child < m_iter[top].n_children);
         switch (cnt_type) {
-        default:
-            assert(false);
-            abort();
-            break;
-        case 0:
-            assert(false);
-            assert(m_iter[top].n_children == 0);
-            abort();
-            break;
+        default: RT_ASSERT(!"Invalid == cnt_type"); break;
+        case 0:  RT_ASSERT(!"0 == cnt_type"); break;
         case 1:
             assert(nth_child < 1);
             assert(m_iter[top].n_children == 1);
@@ -4236,16 +4229,12 @@ LoopForType15:
     size_t  cnt_type = p->meta.n_cnt_type;
     size_t  nth_child = m_iter[top].nth_child;
     switch (cnt_type) {
-    default:
-        assert(false);
-        abort();
-        break;
+    default: RT_ASSERT(!"Invalid == cnt_type"); break;
     case 0:
     case 1:
         assert(nth_child < cnt_type);
         assert(m_iter[top].n_children == cnt_type);
-        assert(false);
-        abort();
+        RT_ASSERT(!"cnt_type must not be {0,1}"); break;
         break;
     case 2:
         assert(nth_child < 2);
@@ -4368,13 +4357,8 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const auto ch = (byte_t)key[pos];
         switch (cnt_type) {
-        default:
-            assert(false);
-            abort();
-            break;
-        case 0:
-            assert(false);
-            abort();
+        default: RT_ASSERT(!"Invalid == cnt_type"); break;
+        case 0:  RT_ASSERT(!"0 == cnt_type"); break;
         case 2: if (ch == p->meta.c_label[1]) { match_nth_char(1, 1); } no_break_fallthrough;
         case 1: if (ch == p->meta.c_label[0]) { match_nth_char(1, 0); }
                 goto RestoreLastMatch;
@@ -4476,10 +4460,7 @@ Patricia::Iterator::Iterator(Patricia* trie)
 }
 
 Patricia::Iterator::~Iterator() {
-    assert(DisposeDone == TokenBase::m_state);
-    if (DisposeDone != TokenBase::m_state) {
-        abort();
-    }
+    RT_ASSERT(DisposeDone == m_state);
 }
 
 } // namespace terark
