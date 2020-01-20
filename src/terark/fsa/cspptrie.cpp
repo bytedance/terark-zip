@@ -116,6 +116,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     }
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
+    m_dummy.m_state = TokenBase::DisposeDone;
     m_token_tail = &m_dummy;
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
