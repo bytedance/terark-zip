@@ -156,7 +156,7 @@ protected:
     template<ConcurrentLevel>
     void revoke_expired_nodes();
     template<ConcurrentLevel, class LazyList>
-    void revoke_expired_nodes(LazyList&, uint64_t min_age);
+    void revoke_expired_nodes(LazyList&, TokenBase*);
     void check_valsize(size_t valsize) const;
     void SingleThreadShared_sync_token_list(byte_t* oldmembase);
 

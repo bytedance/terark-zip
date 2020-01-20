@@ -99,6 +99,7 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
     size_t m_adfa_total_words_len = 0;
     size_t m_total_zpath_len = 0;
     size_t m_zpath_states = 0;
+    // size_t m_revoke_try_cnt = 0;
 ///----------------------------------------
     size_t m_n_retry = 0;
     Stat   m_stat = {0,0,0,0};
@@ -236,6 +237,7 @@ inline void PatriciaMem<Align>::LazyFreeListTLS::reset_zero() {
     m_stat.n_split = 0;
     m_stat.n_mark_final = 0;
     m_stat.n_add_state_move = 0;
+    // m_revoke_try_cnt = 0;
 }
 
 template<size_t Align>
@@ -1499,28 +1501,22 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
-    auto sync_tls = [this,lzf,token]() {
-        auto header = const_cast<DFA_MmapHeader*>(mmap_base);
-        if (header) {
-            header->dawg_num_words += lzf->m_n_words;
-            header->transition_num += lzf->m_n_nodes;
-            header->file_size = sizeof(DFA_MmapHeader) + m_mempool.size();
-        }
-        lzf->sync_no_atomic(this);
-        m_dummy.m_age++; // crucial!!
-        token->mt_update(this);
-        lzf->reset_zero();
-    };
-    size_t min_age;
     if (terark_unlikely(token->m_is_head)) {
         assert(token == m_dummy.m_next);
         if (lzf->m_mem_size > 32*1024) {
-            sync_tls();
+            auto header = const_cast<DFA_MmapHeader*>(mmap_base);
+            if (header) {
+                header->dawg_num_words += lzf->m_n_words;
+                header->transition_num += lzf->m_n_nodes;
+                header->file_size = sizeof(DFA_MmapHeader) + m_mempool.size();
+            }
+            lzf->sync_no_atomic(this);
+            m_dummy.m_age++; // crucial!!
+            token->mt_update(this);
+            lzf->reset_zero();
         }
-        min_age = token->m_min_age;
     }
     else {
-        min_age = token->m_min_age;
         //this is a false assert, because m_token_head may be set by others
         //assert(token != m_token_head);
     }
@@ -1600,6 +1596,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
       RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
       RaceCondition1: as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
       RaceCondition2:
+        size_t min_age = (size_t)token->m_min_age;
         size_t age = (size_t)token->m_age;
         if (debugConcurrent >= 3) {
             if (a[parent].meta.b_lazy_free) {
@@ -1807,7 +1804,7 @@ assert(pos < key.size());
 // insert on curr with a transition to a new child which may has zpath
 {
     lzf->m_stat.n_add_state_move += 1;
-    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, min_age);
+    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     size_t valpos = size_t(-1);
     size_t chainLen = 0;
     byte_t ch = key[pos];
@@ -1887,7 +1884,7 @@ ForkBranch: {
         ni.node_size += valsize;
     }
     lzf->m_stat.n_fork += 1;
-    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, min_age);
+    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     size_t valpos = size_t(-1);
     size_t chainLen = 0;
     size_t newSuffixNode = new_suffix_chain<MultiWriteMultiRead>(key.substr(pos+1),
@@ -1938,7 +1935,7 @@ SplitZpath: {
         ni.node_size += valsize;
     }
     lzf->m_stat.n_split += 1;
-    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, min_age);
+    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     assert(ni.n_skip <= 10);
     assert(ni.n_children <= 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
@@ -1993,7 +1990,7 @@ MarkFinalState: {
     ni.set(a + curr, 0, 0);
 MarkFinalStateOmitSetNodeInfo:
     assert(15 != a[curr].meta.n_cnt_type);
-    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, min_age);
+    revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     size_t oldpos = AlignSize*curr;
     size_t newlen = ni.node_size + valsize;
     size_t newpos = m_mempool_lock_free.alloc(newlen);
@@ -2247,27 +2244,30 @@ template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
 void PatriciaMem<Align>::revoke_expired_nodes() {
     static_assert(ConLevel <= OneWriteMultiRead, "ConLevel <= OneWriteMultiRead");
-    revoke_expired_nodes<ConLevel>(lazy_free_list(ConLevel), m_dummy.m_min_age);
+    revoke_expired_nodes<ConLevel>(lazy_free_list(ConLevel), NULL);
 }
 template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel, class LazyList>
-void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, uint64_t min_age) {
+void PatriciaMem<Align>::revoke_expired_nodes(LazyList& lazy_free_list, TokenBase* token) {
 static long g_lazy_free_debug_level =
     getEnvLong("Patricia_lazy_free_debug_level", 0);
 
     if (ConLevel == SingleThreadStrict) {
         return;
     }
-//  uint64_t min_age = m_min_age;
+    uint64_t min_age = token->m_min_age; // Cheap to read token->m_min_age
 
     auto print = [&](const char* sig) {
         if (!lazy_free_list.empty()) {
             const LazyFreeItem& head = lazy_free_list.front();
             fprintf(stderr
-                , "%s: LazyFreeList.size = %zd, min_age = %llu, trie.age = %llu, "
+                , "%s:%llX: is_head=%d, LazyFreeList.size = %zd, mem_size = %zd, min_age = %llu, trie.age = %llu, "
                   "head = { age = %llu, node = %llu, size = %llu }\n"
                 , sig
+                , (long long)token->m_thread_id
+                , token->m_is_head
                 , lazy_free_list.size()
+                , lazy_free_list.m_mem_size
                 , (long long)min_age
                 , (long long)m_dummy.m_age
                 , (long long)head.age, (long long)head.node, (long long)head.size
@@ -2286,11 +2286,29 @@ static long g_lazy_free_debug_level =
         const LazyFreeItem& head = lazy_free_list.front();
         //assert(a[head.node].meta.b_lazy_free); // only for debug Patricia
         //assert(align_up(node_size(a + head.node, m_valsize), AlignSize) == head.size);
+    // RetryCurr:
+    //     if (ConLevel == MultiWriteMultiRead) {
+    //         tls->m_revoke_try_cnt++;
+    //     }
         if (head.age < min_age) {
             free_node<ConLevel>(head.node, head.size, tls);
             lazy_free_list.m_mem_size -= head.size;
             lazy_free_list.pop_front();
         } else {
+            // if (ConLevel == MultiWriteMultiRead) {
+            //     assert(tls == token->m_tls);
+            //     if (tls->m_revoke_try_cnt >= BULK_FREE_NUM) {
+            //         tls->m_revoke_try_cnt = 0;
+            //         //// Expensive to read m_dummy.m_min_age
+            //         uint64_t new_min_age = m_dummy.m_min_age;
+            //         if (new_min_age != min_age) {
+            //             RT_ASSERT(min_age < new_min_age);
+            //             token->m_min_age = new_min_age;
+            //             min_age = new_min_age;
+            //             goto RetryCurr;
+            //         }
+            //     }
+            // }
             break;
         }
     }
@@ -2714,15 +2732,19 @@ void Patricia::TokenBase::dispose() {
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     m_next = NULL;
-    TokenBase* p = NULL;
     while (true) {
         TokenBase* pNull = NULL;
-        p = trie->m_token_tail;
+        TokenBase* p = trie->m_token_tail;
         if (terark_likely(
-            as_atomic(p->m_next).compare_exchange_strong(
+            as_atomic(p->m_next).compare_exchange_weak(
                 pNull, this,
                 std::memory_order_release,
                 std::memory_order_relaxed))) {
+            assert(this == p->m_next);
+            ///
+            /// if here use compare_exchange_weak, m_token_tail
+            /// may not point to the real tail, so we use the strong
+            /// version
             as_atomic(trie->m_token_tail).compare_exchange_strong(
                 p, this,
                 std::memory_order_release,
@@ -2731,10 +2753,14 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             return;
         }
         else {
-            as_atomic(trie->m_token_tail).compare_exchange_strong(
-                p, p->m_next,
-                std::memory_order_release,
-                std::memory_order_relaxed);
+            // this check is required, because prev compare_exchange_weak
+            // may fail even when pNull is realy NULL
+            if (NULL != pNull) {
+                as_atomic(trie->m_token_tail).compare_exchange_weak(
+                    p, p->m_next,
+                    std::memory_order_release,
+                    std::memory_order_relaxed);
+            }
         }
     }
 }
@@ -2758,6 +2784,7 @@ Patricia::TokenBase::dequeue() {
                     std::memory_order_relaxed))
             {
                 curr = next;
+                next = next->m_next;
             }
             else {
                 // curr is not changed, try loop again
@@ -2771,6 +2798,7 @@ Patricia::TokenBase::dequeue() {
             curr->m_state = DisposeDone;
             delete curr; // we delete other token
             curr = next;
+            next = next->m_next;
             break;
         }
     }
@@ -2778,7 +2806,8 @@ Patricia::TokenBase::dequeue() {
     return curr; // is likely being m_token_tail
 }
 
-void Patricia::TokenBase::mt_acquire(Patricia* trie) {
+void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
+    auto trie = static_cast<MainPatricia*>(trie1);
     TokenState state = m_state;
     switch (state) {
     default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
@@ -2789,6 +2818,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie) {
     DoLock:
         TokenBase::enqueue(trie);
         m_state = AcquireDone;
+        if (this == trie->m_dummy.m_next) {
+            m_is_head = true;
+        }
         break;
     case ReleaseWait:
         if (as_atomic(m_state).compare_exchange_strong(
@@ -2811,10 +2843,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie) {
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(m_state == AcquireDone);
+    RT_ASSERT(AcquireDone == m_state);
     if (m_is_head) {
         assert(this == trie->m_dummy.m_next); // is head
-        RT_ASSERT(m_state == AcquireDone);
         if (m_next) {
             auto new_head = dequeue();
             uint64_t min_age = new_head->m_age;
@@ -2836,7 +2867,6 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
     }
     else {
-        RT_ASSERT(m_state == AcquireDone);
         m_state = ReleaseWait;
         m_value = NULL;
         // if (auto next = m_next) {
@@ -2851,7 +2881,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(m_is_head);
     assert(this == trie->m_dummy.m_next);
-    RT_ASSERT(m_state == AcquireDone);
+    assert(AcquireDone == m_state);
     if (m_next) {
         auto new_head = dequeue();
         uint64_t min_age = new_head->m_age;
@@ -2908,8 +2938,8 @@ void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(ThisThreadID() == m_thread_id);
+    assert(AcquireDone == m_state);
     if (conLevel >= SingleThreadShared) {
-        assert(AcquireDone == m_state);
         assert(m_age <= trie->m_dummy.m_age);
         mt_release(trie);
     }
