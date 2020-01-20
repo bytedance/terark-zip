@@ -1120,7 +1120,8 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
     assert(newCurr != curr);
     if (ConLevel != SingleThreadStrict) {
-        uint64_t age = this->m_dummy.m_age++;
+        uint64_t age = as_atomic(m_dummy.m_age)
+                                .fetch_add(1, std::memory_order_relaxed);
         m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
         m_lazy_free_list_sgl.m_mem_size += ni.node_size;
     }
@@ -2749,7 +2750,6 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
                 p, this,
                 std::memory_order_release,
                 std::memory_order_relaxed);
-            m_age = trie->m_dummy.m_age;
             return;
         }
         else {
@@ -2818,6 +2818,8 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     DoLock:
         TokenBase::enqueue(trie);
         m_state = AcquireDone;
+        m_age = as_atomic(trie->m_dummy.m_age)
+                         .fetch_add(1, std::memory_order_relaxed);
         if (this == trie->m_dummy.m_next) {
             m_is_head = true;
         }
@@ -2888,7 +2890,8 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         trie->m_dummy.m_next = new_head;
         trie->m_dummy.m_min_age = min_age;
         this->m_min_age = min_age;
-        this->m_age = trie->m_dummy.m_age;
+        this->m_age = as_atomic(trie->m_dummy.m_age)
+                               .fetch_add(1, std::memory_order_relaxed);
         this->m_is_head = false;
         new_head->m_min_age = min_age;
         enqueue(trie);
