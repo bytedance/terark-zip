@@ -3031,8 +3031,6 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
             assert(NULL == m_next);
         }
       #endif
-        m_age  = 0;
-        m_next = NULL;
     }
 }
 
