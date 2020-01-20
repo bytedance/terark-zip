@@ -544,7 +544,7 @@ GetoptDone:
     if (read_thread_num > 0) {
       auto bench_iter = [&](MainPatricia* pt, char smThread) {
         t0 = pf.now();
-        std::unique_ptr<ADFA_LexIterator> iter(pt->adfa_make_iter());
+        Patricia::IteratorPtr iter(pt->new_iter());
         bool ok = iter->seek_begin();
         for (size_t i = 0; i < strVec.size(); ++i) {
             assert(ok);

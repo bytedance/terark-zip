@@ -194,10 +194,10 @@ Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
         auto tok = lzf->m_reader_token.get();
         assert(NULL != lzf->m_reader_token.get());
         switch (tok->m_state) {
-        default: RT_ASSERT(!"UnknownEnum == m_state"); break;
-        case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
+        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
         case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+        case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
         case ReleaseWait: // OK
         case ReleaseDone: // OK
             lzf->m_reader_token->acquire(this);
