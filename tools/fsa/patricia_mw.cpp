@@ -151,7 +151,7 @@ GetoptDone:
                 maxMem = 2*st.st_size;
         }
     }
-    if (read_thread_num > 0) {
+    if (direct_read_input && read_thread_num > 0) {
         direct_read_input = false;
         fprintf(stderr, "-d is ignored because -r %d is specified\n", read_thread_num);
     }
