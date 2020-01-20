@@ -626,9 +626,9 @@ void PatriciaMem<Align>::destroy() {
         }
     }
 */
-    if (m_token_tail) {
-        assert(m_token_tail->m_next == NULL);
-        assert(m_token_tail->m_state != TokenBase::AcquireDone);
+    assert(m_token_tail->m_next == NULL);
+    assert(m_token_tail->m_state != TokenBase::AcquireDone);
+    if (&m_dummy != m_token_tail) {
         m_token_tail->m_state = TokenBase::DisposeDone;
         delete m_token_tail;
     }
