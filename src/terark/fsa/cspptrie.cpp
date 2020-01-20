@@ -1120,8 +1120,7 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
     assert(newCurr != curr);
     if (ConLevel != SingleThreadStrict) {
-        uint64_t age = as_atomic(m_dummy.m_age)
-                                .fetch_add(1, std::memory_order_relaxed);
+        uint64_t age = m_dummy.m_age++;
         m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
         m_lazy_free_list_sgl.m_mem_size += ni.node_size;
     }
@@ -1502,6 +1501,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
+    assert(AcquireDone == token->m_state);
     if (terark_unlikely(token->m_is_head)) {
         assert(token == m_dummy.m_next);
         if (lzf->m_mem_size > 32*1024) {
@@ -1512,7 +1512,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
                 header->file_size = sizeof(DFA_MmapHeader) + m_mempool.size();
             }
             lzf->sync_no_atomic(this);
-            m_dummy.m_age++; // crucial!!
+            as_atomic(m_dummy.m_age).fetch_add(1, std::memory_order_relaxed);
             token->mt_update(this);
             lzf->reset_zero();
         }
@@ -2820,6 +2820,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         m_state = AcquireDone;
         m_age = as_atomic(trie->m_dummy.m_age)
                          .fetch_add(1, std::memory_order_relaxed);
+        assert(NULL != trie->m_dummy.m_next);
         if (this == trie->m_dummy.m_next) {
             m_is_head = true;
         }
