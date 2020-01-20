@@ -12,6 +12,7 @@
 #include "cspptrie.hpp"
 #include <limits.h>
 #include <boost/noncopyable.hpp>
+#include <boost/lockfree/queue.hpp>
 #include <terark/bitmap.hpp>
 #include <terark/mempool.hpp>
 #include <terark/mempool_fixed_cap.hpp>
@@ -135,19 +136,19 @@ protected:
     size_t              m_appdata_length;
 
 //-------------------------------------------------------------
-    byte_t     m_padding2[64-sizeof(size_t)];
+//  byte_t     m_padding2[64-sizeof(size_t)];
+    byte_t     m_padding2[64-32]; // m_token_sham's const part is 32 byte
+
+    // following fields are frequently updating
+    TokenBase  m_dummy; // m_dummy.m_next is real head
+    TokenBase* m_token_tail;
 
     std::mutex m_counter_mutex;
-    // following fields are frequently updating
 
     size_t     m_max_word_len;
     size_t     m_n_nodes;
     size_t     m_n_words;
     Stat       m_stat;
-    TokenBase* m_token_head;
-    TokenBase* m_token_tail;
-    uint64_t   m_min_age;
-    uint64_t   m_max_age;
 
     void alloc_mempool_space(intptr_t maxMem);
 

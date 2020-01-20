@@ -84,7 +84,7 @@ protected:
 
         void assert_fail(const char* file, int line, const char* expr);
         void enqueue(Patricia*);
-        TokenBase* dequeue(Patricia*);
+        TokenBase* dequeue();
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
         void mt_update(Patricia*);
