@@ -2900,8 +2900,11 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                  .store(true, std::memory_order_release);
     }
     else {
-        trie->m_dummy.m_min_age = m_age;
-        this->m_min_age = m_age;
+        auto age = as_atomic(trie->m_dummy.m_age)
+                            .fetch_add(1, std::memory_order_relaxed);
+        trie->m_dummy.m_min_age = age;
+        this->m_age = age;
+        this->m_min_age = age;
     }
 }
 
