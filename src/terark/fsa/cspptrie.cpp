@@ -32,8 +32,9 @@
 #include <iomanip>
 
 #if BOOST_OS_LINUX
-    #include <sched.h>
+    //#include <sched.h>
     //#include <linux/getcpu.h>
+    #include <syscall.h>
 #elif BOOST_OS_WINDOWS
 #elif BOOST_OS_MACOS
     #include <cpuid.h>
@@ -67,9 +68,14 @@ inline static unsigned ThisCpuID() {
 #if BOOST_OS_LINUX
     //return sched_getcpu();
     unsigned cpu = -1, node = -1;
+
     //::getcpu(&cpu, &node, NULL);
-    ::getcpu(&cpu, &node);
+    syscall(SYS_getcpu, &cpu, &node, NULL);
+
+    // ::getcpu(&cpu, &node); // only in glibc-2.29 <sched.h>
+
     return node << 8 | cpu;
+
 #elif BOOST_OS_WINDOWS
     return (int)GetCurrentProcessorNumber();
 #elif BOOST_OS_MACOS
