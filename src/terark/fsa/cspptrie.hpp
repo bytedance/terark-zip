@@ -80,7 +80,7 @@ protected:
     // will be updated by other threads
         uint64_t      m_min_age;
         TokenBase*    m_next;
-        int           m_cpu;
+        unsigned      m_cpu;
         TokenState    m_state;
         bool          m_is_head;
 //      bool          m_min_age_updated; // update by other threads

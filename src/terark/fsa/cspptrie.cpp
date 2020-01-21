@@ -33,6 +33,7 @@
 
 #if BOOST_OS_LINUX
     #include <sched.h>
+    #include <linux/getcpu.h>
 #elif BOOST_OS_WINDOWS
 #elif BOOST_OS_MACOS
     #include <cpuid.h>
@@ -62,9 +63,12 @@ inline static uint64_t ThisThreadID() {
     return (uint64_t&)id;
 }
 
-inline static int ThisCpuID() {
+inline static unsigned ThisCpuID() {
 #if BOOST_OS_LINUX
-    return sched_getcpu();
+    //return sched_getcpu();
+    unsigned cpu = -1, node = -1;
+    ::getcpu(&cpu, &node, NULL);
+    return node << 24 | cpu;
 #elif BOOST_OS_WINDOWS
     return (int)GetCurrentProcessorNumber();
 #elif BOOST_OS_MACOS
@@ -2851,8 +2855,8 @@ Patricia::TokenBase*
 Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     struct Cpu {
-        int cpuid;
-        uint64_t  acqseq;
+        unsigned   cpuid;
+        uint64_t   acqseq;
         TokenBase* token;
     };
     TokenBase* oldtail = trie->m_token_tail;
@@ -2866,6 +2870,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             curr = curr->m_next;
         } while (curr != oldtail);
     }
+#if 1
     auto print = [&](const char* sig) {
         string_appender<> oss;
         for (auto& x : cpu_vec) {
@@ -2874,7 +2879,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             oss << " (" << x.cpuid << " " << x.acqseq << ")";
             //oss << " " << x.cpuid;
         }
-        fprintf(stderr, "%s: acqseq = %llu : %llu : %llu, cpu_vec.size = %4zd: %s\n"
+        fprintf(stderr, "%s: acqseq = %llu : %llu : %llu, cpu_vec.size = %4zd:%s\n"
             , sig
             , (long long)trie->m_dummy.m_acqseq
             , (long long)this->m_acqseq
@@ -2882,6 +2887,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             , cpu_vec.size(), oss.c_str());
     };
     print("unsorted");
+#endif
     terark::sort_a(cpu_vec, TERARK_CMP(cpuid, <, acqseq, <));
     //print("  sorted");
     RT_ASSERT(cpu_vec.size() >= 2);
