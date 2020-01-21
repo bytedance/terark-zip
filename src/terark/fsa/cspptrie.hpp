@@ -74,17 +74,20 @@ protected:
         void*         m_value;
         void*         m_tls; // unused for ReaderToken
         uint64_t      m_thread_id;
+        uint64_t      m_acqseq;
         uint64_t      m_age;
     //-------------------------------------
     // will be updated by other threads
         uint64_t      m_min_age;
         TokenBase*    m_next;
+        int           m_cpu;
         TokenState    m_state;
         bool          m_is_head;
 //      bool          m_min_age_updated; // update by other threads
 
         void enqueue(Patricia*);
         TokenBase* dequeue();
+        TokenBase* sort_cpu(Patricia*);
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
         void mt_update(Patricia*);

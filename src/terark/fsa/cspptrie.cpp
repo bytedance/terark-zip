@@ -31,6 +31,15 @@
 #include <thread>
 #include <iomanip>
 
+#if BOOST_OS_LINUX
+    #include <sched.h>
+#elif BOOST_OS_WINDOWS
+#elif BOOST_OS_MACOS
+    #include <cpuid.h>
+#else
+    #error ThisCpuID unsupported
+#endif
+
 namespace terark {
 
 #undef prefetch
@@ -48,8 +57,33 @@ static void rt_assert_fail(const char* file, int line, const char* func, const c
 #endif
 
 inline static uint64_t ThisThreadID() {
+    BOOST_STATIC_ASSERT(sizeof(std::thread::id) == sizeof(uint64_t));
     auto id = std::this_thread::get_id();
     return (uint64_t&)id;
+}
+
+inline static int ThisCpuID() {
+#if BOOST_OS_LINUX
+    return sched_getcpu();
+#elif BOOST_OS_WINDOWS
+    return (int)GetCurrentProcessorNumber();
+#elif BOOST_OS_MACOS
+#define CPUID(INFO, LEAF, SUBLEAF) \
+      __cpuid_count(LEAF, SUBLEAF, INFO[0], INFO[1], INFO[2], INFO[3])
+    int CPU = -1;
+    uint32_t CPUInfo[4];
+    CPUID(CPUInfo, 1, 0);
+    // CPUInfo[1] is EBX, bits 24-31 are APIC ID
+    if ( (CPUInfo[3] & (1 << 9)) == 0) {
+        CPU = -1;  // no APIC on chip
+    }
+    else {
+        CPU = (unsigned)CPUInfo[1] >> 24;
+    }
+    return CPU;
+#else
+    #error ThisCpuID unsupported
+#endif
 }
 
 template<class T>
@@ -135,6 +169,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_max_word_len = 0;
     m_dummy.m_state = DisposeDone;
     m_token_tail = &m_dummy;
+    m_sorted_acqseq = 0;
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
 
@@ -2703,6 +2738,8 @@ Patricia::TokenBase::TokenBase() {
     m_state = ReleaseDone;
     m_is_head = false;
     m_thread_id = UINT64_MAX;
+    m_cpu = UINT32_MAX;
+    m_acqseq = 0;
 //  m_min_age_updated = false;
 }
 Patricia::TokenBase::~TokenBase() {
@@ -2753,8 +2790,12 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             return;
         }
         else {
+            // at this time, other thread may modified p->next, then
+            // suspended, thus m_token_tail is keep unchanged, so let us
+            // change m_token_tail to keep it updated
+            //
             // this check is required, because prev compare_exchange_weak
-            // may fail even when pNull is realy NULL
+            // may fail even when pNull is really NULL
             if (NULL != pNull) {
                 as_atomic(trie->m_token_tail).compare_exchange_weak(
                     p, p->m_next,
@@ -2806,6 +2847,89 @@ Patricia::TokenBase::dequeue() {
     return curr; // is likely being m_token_tail
 }
 
+Patricia::TokenBase*
+Patricia::TokenBase::sort_cpu(Patricia* trie1) {
+    auto trie = static_cast<MainPatricia*>(trie1);
+    struct Cpu {
+        int cpuid;
+        uint64_t  acqseq;
+        TokenBase* token;
+    };
+    TokenBase* oldtail = trie->m_token_tail;
+    RT_ASSERT(this != oldtail);
+    valvec<Cpu> cpu_vec(256, valvec_reserve());
+    {
+        TokenBase* curr = this;
+        do {
+            cpu_vec.push_back({curr->m_cpu, curr->m_acqseq, curr});
+            assert(curr->m_next != NULL);
+            curr = curr->m_next;
+        } while (curr != oldtail);
+    }
+    auto print = [&](const char* sig) {
+        string_appender<> oss;
+        for (auto& x : cpu_vec) {
+            //oss << " " << size_t(x.token) << "(" << x.cpuid << " " << x.acqseq << ")";
+            //oss << " (" << x.cpuid << " " << x.acqseq << " " << int(x.token->m_is_head) << ")";
+            oss << " (" << x.cpuid << " " << x.acqseq << ")";
+            //oss << " " << x.cpuid;
+        }
+        fprintf(stderr, "%s: acqseq = %llu : %llu : %llu, cpu_vec.size = %4zd: %s\n"
+            , sig
+            , (long long)trie->m_dummy.m_acqseq
+            , (long long)this->m_acqseq
+            , (long long)trie->m_sorted_acqseq
+            , cpu_vec.size(), oss.c_str());
+    };
+    print("unsorted");
+    terark::sort_a(cpu_vec, TERARK_CMP(cpuid, <, acqseq, <));
+    //print("  sorted");
+    RT_ASSERT(cpu_vec.size() >= 2);
+    uint64_t min_max_age = UINT64_MAX;
+    uint64_t new_max_age = as_atomic(trie->m_dummy.m_age)
+                          .fetch_add(1, std::memory_order_relaxed);
+    for (Cpu& x : cpu_vec) {
+        RT_ASSERT(x.acqseq <= trie->m_dummy.m_acqseq);
+        assert(x.token->m_age <= new_max_age);
+        minimize(min_max_age, x.token->m_age);
+        x.token->m_age = new_max_age;
+    }
+    assert(trie->m_dummy.m_min_age <= min_max_age);
+    trie->m_dummy.m_min_age = min_max_age;
+    for (Cpu& x : cpu_vec) {
+        x.token->m_min_age = min_max_age;
+    }
+    TokenBase* oldtail_sorted_next = cpu_vec.back().token;
+    for (size_t i = 1; i < cpu_vec.size(); ++i) {
+        auto prev = cpu_vec[i-1].token;
+        auto curr = cpu_vec[i-0].token;
+        if (terark_likely(prev != oldtail)) {
+            prev->m_next = curr;
+        } else {
+            // oldtail->m_next maybe have updated by other threads
+            oldtail_sorted_next = curr;
+        }
+    }
+    TokenBase* sorted_tail = cpu_vec.back().token;
+    if (sorted_tail != oldtail) {
+        TokenBase* oldtail_next = oldtail->m_next;
+        do {
+            sorted_tail->m_next = oldtail_next; // may be not NULL
+        } while (!as_atomic(oldtail->m_next).compare_exchange_weak(
+                    oldtail_next, oldtail_sorted_next,
+                    std::memory_order_release,
+                    std::memory_order_relaxed));
+
+        if (NULL == sorted_tail->m_next) {
+            as_atomic(trie->m_token_tail).compare_exchange_strong(
+                    oldtail, sorted_tail,
+                    std::memory_order_release,
+                    std::memory_order_relaxed);
+        }
+    }
+    return cpu_vec[0].token;
+}
+
 void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     TokenState state = m_state;
@@ -2816,10 +2940,12 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
     case ReleaseDone:
     DoLock:
-        TokenBase::enqueue(trie);
         m_state = AcquireDone;
         m_age = as_atomic(trie->m_dummy.m_age)
                          .fetch_add(1, std::memory_order_relaxed);
+        m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
+                         .fetch_add(1, std::memory_order_relaxed);
+        TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_next);
         if (this == trie->m_dummy.m_next) {
             m_is_head = true;
@@ -2851,6 +2977,12 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         assert(this == trie->m_dummy.m_next); // is head
         if (m_next) {
             auto new_head = dequeue();
+            // quick check m_acqseq
+            if (m_acqseq > trie->m_sorted_acqseq && new_head != trie->m_token_tail) {
+                m_cpu = ThisCpuID(); ///< expensive
+                new_head = new_head->sort_cpu(trie);
+                trie->m_sorted_acqseq = m_acqseq;
+            }
             uint64_t min_age = new_head->m_age;
             trie->m_dummy.m_next = new_head;
             trie->m_dummy.m_min_age = min_age;
@@ -2887,17 +3019,39 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     assert(AcquireDone == m_state);
     if (m_next) {
         auto new_head = dequeue();
-        uint64_t min_age = new_head->m_age;
-        trie->m_dummy.m_next = new_head;
-        trie->m_dummy.m_min_age = min_age;
-        this->m_min_age = min_age;
-        this->m_age = as_atomic(trie->m_dummy.m_age)
-                               .fetch_add(1, std::memory_order_relaxed);
-        this->m_is_head = false;
-        new_head->m_min_age = min_age;
-        enqueue(trie);
-        as_atomic(new_head->m_is_head)
-                 .store(true, std::memory_order_release);
+        // quick check m_acqseq
+        if (m_acqseq > trie->m_sorted_acqseq && new_head != trie->m_token_tail) {
+            m_cpu = ThisCpuID(); ///< expensive
+            m_next = new_head;
+            new_head = this->sort_cpu(trie);
+
+            // at this time point, the real sorted acqseq may > this->m_acqseq,
+            // but this is ok, the penalty is just an extra sort in the future.
+            trie->m_sorted_acqseq = m_acqseq;
+
+            if (this == new_head) {
+                return; // do nothing
+            }
+            else {
+                trie->m_dummy.m_next = new_head;
+                this->m_is_head = false;
+                as_atomic(new_head->m_is_head)
+                         .store(true, std::memory_order_release);
+            }
+        }
+        else {
+            uint64_t min_age = new_head->m_age;
+            trie->m_dummy.m_next = new_head;
+            trie->m_dummy.m_min_age = min_age;
+            this->m_min_age = min_age;
+            this->m_age = as_atomic(trie->m_dummy.m_age)
+                                .fetch_add(1, std::memory_order_relaxed);
+            this->m_is_head = false;
+            new_head->m_min_age = min_age;
+            enqueue(trie);
+            as_atomic(new_head->m_is_head)
+                     .store(true, std::memory_order_release);
+        }
     }
     else {
         auto age = as_atomic(trie->m_dummy.m_age)
@@ -3005,8 +3159,8 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     assert(ReleaseDone == m_state || ReleaseWait == m_state);
     m_value = NULL;
     m_trie = trie;
-    BOOST_STATIC_ASSERT(sizeof(std::thread::id) <= sizeof(uint64_t));
-    (std::thread::id&)m_thread_id = std::this_thread::get_id();
+    m_thread_id = ThisThreadID();
+    m_cpu = ThisCpuID();
     auto conLevel = trie->m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared) {
         mt_acquire(trie);
@@ -3071,8 +3225,8 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(NoWriteReadOnly != conLevel);
-    BOOST_STATIC_ASSERT(sizeof(std::thread::id) <= sizeof(uint64_t));
-    (std::thread::id&)m_thread_id = std::this_thread::get_id();
+    m_thread_id = ThisThreadID();
+    m_cpu = ThisCpuID();
     if (MultiWriteMultiRead == conLevel) {
         mt_acquire(trie);
         auto tc = trie->m_mempool_lock_free.tls();
