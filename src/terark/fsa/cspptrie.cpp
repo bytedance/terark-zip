@@ -68,7 +68,7 @@ inline static unsigned ThisCpuID() {
     //return sched_getcpu();
     unsigned cpu = -1, node = -1;
     ::getcpu(&cpu, &node, NULL);
-    return node << 24 | cpu;
+    return node << 8 | cpu;
 #elif BOOST_OS_WINDOWS
     return (int)GetCurrentProcessorNumber();
 #elif BOOST_OS_MACOS
@@ -2984,7 +2984,10 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         if (m_next) {
             auto new_head = dequeue();
             // quick check m_acqseq
-            if (m_acqseq > trie->m_sorted_acqseq && new_head != trie->m_token_tail) {
+            if (m_acqseq == trie->m_dummy.m_acqseq &&
+                m_acqseq > trie->m_sorted_acqseq &&
+                new_head != trie->m_token_tail)
+            {
                 m_cpu = ThisCpuID(); ///< expensive
                 new_head = new_head->sort_cpu(trie);
                 trie->m_sorted_acqseq = m_acqseq;
@@ -3026,7 +3029,10 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     if (m_next) {
         auto new_head = dequeue();
         // quick check m_acqseq
-        if (m_acqseq > trie->m_sorted_acqseq && new_head != trie->m_token_tail) {
+        if (m_acqseq == trie->m_dummy.m_acqseq &&
+            m_acqseq > trie->m_sorted_acqseq &&
+            new_head != trie->m_token_tail)
+        {
             m_cpu = ThisCpuID(); ///< expensive
             m_next = new_head;
             new_head = this->sort_cpu(trie);
