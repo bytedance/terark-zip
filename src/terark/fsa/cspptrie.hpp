@@ -89,6 +89,7 @@ protected:
         uint64_t      m_min_age;
         TokenBase*    m_next;
         unsigned      m_cpu;
+        unsigned      m_getcpu_cnt;
 
     // state and is_head must be set simultaneously as atomic
         union {

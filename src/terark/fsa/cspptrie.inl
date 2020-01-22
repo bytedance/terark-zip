@@ -143,6 +143,8 @@ protected:
     // following fields are frequently updating
     TokenBase  m_dummy; // m_dummy.m_next is real head
     TokenBase* m_token_tail;
+    uint32_t   m_token_qlen;
+    uint32_t   m_num_cpu_migrated;
     uint64_t   m_sorted_acqseq;
 
     std::mutex m_counter_mutex;

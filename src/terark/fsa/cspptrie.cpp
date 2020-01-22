@@ -180,6 +180,8 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_max_word_len = 0;
     m_dummy.m_state = DisposeDone;
     m_token_tail = &m_dummy;
+    m_token_qlen = 0;
+    m_num_cpu_migrated = 0;
     m_sorted_acqseq = 0;
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
@@ -2750,6 +2752,7 @@ Patricia::TokenBase::TokenBase() {
     m_is_head = false;
     m_thread_id = UINT64_MAX;
     m_cpu = UINT32_MAX;
+    m_getcpu_cnt = 0;
     m_acqseq = 0;
 //  m_min_age_updated = false;
 }
@@ -2820,6 +2823,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
 Patricia::TokenBase*
 Patricia::TokenBase::dequeue() {
     assert(NULL != m_next);
+    auto trie = static_cast<MainPatricia*>(m_trie);
     auto curr = m_next;
     auto next = curr->m_next;
     while (next) {
@@ -2847,6 +2851,7 @@ Patricia::TokenBase::dequeue() {
             }
             break;
         case DisposeWait:
+            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             curr->m_state = DisposeDone;
             delete curr; // we delete other token
             curr = next;
@@ -2941,6 +2946,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
                     std::memory_order_relaxed);
         }
     }
+    trie->m_num_cpu_migrated = 0;
     return cpu_vec[0].token;
 }
 
@@ -2959,6 +2965,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
                          .fetch_add(1, std::memory_order_relaxed);
         m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
                          .fetch_add(1, std::memory_order_relaxed);
+        as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_next);
         if (this == trie->m_dummy.m_next) {
@@ -3003,6 +3010,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             uint64_t min_age = new_head->m_age;
             trie->m_dummy.m_next = new_head;
             trie->m_dummy.m_min_age = min_age;
+            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             m_age = 0;
             m_next = NULL;
             m_state = ReleaseDone;
@@ -3036,12 +3044,19 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     assert(AcquireDone == m_state);
     if (m_next) {
         auto new_head = dequeue();
+        if (++m_getcpu_cnt % 128 == 0) {
+            unsigned cpu = ThisCpuID(); ///< expensive
+            if (cpu != m_cpu) {
+                m_cpu = cpu;
+                trie->m_num_cpu_migrated++;
+            }
+        }
         // quick check m_acqseq
-        if (m_acqseq == trie->m_dummy.m_acqseq &&
+        if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
+            m_acqseq == trie->m_dummy.m_acqseq &&
             m_acqseq > trie->m_sorted_acqseq &&
             new_head != trie->m_token_tail)
         {
-            m_cpu = ThisCpuID(); ///< expensive
             m_next = new_head;
             new_head = this->sort_cpu(trie);
 
