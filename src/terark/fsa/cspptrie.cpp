@@ -2876,6 +2876,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             assert(curr->m_next != NULL);
             curr = curr->m_next;
         } while (curr != oldtail);
+        cpu_vec.push_back({oldtail->m_cpu, oldtail->m_acqseq, oldtail});
     }
 #if 1
     auto print = [&](const char* sig) {
@@ -2912,7 +2913,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     for (Cpu& x : cpu_vec) {
         x.token->m_min_age = min_max_age;
     }
-    TokenBase* oldtail_sorted_next = cpu_vec.back().token;
+    TokenBase* oldtail_sorted_next = NULL;
     for (size_t i = 1; i < cpu_vec.size(); ++i) {
         auto prev = cpu_vec[i-1].token;
         auto curr = cpu_vec[i-0].token;

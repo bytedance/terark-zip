@@ -1,7 +1,7 @@
 #pragma once
 #include "fsa.hpp"
 #include <terark/util/enum.hpp>
-#include <mutex>
+#include <atomic>
 
 // File hierarchy : cspptrie.hpp ├─> cspptrie.inl ├─> cspptrie.cpp
 
@@ -67,6 +67,14 @@ protected:
         DisposeWait,
         DisposeDone,
     };
+#pragma pack(push,1)
+    struct TokenFlagsPack {
+        TokenState  state   : 7;
+        byte_t      is_head : 1;
+    };
+    static_assert(sizeof(TokenFlagsPack) == 1, "sizeof(TokenFlagsPack) == 1");
+#pragma pack(pop)
+
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
     protected:
@@ -81,6 +89,12 @@ protected:
         uint64_t      m_min_age;
         TokenBase*    m_next;
         unsigned      m_cpu;
+
+    // state and is_head must be set simultaneously as atomic
+        union {
+            std::atomic<byte_t> m_flags_atom;
+            TokenFlagsPack      m_flags_pack;
+        };
         TokenState    m_state;
         bool          m_is_head;
 //      bool          m_min_age_updated; // update by other threads
