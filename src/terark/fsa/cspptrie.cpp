@@ -2998,12 +2998,19 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         assert(this == trie->m_dummy.m_next); // is head
         if (m_next) {
             auto new_head = dequeue();
+            if (++m_getcpu_cnt % 32 == 0) {
+                unsigned cpu = ThisCpuID(); ///< expensive
+                if (cpu != m_cpu) {
+                    m_cpu = cpu;
+                    trie->m_num_cpu_migrated++;
+                }
+            }
             // quick check m_acqseq
-            if (m_acqseq == trie->m_dummy.m_acqseq &&
-                m_acqseq > trie->m_sorted_acqseq &&
-                new_head != trie->m_token_tail)
+            if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
+                ( m_acqseq == trie->m_dummy.m_acqseq &&
+                  m_acqseq > trie->m_sorted_acqseq &&
+                  new_head != trie->m_token_tail))
             {
-                m_cpu = ThisCpuID(); ///< expensive
                 new_head = new_head->sort_cpu(trie);
                 trie->m_sorted_acqseq = m_acqseq;
             }
@@ -3044,7 +3051,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     assert(AcquireDone == m_state);
     if (m_next) {
         auto new_head = dequeue();
-        if (++m_getcpu_cnt % 128 == 0) {
+        if (++m_getcpu_cnt % 32 == 0) {
             unsigned cpu = ThisCpuID(); ///< expensive
             if (cpu != m_cpu) {
                 m_cpu = cpu;
@@ -3053,9 +3060,9 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         }
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
-            m_acqseq == trie->m_dummy.m_acqseq &&
-            m_acqseq > trie->m_sorted_acqseq &&
-            new_head != trie->m_token_tail)
+            ( m_acqseq == trie->m_dummy.m_acqseq &&
+              m_acqseq > trie->m_sorted_acqseq &&
+              new_head != trie->m_token_tail ))
         {
             m_next = new_head;
             new_head = this->sort_cpu(trie);
