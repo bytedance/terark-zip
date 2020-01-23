@@ -178,7 +178,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     }
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
-    m_dummy.m_state = DisposeDone;
+    m_dummy.m_flags.state = DisposeDone;
     m_token_tail = &m_dummy;
     m_token_qlen = 0;
     m_num_cpu_migrated = 0;
@@ -224,11 +224,11 @@ PatriciaMem<Align>::tls_writer_token() {
 template<size_t Align>
 bool PatriciaMem<Align>::
 ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
-    switch (token->m_state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-    case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+    switch (token->m_flags.state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+    case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
     case ReleaseWait: break; // OK
     case ReleaseDone: break; // OK
     }
@@ -242,10 +242,10 @@ Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
         auto tok = lzf->m_reader_token.get();
         assert(NULL != lzf->m_reader_token.get());
-        switch (tok->m_state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
+        switch (tok->m_flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
         case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
         case ReleaseWait: // OK
         case ReleaseDone: // OK
@@ -716,9 +716,9 @@ void PatriciaMem<Align>::destroy() {
     }
 */
     assert(m_token_tail->m_next == NULL);
-    assert(m_token_tail->m_state != AcquireDone);
+    assert(m_token_tail->m_flags.state != AcquireDone);
     if (&m_dummy != m_token_tail) {
-        m_token_tail->m_state = DisposeDone;
+        m_token_tail->m_flags.state = DisposeDone;
         delete m_token_tail;
     }
 }
@@ -1549,8 +1549,8 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
-    assert(AcquireDone == token->m_state);
-    if (terark_unlikely(token->m_is_head)) {
+    assert(AcquireDone == token->m_flags.state);
+    if (terark_unlikely(token->m_flags.is_head)) {
         assert(token == m_dummy.m_next);
         if (lzf->m_mem_size > 32*1024) {
             auto header = const_cast<DFA_MmapHeader*>(mmap_base);
@@ -2314,7 +2314,7 @@ static long g_lazy_free_debug_level =
                   "head = { age = %llu, node = %llu, size = %llu }\n"
                 , sig
                 , (long long)token->m_thread_id
-                , token->m_is_head
+                , token->m_flags.is_head
                 , lazy_free_list.size()
                 , lazy_free_list.m_mem_size
                 , (long long)min_age
@@ -2748,8 +2748,8 @@ Patricia::TokenBase::TokenBase() {
     m_age   = 0;
     m_trie  = NULL;
     m_value = NULL;
-    m_state = ReleaseDone;
-    m_is_head = false;
+    m_flags.state = ReleaseDone;
+    m_flags.is_head = false;
     m_thread_id = UINT64_MAX;
     m_cpu = UINT32_MAX;
     m_getcpu_cnt = 0;
@@ -2757,26 +2757,25 @@ Patricia::TokenBase::TokenBase() {
 //  m_min_age_updated = false;
 }
 Patricia::TokenBase::~TokenBase() {
-    assert(m_state == DisposeDone);
-    RT_ASSERT(m_state == DisposeDone);
+    RT_ASSERT(m_flags.state == DisposeDone);
 }
 
 void Patricia::TokenBase::dispose() {
-    if (AcquireDone == m_state) {
+    if (AcquireDone == m_flags.state) {
         RT_ASSERT(ThisThreadID() == m_thread_id);
         release(); // auto release on dispose
     }
-    switch (m_state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-    case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+    switch (m_flags.state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+    case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
     case ReleaseDone:
-        m_state = DisposeDone;
+        m_flags.state = DisposeDone;
         delete this; // safe to delete
         break;
     case ReleaseWait:
-        m_state = DisposeWait;
+        m_flags.state = DisposeWait;
         break;
     }
 }
@@ -2820,50 +2819,78 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     }
 }
 
-Patricia::TokenBase*
-Patricia::TokenBase::dequeue() {
+/*
+template<class OnPreCAS, class OnPostCAS>
+void
+Patricia::TokenBase::dequeue(Patricia* trie1,
+                             OnPreCAS preCAS, OnPostCAS postCAS) {
     assert(NULL != m_next);
-    auto trie = static_cast<MainPatricia*>(m_trie);
-    auto curr = m_next;
-    auto next = curr->m_next;
-    while (next) {
-        auto state = curr->m_state;
-        switch (state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
-        case AcquireDone: return curr;
+    auto trie = static_cast<MainPatricia*>(trie1);
+    assert(this == trie->m_dummy.m_next); // is head
+    auto curr = this->m_next;
+    while (curr) {
+        auto next = curr->m_next;
+        assert(this != trie->m_token_tail);
+        TokenFlags flags = curr->m_flags;
+        RT_ASSERT(!flags.is_head);
+        switch (flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case AcquireDone: {
+            uint64_t min_age = curr->m_age;
+            trie->m_dummy.m_next = curr;
+            trie->m_dummy.m_min_age = min_age;
+            preCAS(trie, min_age);
+            curr->m_min_age = min_age;
+            if (as_atomic(curr->m_flags).compare_exchange_strong(
+                            flags, { AcquireDone, true },
+                            std::memory_order_release,
+                            std::memory_order_relaxed)) {
+                postCAS();
+                return; // done!!
+            }
+            else {
+                // curr's thread call release/dispose
+                RT_ASSERT(ReleaseWait == flags.state ||
+                            DisposeWait == flags.state);
+                continue; // try 'curr' in next iteration
+            }
+            break; }
         case ReleaseWait:
-            if (as_atomic(curr->m_state).compare_exchange_weak(
-                    state, ReleaseDone,
+            if (as_atomic(curr->m_flags.state).compare_exchange_weak(
+                    flags.state, ReleaseDone,
                     std::memory_order_release,
                     std::memory_order_relaxed))
             {
                 curr = next;
                 next = next->m_next;
+                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             }
             else {
                 // curr is not changed, try loop again
                 // will transit to AcquireDone or DisposeWait
-                assert(curr->m_state == AcquireDone ||
-                       curr->m_state == DisposeWait);
+                assert(curr->m_flags.state == AcquireDone ||
+                       curr->m_flags.state == DisposeWait);
                 continue;
             }
             break;
         case DisposeWait:
-            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-            curr->m_state = DisposeDone;
-            delete curr; // we delete other token
-            curr = next;
-            next = next->m_next;
+            if (terark_likely(curr != trie->m_token_tail)) {
+                // now curr must before m_token_tail
+                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                curr->m_flags.state = DisposeDone;
+                delete curr; // we delete other token
+                curr = next;
+                next = next->m_next;
+            }
             break;
         }
     }
-    // now token queue just remains this and m_token_tail
-    return curr; // is likely being m_token_tail
 }
+*/
 
-Patricia::TokenBase*
+void
 Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     struct Cpu {
@@ -2883,12 +2910,12 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         } while (curr != oldtail);
         cpu_vec.push_back({oldtail->m_cpu, oldtail->m_acqseq, oldtail});
     }
-#if 1
+  #if 0
     auto print = [&](const char* sig) {
         string_appender<> oss;
         for (auto& x : cpu_vec) {
             //oss << " " << size_t(x.token) << "(" << x.cpuid << " " << x.acqseq << ")";
-            //oss << " (" << x.cpuid << " " << x.acqseq << " " << int(x.token->m_is_head) << ")";
+            //oss << " (" << x.cpuid << " " << x.acqseq << " " << int(x.token->m_flags.is_head) << ")";
             oss << " (" << x.cpuid << " " << x.acqseq << ")";
             //oss << " " << x.cpuid;
         }
@@ -2900,7 +2927,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             , cpu_vec.size(), oss.c_str());
     };
     print("unsorted");
-#endif
+  #endif
     terark::sort_a(cpu_vec, TERARK_CMP(cpuid, <, acqseq, <));
     //print("  sorted");
     RT_ASSERT(cpu_vec.size() >= 2);
@@ -2947,20 +2974,76 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         }
     }
     trie->m_num_cpu_migrated = 0;
-    return cpu_vec[0].token;
+
+    // at this time point, the real sorted acqseq may > this->m_acqseq,
+    // but this is ok, the penalty is just an extra sort in the future.
+    trie->m_sorted_acqseq = m_acqseq;
+
+    TokenBase* prev = &trie->m_dummy;
+    TokenBase* curr = cpu_vec[0].token;
+    while (this != curr) {
+        TokenBase* next = curr->m_next;
+        TokenFlags flags = curr->m_flags;
+        RT_ASSERT(!flags.is_head);
+        switch (flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case AcquireDone:
+            trie->m_dummy.m_next = curr;
+            if (as_atomic(curr->m_flags).compare_exchange_strong(
+                        flags, {AcquireDone, true},
+                        std::memory_order_release,
+                        std::memory_order_relaxed)) {
+                this->m_flags.is_head = false;
+                return;
+            }
+            else {
+                RT_ASSERT(ReleaseWait == flags.state);
+                continue; // still try curr in next iteration
+            }
+        case DisposeWait:
+            if (curr != trie->m_token_tail) {
+                prev->m_next = next; // delete curr from list
+                curr->m_flags.state = DisposeDone;
+                delete curr;
+            }
+            prev = curr;
+            curr = next;
+            break;
+        case ReleaseWait:
+            if (as_atomic(curr->m_flags).compare_exchange_strong(
+                        flags, {ReleaseDone, false},
+                        std::memory_order_release,
+                        std::memory_order_relaxed)) {
+                prev->m_next = next; // delete curr from list
+                prev = curr;
+                curr = next;
+                break;
+            }
+            else {
+                RT_ASSERT(AcquireDone == flags.state ||
+                          DisposeWait == flags.state);
+                continue; // still try curr in next iteration
+            }
+        }
+    }
+    // 'this' is still head
+    trie->m_dummy.m_next = this;
+    RT_ASSERT(this->m_flags.is_head);
 }
 
 void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    TokenState state = m_state;
-    switch (state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-    case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+    auto flags = m_flags;
+    switch (flags.state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+    case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
     case ReleaseDone:
     DoLock:
-        m_state = AcquireDone;
+        m_flags.state = AcquireDone;
         m_age = as_atomic(trie->m_dummy.m_age)
                          .fetch_add(1, std::memory_order_relaxed);
         m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
@@ -2969,22 +3052,23 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_next);
         if (this == trie->m_dummy.m_next) {
-            m_is_head = true;
+            m_flags.is_head = true;
         }
         break;
     case ReleaseWait:
-        if (as_atomic(m_state).compare_exchange_strong(
-                    state, AcquireDone,
+        if (as_atomic(m_flags).compare_exchange_strong(
+                    flags, {AcquireDone, false},
                     std::memory_order_release,
                     std::memory_order_relaxed))
         {
             // acquire done, no one should change me
-            assert(AcquireDone == m_state);
+            assert(AcquireDone == m_flags.state);
         }
         else {
             // we are unlocked by other threads
-            assert(ReleaseDone == state); // check compiler bug
-            assert(ReleaseDone == m_state);
+            // should be very unlikely
+            RT_ASSERT(ReleaseDone == flags.state); // check compiler bug
+            RT_ASSERT(ReleaseDone == m_flags.state);
             goto DoLock;
         }
         break;
@@ -2993,64 +3077,113 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    RT_ASSERT(AcquireDone == m_state);
-    if (m_is_head) {
+    RT_ASSERT(AcquireDone == m_flags.state);
+    if (m_flags.is_head) {
+    ThisIsQueueHead:
         assert(this == trie->m_dummy.m_next); // is head
-        if (m_next) {
-            auto new_head = dequeue();
-            if (++m_getcpu_cnt % 32 == 0) {
-                unsigned cpu = ThisCpuID(); ///< expensive
-                if (cpu != m_cpu) {
-                    m_cpu = cpu;
-                    trie->m_num_cpu_migrated++;
+        auto prev = this;
+        auto curr = this->m_next;
+        while (curr) {
+            auto next = curr->m_next;
+            assert(this != trie->m_token_tail);
+            TokenFlags flags = curr->m_flags;
+            RT_ASSERT(!flags.is_head);
+            switch (flags.state) {
+            default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+            case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+            case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+            case AcquireDone: {
+                uint64_t min_age = curr->m_age;
+                trie->m_dummy.m_next = curr;
+                trie->m_dummy.m_min_age = min_age;
+                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                curr->m_min_age = min_age;
+                if (as_atomic(curr->m_flags).compare_exchange_strong(
+                              flags, { AcquireDone, true },
+                              std::memory_order_release,
+                              std::memory_order_relaxed)) {
+                    m_age = 0;
+                    m_next = NULL; // safe, because this != trie->m_token_tail
+                    m_flags = { ReleaseDone, false };
+                    m_value = NULL;
+                    m_min_age = min_age;
+                    return; // done!!
                 }
+                else {
+                    // curr's thread call release/dispose
+                    RT_ASSERT(ReleaseWait == flags.state ||
+                              DisposeWait == flags.state);
+                    trie->m_dummy.m_next = this; // restore head
+                    continue; // try 'curr' in next iteration
+                }
+                break; }
+            case ReleaseWait:
+                if (as_atomic(curr->m_flags.state).compare_exchange_weak(
+                        flags.state, ReleaseDone,
+                        std::memory_order_release,
+                        std::memory_order_relaxed))
+                {
+                    prev->m_next = next; // delete curr from list
+                    curr = next;
+                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                }
+                else {
+                    // curr is not changed, try loop again
+                    // will transit to AcquireDone or DisposeWait
+                    assert(curr->m_flags.state == AcquireDone ||
+                           curr->m_flags.state == DisposeWait);
+                    continue;
+                }
+                break;
+            case DisposeWait:
+                if (terark_likely(curr != trie->m_token_tail)) {
+                    // now curr must before m_token_tail
+                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                    curr->m_flags.state = DisposeDone;
+                    delete curr; // we delete other token
+                    prev->m_next = next; // delete curr from list
+                    curr = next;
+                }
+                break;
             }
-            // quick check m_acqseq
-            if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
-                ( m_acqseq == trie->m_dummy.m_acqseq &&
-                  m_acqseq > trie->m_sorted_acqseq &&
-                  new_head != trie->m_token_tail))
-            {
-                new_head = new_head->sort_cpu(trie);
-                trie->m_sorted_acqseq = m_acqseq;
-            }
-            uint64_t min_age = new_head->m_age;
-            trie->m_dummy.m_next = new_head;
-            trie->m_dummy.m_min_age = min_age;
-            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-            m_age = 0;
-            m_next = NULL;
-            m_state = ReleaseDone;
-            m_value = NULL;
-            m_min_age = min_age;
-            m_is_head = false;
-            new_head->m_min_age = min_age;
-            as_atomic(new_head->m_is_head)
-                     .store(true, std::memory_order_release);
+        }
+        if (terark_unlikely(this == trie->m_token_tail)) {
+            // queue has just one node which is 'this'
+            // do not change this->m_next, because other threads
+            // may calling acquire(append to the list)
+            m_flags.state = ReleaseWait;
         }
         else {
-            // queue has just one node which is 'this'
-            m_state = ReleaseWait; // keep 'this' node in queue
+            assert(NULL != m_next);
+            m_flags.state = ReleaseDone;
+            trie->m_dummy.m_next = m_next;
         }
     }
     else {
-        m_state = ReleaseWait;
-        m_value = NULL;
-        // if (auto next = m_next) {
-        //     m_age = next->m_age;
-        //     m_min_age = trie->m_dummy.m_min_age;
-        // }
+        TokenFlags flags = {AcquireDone, false};
+        if (as_atomic(m_flags).compare_exchange_strong(
+                    flags, {ReleaseWait, false},
+                    std::memory_order_release,
+                    std::memory_order_relaxed)) {
+            m_value = NULL;
+        }
+        else {
+            // old head set me as new head
+            RT_ASSERT(AcquireDone == m_flags.state);
+            RT_ASSERT(this->m_flags.is_head);
+            RT_ASSERT(this == trie->m_dummy.m_next); // is head
+            goto ThisIsQueueHead;
+        }
     }
 }
 
 terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(m_is_head);
+    assert(m_flags.is_head);
     assert(this == trie->m_dummy.m_next);
-    assert(AcquireDone == m_state);
+    assert(AcquireDone == m_flags.state);
     if (m_next) {
-        auto new_head = dequeue();
         if (++m_getcpu_cnt % 32 == 0) {
             unsigned cpu = ThisCpuID(); ///< expensive
             if (cpu != m_cpu) {
@@ -3061,38 +3194,71 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
             ( m_acqseq == trie->m_dummy.m_acqseq &&
-              m_acqseq > trie->m_sorted_acqseq &&
-              new_head != trie->m_token_tail ))
+              m_acqseq > trie->m_sorted_acqseq))
         {
-            m_next = new_head;
-            new_head = this->sort_cpu(trie);
-
-            // at this time point, the real sorted acqseq may > this->m_acqseq,
-            // but this is ok, the penalty is just an extra sort in the future.
-            trie->m_sorted_acqseq = m_acqseq;
-
-            if (this == new_head) {
-                return; // do nothing
-            }
-            else {
-                trie->m_dummy.m_next = new_head;
-                this->m_is_head = false;
-                as_atomic(new_head->m_is_head)
-                         .store(true, std::memory_order_release);
-            }
+            this->sort_cpu(trie);
+            return;
         }
-        else {
-            uint64_t min_age = new_head->m_age;
-            trie->m_dummy.m_next = new_head;
-            trie->m_dummy.m_min_age = min_age;
-            this->m_min_age = min_age;
-            this->m_age = as_atomic(trie->m_dummy.m_age)
-                                .fetch_add(1, std::memory_order_relaxed);
-            this->m_is_head = false;
-            new_head->m_min_age = min_age;
-            enqueue(trie);
-            as_atomic(new_head->m_is_head)
-                     .store(true, std::memory_order_release);
+        auto prev = this;
+        auto curr = this->m_next;
+        while (curr) {
+            auto next = curr->m_next;
+            auto flags = curr->m_flags;
+            assert(!flags.is_head);
+            switch (flags.state) {
+            default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+            case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+            case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+            case AcquireDone: {
+                uint64_t min_age = curr->m_age;
+                trie->m_dummy.m_next = curr;
+                trie->m_dummy.m_min_age = min_age;
+                this->m_min_age = min_age;
+                this->m_age = as_atomic(trie->m_dummy.m_age)
+                             .fetch_add(1, std::memory_order_relaxed);
+                this->m_flags.is_head = false;
+                curr->m_min_age = min_age;
+                if (as_atomic(curr->m_flags).compare_exchange_strong(
+                            flags, {AcquireDone, true},
+                            std::memory_order_release,
+                            std::memory_order_relaxed)) {
+                    enqueue(trie);
+                    return;
+                }
+                else { // this is very unlikely
+                    RT_ASSERT(ReleaseWait == flags.state ||
+                              DisposeWait == flags.state);
+                    trie->m_dummy.m_next = this; // restore head
+                    // try loop again
+                }
+                break; }
+            case ReleaseWait:
+                if (as_atomic(curr->m_flags.state).compare_exchange_weak(
+                        flags.state, ReleaseDone,
+                        std::memory_order_release,
+                        std::memory_order_relaxed))
+                {
+                    prev->m_next = next; // delete curr from list
+                    curr = next;
+                }
+                else {
+                    // curr is not changed, try loop again
+                    // will transit to AcquireDone or DisposeWait
+                    assert(curr->m_flags.state == AcquireDone ||
+                           curr->m_flags.state == DisposeWait);
+                }
+                break;
+            case DisposeWait:
+                if (terark_likely(curr != trie->m_token_tail)) {
+                    // now curr must before m_token_tail
+                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                    curr->m_flags.state = DisposeDone;
+                    delete curr; // we delete other token
+                    prev->m_next = next; // delete curr from list
+                    curr = next;
+                }
+                break;
+            }
         }
     }
     else {
@@ -3110,17 +3276,17 @@ void Patricia::TokenBase::update() {
     assert(m_age <= trie->m_dummy.m_age);
     assert(ThisThreadID() == m_thread_id);
     if (conLevel >= SingleThreadShared) {
-        if (m_is_head)
+        if (m_flags.is_head)
             mt_update(trie);
     }
     else {
         // may be MultiReadMultiWrite some milliseconds ago
-        switch (m_state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_state"); break;
-        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+        switch (m_flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_next = NULL;
             m_tls = NULL;
@@ -3141,21 +3307,21 @@ void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(ThisThreadID() == m_thread_id);
-    assert(AcquireDone == m_state);
+    assert(AcquireDone == m_flags.state);
     if (conLevel >= SingleThreadShared) {
         assert(m_age <= trie->m_dummy.m_age);
         mt_release(trie);
     }
     else {
         // may be MultiReadMultiWrite some milliseconds ago
-        switch (m_state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_state"); break;
-        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+        switch (m_flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
-            m_state = ReleaseDone;
+            m_flags.state = ReleaseDone;
             m_next = NULL;
             m_tls = NULL;
             m_age = 0;
@@ -3172,8 +3338,8 @@ void Patricia::TokenBase::release() {
 }
 
 void Patricia::TokenBase::gc(Patricia* trie1) {
-    switch (m_state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
+    switch (m_flags.state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
     case ReleaseDone: break;
     case ReleaseWait: break;
     case AcquireDone:
@@ -3181,7 +3347,7 @@ void Patricia::TokenBase::gc(Patricia* trie1) {
         break;
     case DisposeDone: break;
     }
-    m_state = DisposeDone;
+    m_flags.state = DisposeDone;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3198,7 +3364,7 @@ Patricia::ReaderToken::ReaderToken(Patricia* trie) {
 void Patricia::ReaderToken::acquire(Patricia* trie) {
     assert(NULL != trie);
     assert(NULL == m_trie || trie == m_trie);
-    assert(ReleaseDone == m_state || ReleaseWait == m_state);
+    assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
     m_value = NULL;
     m_trie = trie;
     m_thread_id = ThisThreadID();
@@ -3209,15 +3375,15 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     }
     else {
         // may be MultiReadMultiWrite some milliseconds ago
-        switch (m_state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_state"); break;
-        case AcquireDone: RT_ASSERT(!"AcquireDone == m_state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_state"); break;
+        switch (m_flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case ReleaseWait:
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
-            m_state = AcquireDone;
+            m_flags.state = AcquireDone;
             m_next = NULL;
             m_tls = NULL;
             m_age = 0;
@@ -3234,7 +3400,7 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
 }
 
 Patricia::ReaderToken::~ReaderToken() {
-    RT_ASSERT(DisposeDone == m_state);
+    RT_ASSERT(DisposeDone == m_flags.state);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -3263,7 +3429,7 @@ Patricia::WriterToken::WriterToken(Patricia* trie) {
 }
 void Patricia::WriterToken::acquire(Patricia* trie1) {
     assert(NULL == m_trie);
-    assert(ReleaseDone == m_state || ReleaseWait == m_state);
+    assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
     auto trie = static_cast<MainPatricia*>(trie1);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(NoWriteReadOnly != conLevel);
@@ -3282,7 +3448,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
         mt_acquire(trie);
     }
     else {
-        m_state = AcquireDone;
+        m_flags.state = AcquireDone;
         m_age  = 0;
         m_next = NULL;
     }
@@ -3291,7 +3457,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
 }
 
 Patricia::WriterToken::~WriterToken() {
-    RT_ASSERT(DisposeDone == m_state);
+    RT_ASSERT(DisposeDone == m_flags.state);
 }
 
 bool Patricia::ReaderToken::lookup(fstring key) {
@@ -3620,7 +3786,7 @@ MainPatricia::IterImpl::IterImpl(const Patricia* sub)
 }
 
 MainPatricia::IterImpl::~IterImpl() {
-    RT_ASSERT(DisposeDone == m_state);
+    RT_ASSERT(DisposeDone == m_flags.state);
 }
 
 // after calling this function, this->update() will not re-search iter
@@ -4719,7 +4885,7 @@ Patricia::Iterator::Iterator(Patricia* trie)
 }
 
 Patricia::Iterator::~Iterator() {
-    RT_ASSERT(DisposeDone == m_state);
+    RT_ASSERT(DisposeDone == m_flags.state);
 }
 
 } // namespace terark
