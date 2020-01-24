@@ -2786,20 +2786,13 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     while (true) {
         TokenBase* pNull = NULL;
         TokenBase* p = trie->m_token_tail;
-        if (terark_likely(
-            as_atomic(p->m_next).compare_exchange_weak(
-                pNull, this,
-                std::memory_order_release,
-                std::memory_order_relaxed))) {
+        if (terark_likely(cas_weak(p->m_next, pNull, this))) {
             assert(this == p->m_next);
             ///
             /// if here use compare_exchange_weak, m_token_tail
             /// may not point to the real tail, so we use the strong
             /// version
-            as_atomic(trie->m_token_tail).compare_exchange_strong(
-                p, this,
-                std::memory_order_release,
-                std::memory_order_relaxed);
+            cas_strong(trie->m_token_tail, p, this);
             return;
         }
         else {
@@ -2810,10 +2803,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // this check is required, because prev compare_exchange_weak
             // may fail even when pNull is really NULL
             if (NULL != pNull) {
-                as_atomic(trie->m_token_tail).compare_exchange_weak(
-                    p, p->m_next,
-                    std::memory_order_release,
-                    std::memory_order_relaxed);
+                cas_weak(trie->m_token_tail, p, p->m_next);
             }
         }
     }
@@ -2961,16 +2951,11 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         TokenBase* oldtail_next = oldtail->m_next;
         do {
             sorted_tail->m_next = oldtail_next; // may be not NULL
-        } while (!as_atomic(oldtail->m_next).compare_exchange_weak(
-                    oldtail_next, oldtail_sorted_next,
-                    std::memory_order_release,
-                    std::memory_order_relaxed));
+        } while (!cas_weak(oldtail->m_next,
+                           oldtail_next, oldtail_sorted_next));
 
         if (NULL == sorted_tail->m_next) {
-            as_atomic(trie->m_token_tail).compare_exchange_strong(
-                    oldtail, sorted_tail,
-                    std::memory_order_release,
-                    std::memory_order_relaxed);
+            cas_strong(trie->m_token_tail, oldtail, sorted_tail);
         }
     }
     trie->m_num_cpu_migrated = 0;
@@ -2991,10 +2976,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case AcquireDone:
             trie->m_dummy.m_next = curr;
-            if (as_atomic(curr->m_flags).compare_exchange_strong(
-                        flags, {AcquireDone, true},
-                        std::memory_order_release,
-                        std::memory_order_relaxed)) {
+            if (cas_strong(curr->m_flags, flags, {AcquireDone, true})) {
                 this->m_flags.is_head = false;
                 return;
             }
@@ -3012,10 +2994,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             curr = next;
             break;
         case ReleaseWait:
-            if (as_atomic(curr->m_flags).compare_exchange_strong(
-                        flags, {ReleaseDone, false},
-                        std::memory_order_release,
-                        std::memory_order_relaxed)) {
+            if (cas_strong(curr->m_flags, flags, {ReleaseDone, false})) {
                 prev->m_next = next; // delete curr from list
                 prev = curr;
                 curr = next;
@@ -3056,11 +3035,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         }
         break;
     case ReleaseWait:
-        if (as_atomic(m_flags).compare_exchange_strong(
-                    flags, {AcquireDone, false},
-                    std::memory_order_release,
-                    std::memory_order_relaxed))
-        {
+        if (cas_strong(m_flags, flags, {AcquireDone, false})) {
             // acquire done, no one should change me
             assert(AcquireDone == m_flags.state);
         }
@@ -3098,10 +3073,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 trie->m_dummy.m_min_age = min_age;
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 curr->m_min_age = min_age;
-                if (as_atomic(curr->m_flags).compare_exchange_strong(
-                              flags, { AcquireDone, true },
-                              std::memory_order_release,
-                              std::memory_order_relaxed)) {
+                if (cas_strong(curr->m_flags, flags, {AcquireDone, true})) {
                     m_age = 0;
                     m_next = NULL; // safe, because this != trie->m_token_tail
                     m_flags = { ReleaseDone, false };
@@ -3118,11 +3090,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 break; }
             case ReleaseWait:
-                if (as_atomic(curr->m_flags.state).compare_exchange_weak(
-                        flags.state, ReleaseDone,
-                        std::memory_order_release,
-                        std::memory_order_relaxed))
-                {
+                if (cas_weak(curr->m_flags.state, flags.state, ReleaseDone)) {
                     prev->m_next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
@@ -3161,10 +3129,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     }
     else {
         TokenFlags flags = {AcquireDone, false};
-        if (as_atomic(m_flags).compare_exchange_strong(
-                    flags, {ReleaseWait, false},
-                    std::memory_order_release,
-                    std::memory_order_relaxed)) {
+        if (cas_strong(m_flags, flags, {ReleaseWait, false})) {
             m_value = NULL;
         }
         else {
@@ -3218,10 +3183,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                              .fetch_add(1, std::memory_order_relaxed);
                 this->m_flags.is_head = false;
                 curr->m_min_age = min_age;
-                if (as_atomic(curr->m_flags).compare_exchange_strong(
-                            flags, {AcquireDone, true},
-                            std::memory_order_release,
-                            std::memory_order_relaxed)) {
+                if (cas_strong(curr->m_flags, flags, {AcquireDone, true})) {
                     enqueue(trie);
                     return;
                 }
@@ -3233,11 +3195,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 }
                 break; }
             case ReleaseWait:
-                if (as_atomic(curr->m_flags.state).compare_exchange_weak(
-                        flags.state, ReleaseDone,
-                        std::memory_order_release,
-                        std::memory_order_relaxed))
-                {
+                if (cas_weak(curr->m_flags.state, flags.state, ReleaseDone)) {
                     prev->m_next = next; // delete curr from list
                     curr = next;
                 }
