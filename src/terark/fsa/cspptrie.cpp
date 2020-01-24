@@ -2814,69 +2814,6 @@ template<class OnPreCAS, class OnPostCAS>
 void
 Patricia::TokenBase::dequeue(Patricia* trie1,
                              OnPreCAS preCAS, OnPostCAS postCAS) {
-    assert(NULL != m_next);
-    auto trie = static_cast<MainPatricia*>(trie1);
-    assert(this == trie->m_dummy.m_next); // is head
-    auto curr = this->m_next;
-    while (curr) {
-        auto next = curr->m_next;
-        assert(this != trie->m_token_tail);
-        TokenFlags flags = curr->m_flags;
-        RT_ASSERT(!flags.is_head);
-        switch (flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-        case AcquireDone: {
-            uint64_t min_age = curr->m_age;
-            trie->m_dummy.m_next = curr;
-            trie->m_dummy.m_min_age = min_age;
-            preCAS(trie, min_age);
-            curr->m_min_age = min_age;
-            if (as_atomic(curr->m_flags).compare_exchange_strong(
-                            flags, { AcquireDone, true },
-                            std::memory_order_release,
-                            std::memory_order_relaxed)) {
-                postCAS();
-                return; // done!!
-            }
-            else {
-                // curr's thread call release/dispose
-                RT_ASSERT(ReleaseWait == flags.state ||
-                            DisposeWait == flags.state);
-                continue; // try 'curr' in next iteration
-            }
-            break; }
-        case ReleaseWait:
-            if (as_atomic(curr->m_flags.state).compare_exchange_weak(
-                    flags.state, ReleaseDone,
-                    std::memory_order_release,
-                    std::memory_order_relaxed))
-            {
-                curr = next;
-                next = next->m_next;
-                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-            }
-            else {
-                // curr is not changed, try loop again
-                // will transit to AcquireDone or DisposeWait
-                assert(curr->m_flags.state == AcquireDone ||
-                       curr->m_flags.state == DisposeWait);
-                continue;
-            }
-            break;
-        case DisposeWait:
-            if (terark_likely(curr != trie->m_token_tail)) {
-                // now curr must before m_token_tail
-                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                curr->m_flags.state = DisposeDone;
-                delete curr; // we delete other token
-                curr = next;
-                next = next->m_next;
-            }
-            break;
-        }
-    }
 }
 */
 
@@ -2990,13 +2927,14 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
                 curr->m_flags.state = DisposeDone;
                 delete curr;
             }
-            prev = curr;
+            else {
+                prev = curr;
+            }
             curr = next;
             break;
         case ReleaseWait:
             if (cas_strong(curr->m_flags, flags, {ReleaseDone, false})) {
                 prev->m_next = next; // delete curr from list
-                prev = curr;
                 curr = next;
                 break;
             }
@@ -3056,7 +2994,6 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     if (m_flags.is_head) {
     ThisIsQueueHead:
         assert(this == trie->m_dummy.m_next); // is head
-        auto prev = this;
         auto curr = this->m_next;
         while (curr) {
             auto next = curr->m_next;
@@ -3090,8 +3027,8 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 break; }
             case ReleaseWait:
-                if (cas_weak(curr->m_flags.state, flags.state, ReleaseDone)) {
-                    prev->m_next = next; // delete curr from list
+                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
+                    this->m_next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -3109,7 +3046,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                     curr->m_flags.state = DisposeDone;
                     delete curr; // we delete other token
-                    prev->m_next = next; // delete curr from list
+                    this->m_next = next; // delete curr from list
                     curr = next;
                 }
                 break;
@@ -3119,11 +3056,11 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             // queue has just one node which is 'this'
             // do not change this->m_next, because other threads
             // may calling acquire(append to the list)
-            m_flags.state = ReleaseWait;
+            m_flags = {ReleaseWait, false};
         }
         else {
             assert(NULL != m_next);
-            m_flags.state = ReleaseDone;
+            m_flags = {ReleaseDone, false};
             trie->m_dummy.m_next = m_next;
         }
     }
@@ -3164,7 +3101,6 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             this->sort_cpu(trie);
             return;
         }
-        auto prev = this;
         auto curr = this->m_next;
         while (curr) {
             auto next = curr->m_next;
@@ -3195,8 +3131,8 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 }
                 break; }
             case ReleaseWait:
-                if (cas_weak(curr->m_flags.state, flags.state, ReleaseDone)) {
-                    prev->m_next = next; // delete curr from list
+                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
+                    this->m_next = next; // delete curr from list
                     curr = next;
                 }
                 else {
@@ -3212,7 +3148,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                     curr->m_flags.state = DisposeDone;
                     delete curr; // we delete other token
-                    prev->m_next = next; // delete curr from list
+                    this->m_next = next; // delete curr from list
                     curr = next;
                 }
                 break;
