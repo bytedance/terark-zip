@@ -2774,18 +2774,21 @@ void Patricia::TokenBase::dispose() {
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     m_next = NULL;
+/*
     std::lock_guard<std::mutex> lock(trie->m_token_mutex);
     m_age = as_atomic(trie->m_dummy.m_age)
                     .fetch_add(1, std::memory_order_relaxed);
     trie->m_token_tail->m_next = this;
     trie->m_token_tail = this;
     return;
-
+*/
     while (true) {
         TokenBase* pNull = NULL;
         TokenBase* p = trie->m_token_tail;
         if (terark_likely(cas_weak(p->m_next, pNull, this))) {
             assert(this == p->m_next);
+            this->m_age = p->m_age + 1;
+            atomic_maximize(trie->m_dummy.m_age, this->m_age);
             ///
             /// if here use compare_exchange_weak, m_token_tail
             /// may not point to the real tail, so we use the strong
@@ -2824,7 +2827,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         TokenBase* token;
     };
     valvec<Cpu> cpu_vec(256, valvec_reserve());
-    std::lock_guard<std::mutex> lock(trie->m_token_mutex);
+//    std::lock_guard<std::mutex> lock(trie->m_token_mutex);
     TokenBase* oldtail = trie->m_token_tail;
     RT_ASSERT(this != oldtail);
     {
