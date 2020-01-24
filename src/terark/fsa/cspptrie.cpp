@@ -3002,6 +3002,13 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
             case AcquireDone: {
                 uint64_t min_age = curr->m_age;
+            #if !defined(NDEBUG)
+                auto p = curr->m_next;
+                while (p) {
+                    assert(p->m_age >= min_age);
+                    p = p->m_next;
+                }
+            #endif
                 trie->m_dummy.m_next = curr;
                 trie->m_dummy.m_min_age = min_age;
                 curr->m_min_age = min_age;
@@ -3109,6 +3116,13 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
             case AcquireDone: {
                 uint64_t min_age = curr->m_age;
+            #if !defined(NDEBUG)
+                auto p = curr->m_next;
+                while (p) {
+                    assert(p->m_age >= min_age);
+                    p = p->m_next;
+                }
+            #endif
                 trie->m_dummy.m_next = curr;
                 trie->m_dummy.m_min_age = min_age;
                 this->m_min_age = min_age;
