@@ -147,6 +147,7 @@ protected:
     uint32_t   m_num_cpu_migrated;
     uint64_t   m_sorted_acqseq;
 
+    std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
 
     size_t     m_max_word_len;
