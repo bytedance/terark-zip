@@ -405,30 +405,6 @@ void PatriciaMem<Align>::set_readonly() {
     m_writing_concurrent_level = NoWriteReadOnly;
 }
 
-/*
-inline void Patricia::update_min_age_inlock(TokenLink* token) {
-    // we keep m_min_age updated, to minimize lock
-    // if there is no m_min_age, m_token_head.m_next->m_age is the
-    // minimum age,
-    // we need to lock m_token_mutex to read m_token_head.m_next->m_age
-    if (&m_token_head == token->m_prev) {
-        // token is the oldest ( age is the minimum )
-        // token is being deleted when calling this function, so --
-        // token->m_next is the new oldest
-        m_min_age = token->m_next->m_age;
-    }
-#if !defined(NDEBUG)
-    TokenLink* curr = m_token_head.m_next;
-    while (curr != &m_token_head) {
-        TokenLink* next = curr->m_next;
-        assert(next->m_prev == curr);
-        assert(curr->m_age  <= next->m_age);
-        curr = next;
-    }
-#endif
-}
-*/
-
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
 default: RT_ASSERT(!"Unknown == conLevel"); break;
@@ -709,13 +685,13 @@ void PatriciaMem<Align>::destroy() {
     if (conLevel >= MultiWriteMultiRead) {
         assert(m_writer_token_sgl.get() == nullptr);
         for (TokenBase* token = m_token_head; token; ) {
-            TokenBase* next = token->m_next;
+            TokenBase* next = token->m_link.next;
             token->gc(this);
             token = next;
         }
     }
 */
-    assert(m_token_tail->m_next == NULL);
+    assert(m_token_tail->m_link.next == NULL);
     assert(m_token_tail->m_flags.state != AcquireDone);
     if (&m_dummy != m_token_tail) {
         m_token_tail->m_flags.state = DisposeDone;
@@ -1151,7 +1127,7 @@ template<MainPatricia::ConcurrentLevel ConLevel>
 bool
 MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
     assert(AcquireDone == token->m_flags.state);
-    assert(token->m_age <= m_token_tail->m_age);
+    assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
     assert(m_writing_concurrent_level >= SingleThreadStrict);
     assert(m_writing_concurrent_level <= OneWriteMultiRead);
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
@@ -1169,7 +1145,7 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
     assert(newCurr != curr);
     if (ConLevel != SingleThreadStrict) {
-        uint64_t age = token->m_age;
+        uint64_t age = token->m_link.verseq;
         m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
         m_lazy_free_list_sgl.m_mem_size += ni.node_size;
     }
@@ -1545,14 +1521,14 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     constexpr auto ConLevel = MultiWriteMultiRead;
     assert(MultiWriteMultiRead == m_writing_concurrent_level);
     assert(nullptr != m_token_tail);
-    assert(token->m_age <= m_token_tail->m_age);
-    assert(token->m_age >= m_dummy.m_min_age);
+    assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
+    assert(token->m_link.verseq >= m_dummy.m_min_age);
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
     assert(AcquireDone == token->m_flags.state);
     if (terark_unlikely(token->m_flags.is_head)) {
-        assert(token == m_dummy.m_next);
+        assert(token == m_dummy.m_link.next);
         if (lzf->m_mem_size > 32*1024) {
             auto header = const_cast<DFA_MmapHeader*>(mmap_base);
             if (header) {
@@ -1621,7 +1597,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     if (cas_weak(a[curr_slot].child, oldcurr, uint32_t(newCurr))) {
         as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
     //  uint64_t age = as_atomic(m_max_age).fetch_add(1, std::memory_order_relaxed);
-        uint64_t age = token->m_age; // can not be token->m_age
+        uint64_t age = token->m_link.verseq; // can not be token->m_link.verseq
         assert(age >= m_dummy.m_min_age);
         maximize(lzf->m_max_word_len, key.size());
         lzf->m_n_nodes += nodeIncNum;
@@ -1640,7 +1616,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
       RaceCondition1: as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
       RaceCondition2:
         size_t min_age = (size_t)token->m_min_age;
-        size_t age = (size_t)token->m_age;
+        size_t age = (size_t)token->m_link.verseq;
         if (debugConcurrent >= 3) {
             if (a[parent].meta.b_lazy_free) {
                 fprintf(stderr,
@@ -2308,7 +2284,7 @@ static long g_lazy_free_debug_level =
                 , lazy_free_list.size()
                 , lazy_free_list.m_mem_size
                 , (long long)min_age
-                , (long long)token->m_age
+                , (long long)token->m_link.verseq
                 , (long long)head.age, (long long)head.node, (long long)head.size
             );
         }
@@ -2359,9 +2335,9 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
 #if !defined(NDEBUG)
     if (m_writing_concurrent_level >= SingleThreadShared) {
         assert(NULL == mmap_base || -1 != m_fd);
-        assert(NULL != m_dummy.m_next);
-        assert(token->m_age <= m_token_tail->m_age);
-        assert(token->m_age >= m_dummy.m_min_age);
+        assert(NULL != m_dummy.m_link.next);
+        assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
+        assert(token->m_link.verseq >= m_dummy.m_min_age);
     }
     assert(this == token->m_trie);
 #endif
@@ -2608,9 +2584,9 @@ template<size_t Align>
 void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
     auto conLevel = m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared) {
-        uint64_t age = m_token_tail->m_age;
+        uint64_t verseq = m_token_tail->m_link.verseq;
         auto& lzf = lazy_free_list(conLevel);
-        lzf.push_back({ age, uint32_t(loc), uint32_t(size) });
+        lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
     }
     else {
@@ -2656,7 +2632,7 @@ void PatriciaMem<Align>::SingleThreadShared_sync_token_list(byte_t* oldmembase) 
     assert(m_mempool.data() != oldmembase);
     TERARK_IF_DEBUG(size_t cnt = 0,);
     byte_t   * newmembase = m_mempool.data();
-    for(auto curr = m_dummy.m_next; curr != NULL; curr = curr->m_next) {
+    for(auto curr = m_dummy.m_link.next; curr != NULL; curr = curr->m_link.next) {
         TokenBase* token = static_cast<TokenBase*>(curr);
         assert(dynamic_cast<ReaderToken*>(token) != nullptr);
         if (byte_t* pvalue = (byte_t*)(token->m_value)) {
@@ -2732,9 +2708,9 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
-    m_next  = NULL;
+    m_link.next  = NULL;
     m_min_age = 0;
-    m_age   = 0;
+    m_link.verseq   = 0;
     m_trie  = NULL;
     m_value = NULL;
     m_flags.state = ReleaseDone;
@@ -2772,23 +2748,15 @@ void Patricia::TokenBase::dispose() {
 
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    m_next = NULL;
-/*
-    std::lock_guard<std::mutex> lock(trie->m_token_mutex);
-    m_age = as_atomic(trie->m_dummy.m_age)
-                    .fetch_add(1, std::memory_order_relaxed);
-    trie->m_token_tail->m_next = this;
-    trie->m_token_tail = this;
-    return;
-*/
+    m_link.next = NULL;
     assert(AcquireDone == m_flags.state);
     assert(!m_flags.is_head);
     while (true) {
-        TokenBase* pNull = NULL;
         TokenBase* p = trie->m_token_tail;
-        this->m_age = p->m_age + 1;
-        if (terark_likely(cas_weak(p->m_next, pNull, this))) {
-            assert(this == p->m_next);
+        LinkType pNull = {NULL, p->m_link.verseq};
+        this->m_link = {NULL, pNull.verseq+1};
+        if (terark_likely(cas_weak(p->m_link, pNull, {this, pNull.verseq}))) {
+            assert(this == p->m_link.next);
             ///
             /// if here use compare_exchange_weak, m_token_tail
             /// may not point to the real tail, so we use the strong
@@ -2803,8 +2771,8 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             //
             // this check is required, because prev compare_exchange_weak
             // may fail even when pNull is really NULL
-            if (NULL != pNull) {
-                cas_weak(trie->m_token_tail, p, p->m_next);
+            if (NULL != pNull.next) {
+                cas_weak(trie->m_token_tail, p, p->m_link.next);
             }
         }
     }
@@ -2821,33 +2789,32 @@ Patricia::TokenBase::dequeue(Patricia* trie1,
 void
 Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(this == trie->m_dummy.m_next);
+    assert(this == trie->m_dummy.m_link.next);
     struct Cpu {
         unsigned   cpuid;
         uint64_t   acqseq;
         TokenBase* token;
     };
     valvec<Cpu> cpu_vec(256, valvec_reserve());
-//    std::lock_guard<std::mutex> lock(trie->m_token_mutex);
     TokenBase* oldtail = trie->m_token_tail;
     RT_ASSERT(this != oldtail);
     {
         TokenBase* curr = this;
         do {
             cpu_vec.push_back({curr->m_cpu, curr->m_acqseq, curr});
-            assert(curr->m_next != NULL);
-            curr = curr->m_next;
+            assert(curr->m_link.next != NULL);
+            curr = curr->m_link.next;
         } while (curr != oldtail);
         cpu_vec.push_back({oldtail->m_cpu, oldtail->m_acqseq, oldtail});
         RT_ASSERT(cpu_vec.size() >= 2);
 
-        uint64_t min_max_age = m_next->m_age;
-        uint64_t new_max_age = oldtail->m_age;
+        uint64_t min_max_age = m_link.next->m_link.verseq;
+        uint64_t new_max_age = oldtail->m_link.verseq;
         for(size_t i = cpu_vec.size(); i; ) {
             auto & x = cpu_vec[--i];
-            assert(x.token->m_age <= new_max_age);
+            assert(x.token->m_link.verseq <= new_max_age);
             assert(x.token->m_min_age <= min_max_age);
-            x.token->m_age = new_max_age;
+            x.token->m_link.verseq = new_max_age;
             x.token->m_min_age = min_max_age;
         }
         trie->m_dummy.m_min_age = min_max_age;
@@ -2877,9 +2844,9 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         auto prev = cpu_vec[i-1].token;
         auto curr = cpu_vec[i-0].token;
         if (terark_likely(prev != oldtail)) {
-            prev->m_next = curr;
+            prev->m_link.next = curr;
         } else {
-            // oldtail->m_next maybe have updated by other threads
+            // oldtail->m_link.next maybe have updated by other threads
             oldtail_sorted_next = curr;
         }
     }
@@ -2887,17 +2854,20 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     if (sorted_tail != oldtail) {
         RT_ASSERT(NULL != oldtail_sorted_next);
         while (true) {
-            TokenBase* oldtail_next = oldtail->m_next;
-            sorted_tail->m_next = oldtail_next; // may be not NULL
+            TokenBase* oldtail_next = oldtail->m_link.next;
+            sorted_tail->m_link.next = oldtail_next; // may be not NULL
             if (oldtail_next) {
-                sorted_tail->m_next = oldtail_next;
-                oldtail->m_next = oldtail_sorted_next;
+                sorted_tail->m_link.next = oldtail_next;
+                oldtail->m_link.next = oldtail_sorted_next;
                 break;
             }
-            //                     sorted_tail->m_next is NULL
+            // now all m_link.verseq in cpu_vec are same
+            LinkType Old = {oldtail_next, m_link.verseq};
+            LinkType New = {oldtail_sorted_next, m_link.verseq};
+            //                     sorted_tail->m_link.next is NULL
             // trie.m_token_tail is still oldtail, because --
             // -------------------------- oldtail_next is NULL
-            if (cas_weak(oldtail->m_next, oldtail_next, oldtail_sorted_next)) {
+            if (cas_weak(oldtail->m_link, Old, New)) {
                 cas_strong(trie->m_token_tail, oldtail, sorted_tail);
             }
         }
@@ -2915,7 +2885,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     TokenBase* curr = cpu_vec[0].token;
     while (this != curr) {
         RT_ASSERT(curr != trie->m_token_tail);
-        TokenBase* next = curr->m_next;
+        TokenBase* next = curr->m_link.next;
         TokenFlags flags = curr->m_flags;
         RT_ASSERT(!flags.is_head);
         switch (flags.state) {
@@ -2923,7 +2893,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case AcquireDone:
-            trie->m_dummy.m_next = curr;
+            trie->m_dummy.m_link.next = curr;
             this->m_flags.is_head = false;
             if (cas_strong(curr->m_flags, flags, {AcquireDone, true})) {
                 return;
@@ -2937,7 +2907,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         case DisposeWait:
             as_atomic(trie->m_token_qlen)
                      .fetch_sub(1, std::memory_order_relaxed);
-            prev->m_next = next; // delete curr from list
+            prev->m_link.next = next; // delete curr from list
             curr->m_flags.state = DisposeDone;
             delete curr;
             curr = next;
@@ -2946,7 +2916,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             if (cas_strong(curr->m_flags, flags, {ReleaseDone, false})) {
                 as_atomic(trie->m_token_qlen)
                          .fetch_sub(1, std::memory_order_relaxed);
-                prev->m_next = next; // delete curr from list
+                prev->m_link.next = next; // delete curr from list
                 curr = next;
                 break;
             }
@@ -2958,7 +2928,7 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         }
     }
     // 'this' is still head
-    trie->m_dummy.m_next = this;
+    trie->m_dummy.m_link.next = this;
     RT_ASSERT(this->m_flags.is_head);
     RT_ASSERT(AcquireDone == this->m_flags.state);
 }
@@ -2974,14 +2944,12 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     case ReleaseDone:
     DoLock:
         m_flags = {AcquireDone, false};
-        // m_age = as_atomic(trie->m_dummy.m_age)
-        //                  .fetch_add(1, std::memory_order_relaxed);
         m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
                       .fetch_add(1, std::memory_order_relaxed);
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
-        assert(NULL != trie->m_dummy.m_next);
-        if (this == trie->m_dummy.m_next) {
+        assert(NULL != trie->m_dummy.m_link.next);
+        if (this == trie->m_dummy.m_link.next) {
             m_flags.is_head = true;
         }
         m_min_age = trie->m_dummy.m_min_age;
@@ -3007,10 +2975,10 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     RT_ASSERT(AcquireDone == m_flags.state);
     if (m_flags.is_head) {
     ThisIsQueueHead:
-        assert(this == trie->m_dummy.m_next); // is head
-        auto curr = this->m_next;
+        assert(this == trie->m_dummy.m_link.next); // is head
+        auto curr = this->m_link.next;
         while (curr) {
-            auto next = curr->m_next;
+            auto next = curr->m_link.next;
             assert(this != trie->m_token_tail);
             TokenFlags flags = curr->m_flags;
             RT_ASSERT(!flags.is_head);
@@ -3019,21 +2987,21 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
             case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
             case AcquireDone: {
-                uint64_t min_age = curr->m_age;
+                uint64_t min_age = curr->m_link.verseq;
             #if !defined(NDEBUG)
-                auto p = curr->m_next;
+                auto p = curr->m_link.next;
                 while (p) {
-                    assert(p->m_age >= p->m_min_age);
-                    assert(p->m_age >= min_age);
-                    p = p->m_next;
+                    assert(p->m_link.verseq >= p->m_min_age);
+                    assert(p->m_link.verseq >= min_age);
+                    p = p->m_link.next;
                 }
             #endif
-                trie->m_dummy.m_next = curr;
+                trie->m_dummy.m_link.next = curr;
                 trie->m_dummy.m_min_age = min_age;
                 curr->m_min_age = min_age;
                 if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
-                    m_age = 0;
-                    m_next = NULL; // safe, because this != trie->m_token_tail
+                    m_link.verseq = 0;
+                    m_link.next = NULL; // safe, because this != trie->m_token_tail
                     m_flags = {ReleaseDone, false};
                     m_value = NULL;
                     m_min_age = min_age;
@@ -3042,19 +3010,19 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 else if (AcquireDone == flags.state) {
                     // spuriously fail
-                    trie->m_dummy.m_next = this; // restore head
+                    trie->m_dummy.m_link.next = this; // restore head
                 }
                 else {
                     // curr's thread call release/dispose
                     RT_ASSERT(ReleaseWait == flags.state ||
                               DisposeWait == flags.state);
-                    trie->m_dummy.m_next = this; // restore head
+                    trie->m_dummy.m_link.next = this; // restore head
                     continue; // try 'curr' in next iteration
                 }
                 break; }
             case ReleaseWait:
                 if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    this->m_next = next; // delete curr from list
+                    this->m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -3076,7 +3044,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                     curr->m_flags.state = DisposeDone;
                     delete curr; // we delete other token
-                    this->m_next = next; // delete curr from list
+                    this->m_link.next = next; // delete curr from list
                 }
                 curr = next;
                 break;
@@ -3084,17 +3052,17 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
         if (terark_unlikely(this == trie->m_token_tail)) {
             // queue has just one node which is 'this'
-            // do not change this->m_next, because other threads
+            // do not change this->m_link.next, because other threads
             // may calling acquire(append to the list)
             m_flags = {ReleaseWait, false};
-            assert(this != m_next);
+            assert(this != m_link.next);
         }
         else {
-            assert(NULL != m_next);
+            assert(NULL != m_link.next);
             m_flags = {ReleaseDone, false};
-            trie->m_dummy.m_next = m_next;
+            trie->m_dummy.m_link.next = m_link.next;
             as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-            assert(this != m_next);
+            assert(this != m_link.next);
         }
     }
     else {
@@ -3106,7 +3074,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             // old head set me as new head
             RT_ASSERT(AcquireDone == m_flags.state);
             RT_ASSERT(this->m_flags.is_head);
-            RT_ASSERT(this == trie->m_dummy.m_next); // is head
+            RT_ASSERT(this == trie->m_dummy.m_link.next); // is head
             goto ThisIsQueueHead;
         }
     }
@@ -3116,11 +3084,11 @@ terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(m_flags.is_head);
-    assert(this == trie->m_dummy.m_next);
+    assert(this == trie->m_dummy.m_link.next);
     assert(AcquireDone == m_flags.state);
-    if (m_next) {
+    if (m_link.next) {
     RingThisToken:
-        assert(m_age <= m_next->m_age);
+        assert(m_link.verseq <= m_link.next->m_link.verseq);
         if (++m_getcpu_cnt % 32 == 0) {
             unsigned cpu = ThisCpuID(); ///< expensive
             if (cpu != m_cpu) {
@@ -3136,10 +3104,10 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             this->sort_cpu(trie);
             return;
         }
-        auto curr = this->m_next;
+        auto curr = this->m_link.next;
         while (curr) {
-            assert(curr != curr->m_next);
-            auto next = curr->m_next;
+            assert(curr != curr->m_link.next);
+            auto next = curr->m_link.next;
             auto flags = curr->m_flags;
             assert(!flags.is_head);
             switch (flags.state) {
@@ -3147,41 +3115,41 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
             case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
             case AcquireDone: {
-                uint64_t min_age = curr->m_age;
+                uint64_t min_age = curr->m_link.verseq;
             #if !defined(NDEBUG)
-                auto p = curr->m_next;
+                auto p = curr->m_link.next;
                 while (p) {
-                    assert(p->m_age >= p->m_min_age);
-                    assert(p->m_age >= min_age);
-                    p = p->m_next;
+                    assert(p->m_link.verseq >= p->m_min_age);
+                    assert(p->m_link.verseq >= min_age);
+                    p = p->m_link.next;
                 }
             #endif
-                trie->m_dummy.m_next = curr;
+                trie->m_dummy.m_link.next = curr;
                 trie->m_dummy.m_min_age = min_age;
                 this->m_min_age = min_age;
-                // this->m_age = as_atomic(trie->m_dummy.m_age)
+                // this->m_link.verseq = as_atomic(trie->m_dummy.m_link.verseq)
                 //              .fetch_add(1, std::memory_order_relaxed);
                 this->m_flags.is_head = false;
                 curr->m_min_age = min_age;
                 if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
                     enqueue(trie);
-                    assert(this != m_next);
+                    assert(this != m_link.next);
                     return;
                 }
                 else if (AcquireDone == flags.state) {
                     // spuriously fail
-                    trie->m_dummy.m_next = this; // restore head
+                    trie->m_dummy.m_link.next = this; // restore head
                 }
                 else { // this is very unlikely
                     RT_ASSERT(ReleaseWait == flags.state ||
                               DisposeWait == flags.state);
-                    trie->m_dummy.m_next = this; // restore head
+                    trie->m_dummy.m_link.next = this; // restore head
                     // try loop again
                 }
                 break; }
             case ReleaseWait:
                 if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    this->m_next = next; // delete curr from list
+                    this->m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -3202,7 +3170,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                     curr->m_flags.state = DisposeDone;
                     delete curr; // we delete other token
-                    this->m_next = next; // delete curr from list
+                    this->m_link.next = next; // delete curr from list
                 }
                 curr = next;
                 break;
@@ -3212,21 +3180,16 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     else {
         // intentionally self link 'this',
         // to co-operate with mt_acquire.enqueue
-        TokenBase* pNull = NULL;
-        if (cas_strong(this->m_next, pNull, this)) {
+        LinkType pNull = {NULL, m_link.verseq};
+        if (cas_strong(m_link, pNull, {NULL, pNull.verseq+1})) {
             // now concurrent mt_acquire may go into enqueue dead loop
             // this cause enqueue being not wait free
-            // let me update m_age
-            auto age = ++this->m_age;
-            trie->m_dummy.m_min_age = age;
-            this->m_age = age;
-            this->m_min_age = age;
-            TokenBase* pThis = this;
-            RT_ASSERT(cas_strong(this->m_next, pThis, pNull));
-            RT_ASSERT(this != this->m_next);
+            // let me update m_link.verseq
+            trie->m_dummy.m_min_age = pNull.verseq;
+            this->m_min_age = pNull.verseq;
         }
         else {
-            RT_ASSERT(NULL != this->m_next);
+            RT_ASSERT(NULL != m_link.next);
             goto RingThisToken;
         }
     }
@@ -3249,16 +3212,16 @@ void Patricia::TokenBase::update() {
         case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
-            m_next = NULL;
+            m_link.next = NULL;
             m_tls = NULL;
-            m_age = 0;
+            m_link.verseq = 0;
             break;
         }
       #if !defined(NDEBUG)
         if (SingleThreadStrict == conLevel) {
-            assert(0 == m_age);
+            assert(0 == m_link.verseq);
             assert(NULL == m_tls);
-            assert(NULL == m_next);
+            assert(NULL == m_link.next);
         }
       #endif
     }
@@ -3270,7 +3233,7 @@ void Patricia::TokenBase::release() {
     assert(ThisThreadID() == m_thread_id);
     assert(AcquireDone == m_flags.state);
     if (conLevel >= SingleThreadShared) {
-        assert(m_age <= trie->m_token_tail->m_age);
+        assert(m_link.verseq <= trie->m_token_tail->m_link.verseq);
         mt_release(trie);
     }
     else {
@@ -3283,16 +3246,16 @@ void Patricia::TokenBase::release() {
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_flags.state = ReleaseDone;
-            m_next = NULL;
+            m_link.next = NULL;
             m_tls = NULL;
-            m_age = 0;
+            m_link.verseq = 0;
             break;
         }
       #if !defined(NDEBUG)
         if (SingleThreadStrict == conLevel) {
-            assert(0 == m_age);
+            assert(0 == m_link.verseq);
             assert(NULL == m_tls);
-            assert(NULL == m_next);
+            assert(NULL == m_link.next);
         }
       #endif
     }
@@ -3345,16 +3308,16 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
             m_flags.state = AcquireDone;
-            m_next = NULL;
+            m_link.next = NULL;
             m_tls = NULL;
-            m_age = 0;
+            m_link.verseq = 0;
             break;
         }
       #if !defined(NDEBUG)
         if (SingleThreadStrict == conLevel) {
-            assert(0 == m_age);
+            assert(0 == m_link.verseq);
             assert(NULL == m_tls);
-            assert(NULL == m_next);
+            assert(NULL == m_link.next);
         }
       #endif
     }
@@ -3410,8 +3373,8 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     }
     else {
         m_flags.state = AcquireDone;
-        m_age  = 0;
-        m_next = NULL;
+        m_link.verseq  = 0;
+        m_link.next = NULL;
     }
     m_value = NULL;
     m_trie = trie;

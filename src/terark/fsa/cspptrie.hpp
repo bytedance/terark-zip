@@ -72,6 +72,11 @@ protected:
         byte_t      is_head;
     };
     static_assert(sizeof(TokenFlags) == 2, "sizeof(TokenFlags) == 1");
+    class TERARK_DLL_EXPORT TokenBase;
+    struct alignas(16) LinkType {
+        TokenBase* next;
+        uint64_t   verseq;
+    };
 
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
         TERARK_friend_class_Patricia;
@@ -81,11 +86,10 @@ protected:
         void*         m_tls; // unused for ReaderToken
         uint64_t      m_thread_id;
         uint64_t      m_acqseq;
-        uint64_t      m_age;
     //-------------------------------------
-    // will be updated by other threads
+    // will sync with other threads
+        LinkType      m_link;
         uint64_t      m_min_age;
-        TokenBase*    m_next;
         unsigned      m_cpu;
         unsigned      m_getcpu_cnt;
 
