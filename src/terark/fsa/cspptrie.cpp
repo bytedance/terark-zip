@@ -2968,6 +2968,14 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         }
         break;
     }
+    // release may leave a dead(ReleaseWait) token at queue head
+    // this dead token should be really deleted by acquire?
+/*
+    if (trie->m_dummy.m_link.next) {
+        TokenFlags flags = {AcquireDone, false};
+        cas_strong(m_flags, flags, {AcquireDone, true});
+    }
+*/
 }
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
@@ -2977,9 +2985,20 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     ThisIsQueueHead:
         assert(this == trie->m_dummy.m_link.next); // is head
         auto curr = this->m_link.next;
-        while (curr) {
-            auto next = curr->m_link.next;
+        if (NULL == curr) {
+            // at this time point, 'this' is m_token_tail.
+            // queue has just one node which is 'this'
+            // do not change this->m_link.next, because other threads
+            // may calling acquire(append to the list)
+            // this is a dead token at head, may block the ring!
+            m_flags = {ReleaseWait, false};
+            return;
+        }
+        trie->m_dummy.m_link.next = curr; // delete head from list
+        while (curr != trie->m_token_tail) {
+            assert(curr == this->m_link.next);
             assert(this != trie->m_token_tail);
+            auto next = curr->m_link.next;
             TokenFlags flags = curr->m_flags;
             RT_ASSERT(!flags.is_head);
             switch (flags.state) {
@@ -3010,19 +3029,17 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 else if (AcquireDone == flags.state) {
                     // spuriously fail
-                    trie->m_dummy.m_link.next = this; // restore head
                 }
                 else {
                     // curr's thread call release/dispose
                     RT_ASSERT(ReleaseWait == flags.state ||
                               DisposeWait == flags.state);
-                    trie->m_dummy.m_link.next = this; // restore head
                     continue; // try 'curr' in next iteration
                 }
                 break; }
             case ReleaseWait:
                 if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    this->m_link.next = next; // delete curr from list
+                    trie->m_dummy.m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -3039,31 +3056,21 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
                 }
                 break;
             case DisposeWait:
-                if (terark_likely(curr != trie->m_token_tail)) {
-                    // now curr must before m_token_tail
-                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                    curr->m_flags.state = DisposeDone;
-                    delete curr; // we delete other token
-                    this->m_link.next = next; // delete curr from list
-                }
+                // now curr must before m_token_tail
+                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                curr->m_flags.state = DisposeDone;
+                delete curr; // we delete other token
+                trie->m_dummy.m_link.next = next; // delete curr from list
                 curr = next;
                 break;
             }
         }
-        if (terark_unlikely(this == trie->m_token_tail)) {
-            // queue has just one node which is 'this'
-            // do not change this->m_link.next, because other threads
-            // may calling acquire(append to the list)
-            m_flags = {ReleaseWait, false};
-            assert(this != m_link.next);
-        }
-        else {
-            assert(NULL != m_link.next);
-            m_flags = {ReleaseDone, false};
-            trie->m_dummy.m_link.next = m_link.next;
-            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-            assert(this != m_link.next);
-        }
+        assert(this != trie->m_token_tail);
+        assert(NULL != m_link.next);
+        m_flags = {ReleaseDone, false};
+        assert(trie->m_dummy.m_link.next == curr);
+        as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+        assert(this != m_link.next);
     }
     else {
         TokenFlags flags = {AcquireDone, false};
@@ -3105,7 +3112,10 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             return;
         }
         auto curr = this->m_link.next;
-        while (curr) {
+        m_flags.is_head = false;
+        enqueue(trie);
+        while (curr != this) {
+            assert(curr == this->m_link.next);
             assert(curr != curr->m_link.next);
             auto next = curr->m_link.next;
             auto flags = curr->m_flags;
@@ -3127,29 +3137,23 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 trie->m_dummy.m_link.next = curr;
                 trie->m_dummy.m_min_age = min_age;
                 this->m_min_age = min_age;
-                // this->m_link.verseq = as_atomic(trie->m_dummy.m_link.verseq)
-                //              .fetch_add(1, std::memory_order_relaxed);
-                this->m_flags.is_head = false;
                 curr->m_min_age = min_age;
                 if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
-                    enqueue(trie);
                     assert(this != m_link.next);
                     return;
                 }
                 else if (AcquireDone == flags.state) {
                     // spuriously fail
-                    trie->m_dummy.m_link.next = this; // restore head
                 }
                 else { // this is very unlikely
                     RT_ASSERT(ReleaseWait == flags.state ||
                               DisposeWait == flags.state);
-                    trie->m_dummy.m_link.next = this; // restore head
                     // try loop again
                 }
                 break; }
             case ReleaseWait:
                 if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    this->m_link.next = next; // delete curr from list
+                    trie->m_dummy.m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -3165,17 +3169,17 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 }
                 break;
             case DisposeWait:
-                if (terark_likely(curr != trie->m_token_tail)) {
-                    // now curr must before m_token_tail
-                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                    curr->m_flags.state = DisposeDone;
-                    delete curr; // we delete other token
-                    this->m_link.next = next; // delete curr from list
-                }
+                // now curr must before m_token_tail
+                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                curr->m_flags.state = DisposeDone;
+                delete curr; // we delete other token
+                trie->m_dummy.m_link.next = next; // delete curr from list
                 curr = next;
                 break;
             }
         }
+        assert(this == trie->m_dummy.m_link.next);
+        m_flags.is_head = true;
     }
     else {
         // intentionally self link 'this',
