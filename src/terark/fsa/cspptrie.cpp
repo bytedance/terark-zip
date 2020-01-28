@@ -2927,13 +2927,14 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
                 break;
             }
             // now all m_link.verseq in cpu_vec are same
-            LinkType Old = {oldtail_next, m_link.verseq};
+            LinkType Old = {NULL, m_link.verseq};
             LinkType New = {oldtail_sorted_next, m_link.verseq};
             //                     sorted_tail->m_link.next is NULL
             // trie.m_token_tail is still oldtail, because --
             // -------------------------- oldtail_next is NULL
             if (cas_weak(oldtail->m_link, Old, New)) {
                 cas_strong(trie->m_token_tail, oldtail, sorted_tail);
+                break;
             }
         }
     }
