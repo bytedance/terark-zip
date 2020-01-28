@@ -2736,7 +2736,7 @@ void Patricia::TokenBase::dispose() {
     case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
     case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
     case ReleaseDone:
-        RT_ASSERT(this != static_cast<MainPatricia*>(m_trie)->m_token_tail);
+        RT_ASSERT(NULL == m_trie || this != static_cast<MainPatricia*>(m_trie)->m_token_tail);
         m_flags.state = DisposeDone;
         delete this; // safe to delete
         break;
