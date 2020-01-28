@@ -2851,8 +2851,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
     return false;
 }
 
-void
-Patricia::TokenBase::sort_cpu(Patricia* trie1) {
+void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(this == trie->m_dummy.m_link.next);
     struct Cpu {
@@ -2884,7 +2883,6 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         }
         trie->m_dummy.m_min_age = min_max_age;
     }
-  #if 1
     auto print = [&](const char* sig) {
         string_appender<> oss;
         for (auto& x : cpu_vec) {
@@ -2900,8 +2898,10 @@ Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             , (long long)trie->m_sorted_acqseq
             , cpu_vec.size(), oss.c_str());
     };
-    print("unsorted");
-  #endif
+    static bool bPrint = getEnvBool("PatriciaTokenPrintSortCPU", false);
+    if (bPrint) {
+        print("unsorted");
+    }
     terark::sort_a(cpu_vec, TERARK_CMP(cpuid, <, acqseq, <));
     //print("  sorted");
     TokenBase* oldtail_sorted_next = NULL;
