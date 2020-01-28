@@ -2996,7 +2996,6 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
         trie->m_dummy.m_link.next = curr; // delete head from list
         while (curr != trie->m_token_tail) {
-            assert(curr == this->m_link.next);
             assert(this != trie->m_token_tail);
             auto next = curr->m_link.next;
             TokenFlags flags = curr->m_flags;
@@ -3115,7 +3114,6 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         m_flags.is_head = false;
         enqueue(trie);
         while (curr != this) {
-            assert(curr == this->m_link.next);
             assert(curr != curr->m_link.next);
             auto next = curr->m_link.next;
             auto flags = curr->m_flags;
