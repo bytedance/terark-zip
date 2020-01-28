@@ -3087,12 +3087,14 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             // do not change this->m_next, because other threads
             // may calling acquire(append to the list)
             m_flags = {ReleaseWait, false};
+            assert(this != m_next);
         }
         else {
             assert(NULL != m_next);
             m_flags = {ReleaseDone, false};
             trie->m_dummy.m_next = m_next;
             as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+            assert(this != m_next);
         }
     }
     else {
@@ -3163,6 +3165,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 curr->m_min_age = min_age;
                 if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
                     enqueue(trie);
+                    assert(this != m_next);
                     return;
                 }
                 else if (AcquireDone == flags.state) {
