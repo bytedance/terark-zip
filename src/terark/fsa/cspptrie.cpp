@@ -3136,6 +3136,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         }
         auto curr = this->m_next;
         while (curr) {
+            assert(curr != curr->m_next);
             auto next = curr->m_next;
             auto flags = curr->m_flags;
             assert(!flags.is_head);
@@ -3219,6 +3220,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             this->m_min_age = age;
             TokenBase* pThis = this;
             RT_ASSERT(cas_strong(this->m_next, pThis, pNull));
+            RT_ASSERT(this != this->m_next);
         }
         else {
             RT_ASSERT(NULL != this->m_next);
