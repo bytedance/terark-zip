@@ -2778,13 +2778,78 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     }
 }
 
-/*
-template<class OnPreCAS, class OnPostCAS>
-void
-Patricia::TokenBase::dequeue(Patricia* trie1,
-                             OnPreCAS preCAS, OnPostCAS postCAS) {
+bool Patricia::TokenBase::dequeue(Patricia* trie1) {
+    auto trie = static_cast<MainPatricia*>(trie1);
+    trie->m_dummy.m_link.next = this; // delete head from list
+    TokenBase* curr = this;
+    while (curr) {
+        auto next = curr->m_link.next;
+        TokenFlags flags = curr->m_flags;
+        RT_ASSERT(!flags.is_head);
+        switch (flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case AcquireDone: {
+            uint64_t min_age = curr->m_link.verseq;
+        #if !defined(NDEBUG)
+            auto p = curr->m_link.next;
+            while (p) {
+                assert(p->m_link.verseq >= p->m_min_age);
+                assert(p->m_link.verseq >= min_age);
+                p = p->m_link.next;
+            }
+        #endif
+            trie->m_dummy.m_link.next = curr;
+            trie->m_dummy.m_min_age = min_age;
+            curr->m_min_age = min_age;
+            if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
+                return true; // done!!
+            }
+            else if (AcquireDone == flags.state) {
+                // spuriously fail
+            }
+            else {
+                // curr's thread call release/dispose
+                RT_ASSERT(ReleaseWait == flags.state ||
+                          DisposeWait == flags.state);
+                continue; // try 'curr' in next iteration
+            }
+            break; }
+        case ReleaseWait:
+            if (curr != trie->m_token_tail) {
+                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
+                    trie->m_dummy.m_link.next = next; // delete curr from list
+                    curr = next;
+                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                }
+                else if (ReleaseWait == flags.state) {
+                    // spuriously fail
+                }
+                else {
+                    // curr is not changed, try loop again
+                    // will transit to AcquireDone or DisposeWait
+                    RT_ASSERT(!curr->m_flags.is_head);
+                    RT_ASSERT(curr->m_flags.state == AcquireDone ||
+                              curr->m_flags.state == DisposeWait);
+                }
+            }
+            break;
+        case DisposeWait:
+            if (curr != trie->m_token_tail) {
+                // now curr must before m_token_tail
+                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                curr->m_flags.state = DisposeDone;
+                delete curr; // we delete other token
+                trie->m_dummy.m_link.next = next; // delete curr from list
+            }
+            curr = next;
+            break;
+        }
+    }
+    assert(trie->m_dummy.m_link.next == curr);
+    return false;
 }
-*/
 
 void
 Patricia::TokenBase::sort_cpu(Patricia* trie1) {
@@ -2994,82 +3059,20 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             m_flags = {ReleaseWait, false};
             return;
         }
-        trie->m_dummy.m_link.next = curr; // delete head from list
-        while (curr != trie->m_token_tail) {
-            assert(this != trie->m_token_tail);
-            auto next = curr->m_link.next;
-            TokenFlags flags = curr->m_flags;
-            RT_ASSERT(!flags.is_head);
-            switch (flags.state) {
-            default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-            case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-            case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-            case AcquireDone: {
-                uint64_t min_age = curr->m_link.verseq;
-            #if !defined(NDEBUG)
-                auto p = curr->m_link.next;
-                while (p) {
-                    assert(p->m_link.verseq >= p->m_min_age);
-                    assert(p->m_link.verseq >= min_age);
-                    p = p->m_link.next;
-                }
-            #endif
-                trie->m_dummy.m_link.next = curr;
-                trie->m_dummy.m_min_age = min_age;
-                curr->m_min_age = min_age;
-                if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
-                    m_link.verseq = 0;
-                    m_link.next = NULL; // safe, because this != trie->m_token_tail
-                    m_flags = {ReleaseDone, false};
-                    m_value = NULL;
-                    m_min_age = min_age;
-                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                    return; // done!!
-                }
-                else if (AcquireDone == flags.state) {
-                    // spuriously fail
-                }
-                else {
-                    // curr's thread call release/dispose
-                    RT_ASSERT(ReleaseWait == flags.state ||
-                              DisposeWait == flags.state);
-                    continue; // try 'curr' in next iteration
-                }
-                break; }
-            case ReleaseWait:
-                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    trie->m_dummy.m_link.next = next; // delete curr from list
-                    curr = next;
-                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                }
-                else if (ReleaseWait == flags.state) {
-                    // spuriously fail
-                }
-                else {
-                    // curr is not changed, try loop again
-                    // will transit to AcquireDone or DisposeWait
-                    RT_ASSERT(!curr->m_flags.is_head);
-                    RT_ASSERT(curr->m_flags.state == AcquireDone ||
-                              curr->m_flags.state == DisposeWait);
-                    continue;
-                }
-                break;
-            case DisposeWait:
-                // now curr must before m_token_tail
-                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                curr->m_flags.state = DisposeDone;
-                delete curr; // we delete other token
-                trie->m_dummy.m_link.next = next; // delete curr from list
-                curr = next;
-                break;
-            }
+        if (curr->dequeue(trie)) {
+            m_link.verseq = 0;
+            m_link.next = NULL; // safe, because this != trie->m_token_tail
+            m_flags = {ReleaseDone, false};
+            m_value = NULL;
+            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
         }
-        assert(this != trie->m_token_tail);
-        assert(NULL != m_link.next);
-        m_flags = {ReleaseDone, false};
-        assert(trie->m_dummy.m_link.next == curr);
-        as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-        assert(this != m_link.next);
+        else {
+            assert(this != trie->m_token_tail);
+            assert(NULL != m_link.next);
+            m_flags = {ReleaseDone, false};
+            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+            assert(this != m_link.next);
+        }
     }
     else {
         TokenFlags flags = {AcquireDone, false};
@@ -3110,74 +3113,16 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             this->sort_cpu(trie);
             return;
         }
-        auto curr = this->m_link.next;
+        auto new_head = this->m_link.next;
         m_flags.is_head = false;
         enqueue(trie);
-        while (curr != this) {
-            assert(curr != curr->m_link.next);
-            auto next = curr->m_link.next;
-            auto flags = curr->m_flags;
-            assert(!flags.is_head);
-            switch (flags.state) {
-            default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-            case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-            case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-            case AcquireDone: {
-                uint64_t min_age = curr->m_link.verseq;
-            #if !defined(NDEBUG)
-                auto p = curr->m_link.next;
-                while (p) {
-                    assert(p->m_link.verseq >= p->m_min_age);
-                    assert(p->m_link.verseq >= min_age);
-                    p = p->m_link.next;
-                }
-            #endif
-                trie->m_dummy.m_link.next = curr;
-                trie->m_dummy.m_min_age = min_age;
-                this->m_min_age = min_age;
-                curr->m_min_age = min_age;
-                if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
-                    assert(this != m_link.next);
-                    return;
-                }
-                else if (AcquireDone == flags.state) {
-                    // spuriously fail
-                }
-                else { // this is very unlikely
-                    RT_ASSERT(ReleaseWait == flags.state ||
-                              DisposeWait == flags.state);
-                    // try loop again
-                }
-                break; }
-            case ReleaseWait:
-                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    trie->m_dummy.m_link.next = next; // delete curr from list
-                    curr = next;
-                    as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                }
-                else if (ReleaseWait == flags.state) {
-                    // spuriously fail
-                }
-                else {
-                    // curr is not changed, try loop again
-                    // will transit to AcquireDone or DisposeWait
-                    RT_ASSERT(!curr->m_flags.state);
-                    RT_ASSERT(curr->m_flags.state == AcquireDone ||
-                              curr->m_flags.state == DisposeWait);
-                }
-                break;
-            case DisposeWait:
-                // now curr must before m_token_tail
-                as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                curr->m_flags.state = DisposeDone;
-                delete curr; // we delete other token
-                trie->m_dummy.m_link.next = next; // delete curr from list
-                curr = next;
-                break;
-            }
+        if (new_head->dequeue(trie)) {
+            m_min_age = trie->m_dummy.m_min_age;
         }
-        assert(this == trie->m_dummy.m_link.next);
-        m_flags.is_head = true;
+        else {
+            assert(this == trie->m_dummy.m_link.next);
+            m_flags.is_head = true;
+        }
     }
     else {
         // intentionally self link 'this',

@@ -100,8 +100,7 @@ protected:
 //      bool          m_min_age_updated; // update by other threads
 
         void enqueue(Patricia*);
-    //  template<class OnPreCAS, class OnPostCAS>
-    //  void dequeue(Patricia*, OnPreCAS, OnPostCAS);
+        bool dequeue(Patricia*);
         void sort_cpu(Patricia*);
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
