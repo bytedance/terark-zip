@@ -2803,7 +2803,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             trie->m_dummy.m_link.next = curr;
             trie->m_dummy.m_min_age = min_age;
             curr->m_min_age = min_age;
-            if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
+            if (cax_weak(curr->m_flags, flags, {AcquireDone, true})) {
                 return true; // done!!
             }
             else if (AcquireDone == flags.state) {
@@ -2818,7 +2818,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             break; }
         case ReleaseWait:
             if (curr != trie->m_token_tail) {
-                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
+                if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
                     trie->m_dummy.m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
@@ -2961,7 +2961,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         case AcquireDone:
             trie->m_dummy.m_link.next = curr;
             this->m_flags.is_head = false;
-            if (cas_strong(curr->m_flags, flags, {AcquireDone, true})) {
+            if (cax_strong(curr->m_flags, flags, {AcquireDone, true})) {
                 return;
             }
             else {
@@ -2979,7 +2979,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             curr = next;
             break;
         case ReleaseWait:
-            if (cas_strong(curr->m_flags, flags, {ReleaseDone, false})) {
+            if (cax_strong(curr->m_flags, flags, {ReleaseDone, false})) {
                 as_atomic(trie->m_token_qlen)
                          .fetch_sub(1, std::memory_order_relaxed);
                 prev->m_link.next = next; // delete curr from list
@@ -3076,8 +3076,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
     }
     else {
-        TokenFlags flags = {AcquireDone, false};
-        if (cas_strong(m_flags, flags, {ReleaseWait, false})) {
+        if (cas_strong(m_flags, {AcquireDone, false}, {ReleaseWait, false})) {
             m_value = NULL;
         }
         else {
@@ -3128,13 +3127,13 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     else {
         // intentionally self link 'this',
         // to co-operate with mt_acquire.enqueue
-        LinkType pNull = {NULL, m_link.verseq};
-        if (cas_strong(m_link, pNull, {NULL, pNull.verseq+1})) {
+        uint64_t verseq = m_link.verseq;
+        if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
             // now concurrent mt_acquire may go into enqueue dead loop
             // this cause enqueue being not wait free
             // let me update m_link.verseq
-            trie->m_dummy.m_min_age = pNull.verseq;
-            this->m_min_age = pNull.verseq;
+            trie->m_dummy.m_min_age = verseq+1;
+            this->m_min_age = verseq+1;
         }
         else {
             RT_ASSERT(NULL != m_link.next);
