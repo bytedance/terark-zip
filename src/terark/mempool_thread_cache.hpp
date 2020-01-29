@@ -433,7 +433,6 @@ protected:
     typedef valvec<unsigned char> mem;
     TCMemPoolTlsHolder<AlignSize> m_tls;
     size_t        m_fastbin_max_size;
-    std::mutex    m_mutex;
 
 public:
     using mem::data;
@@ -542,27 +541,27 @@ public:
     // should not throw
     terark_no_inline
     bool chunk_alloc(TCMemPoolOneThread<AlignSize>* tc, size_t request) {
-        size_t chunk_len = pow2_align_up(request, ArenaSize);
-        m_mutex.lock();
-        {
-            size_t endpos = size_t(mem::p + mem::n);
+        size_t  chunk_len = pow2_align_up(request, ArenaSize);
+        size_t  cap  = mem::c;
+        size_t  oldn; // = mem::n;
+        byte_t* base = mem::p;
+        do {
+            oldn = mem::n;
+            size_t endpos = size_t(base + oldn);
             if (terark_unlikely(endpos % ArenaSize != 0)) {
                 chunk_len += ArenaSize - endpos % ArenaSize;
             }
-        }
-        if (terark_unlikely(mem::n + chunk_len > mem::c)) {
-            if (mem::n + request > mem::c) {
-                // cap is fixed, so fail
-                m_mutex.unlock();
-                return false;
+            if (terark_unlikely(oldn + chunk_len > cap)) {
+                if (oldn + request > cap) {
+                    // cap is fixed, so fail
+                    return false;
+                }
+                chunk_len = cap - oldn;
             }
-            chunk_len = mem::c - mem::n;
-        }
-        size_t chunk_pos = mem::n;
-        assert(mem::n + chunk_len <= mem::c);
-        mem::n += chunk_len;
-        m_mutex.unlock();
-        tc->set_hot_area(mem::p, chunk_pos, chunk_len);
+            assert(oldn + chunk_len <= cap);
+        } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
+
+        tc->set_hot_area(base, oldn, chunk_len);
         return true;
     }
 
