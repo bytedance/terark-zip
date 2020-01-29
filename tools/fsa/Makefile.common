@@ -56,6 +56,7 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
     override CXXFLAGS += -Wa,-q
   endif
   override CXXFLAGS += -time
+  override CXXFLAGS += -mcx16
 #  override CXXFLAGS += -fmax-errors=5
   #override CXXFLAGS += -fmax-errors=2
 endif

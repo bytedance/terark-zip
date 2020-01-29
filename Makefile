@@ -88,6 +88,7 @@ ifeq "$(shell a=${COMPILER};echo $${a:0:3})" "g++"
   ifeq "$(shell echo ${COMPILER} | awk -F- '{if ($$2 >= 9.0) print 1;}')" "1"
     COMMON_C_FLAGS += -Wno-alloc-size-larger-than
   endif
+  COMMON_C_FLAGS += -mcx16
 endif
 
 # icc or icpc
@@ -416,7 +417,7 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 
 boost-include/build-lib-for-terark.done:
 	cd boost-include \
-		&& echo "using gcc : : ${CXX} ; " >> tools/build/src/user-config.jam \
+		&& echo "using gcc : : ${CXX} ; " > tools/build/src/user-config.jam \
 		&& CX=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
 		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
 		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
