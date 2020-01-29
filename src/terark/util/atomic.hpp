@@ -35,11 +35,11 @@ namespace terark {
 // because gnu gcc atomic<> will not generate cmpxchg16b for x86
 
     template<size_t> struct GccAtomicType;
-    template<> struct GccAtomicType< 1> { typedef char  type; }
-    template<> struct GccAtomicType< 2> { typedef short type; }
-    template<> struct GccAtomicType< 4> { typedef int   type; }
-    template<> struct GccAtomicType< 8> { typedef long long type; }
-    template<> struct GccAtomicType<16> { typedef __int128 type; }
+    template<> struct GccAtomicType< 1> { typedef char  type; };
+    template<> struct GccAtomicType< 2> { typedef short type; };
+    template<> struct GccAtomicType< 4> { typedef int   type; };
+    template<> struct GccAtomicType< 8> { typedef long long type; };
+    template<> struct GccAtomicType<16> { typedef __int128 type; };
 
     template<class T>
     inline bool cas_weak(T& x, T expected, T desired) {
