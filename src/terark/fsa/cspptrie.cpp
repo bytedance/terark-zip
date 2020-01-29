@@ -2834,6 +2834,9 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                               curr->m_flags.state == DisposeWait);
                 }
             }
+            else {
+                curr = next;
+            }
             break;
         case DisposeWait:
             if (curr != trie->m_token_tail) {
