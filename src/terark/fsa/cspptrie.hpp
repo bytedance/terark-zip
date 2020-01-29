@@ -166,6 +166,7 @@ public:
         Iterator(Patricia*);
         ~Iterator();
     public:
+        void dispose() final;
         virtual void token_detach_iter() = 0;
     };
     using IteratorPtr = std::unique_ptr<Iterator, TokenDeleter>;

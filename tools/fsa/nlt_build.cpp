@@ -467,7 +467,7 @@ int build_impl(int argc, char* argv[]) {
         MatchContext ctx;
 #if 0
         valvec<byte_t> word;
-        std::unique_ptr<ADFA_LexIterator> iter(trie.adfa_make_iter(initial_state));
+        ADFA_LexIteratorUP iter(trie.adfa_make_iter(initial_state));
         size_t index1, dict_rank1;
         size_t index2, dict_rank2;
         size_t index;
@@ -646,7 +646,7 @@ int build_impl(int argc, char* argv[]) {
 			fstring w = allstr[i];
 			unsigned long long idx = 0;
 			for (size_t j = 0; j < benchmarkLoop; ++j) {
-				std::unique_ptr<ADFA_LexIterator> iter(trie.adfa_make_iter(initial_state));
+				ADFA_LexIteratorUP iter(trie.adfa_make_iter(initial_state));
 				iter->seek_lower_bound(w);
 				idx = trie.state_to_dict_rank(iter->word_state());
 			}

@@ -343,7 +343,7 @@ GetoptDone:
     if (read_thread_num > 0) {
         t0 = pf.now();
       {
-        std::unique_ptr<ADFA_LexIterator> iter(pt->adfa_make_iter());
+        ADFA_LexIteratorUP iter(pt->adfa_make_iter());
         bool ok = iter->seek_begin();
         for (size_t i = 0; i < keyvec.size(); ++i) {
             TERARK_IF_DEBUG(fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong)),);

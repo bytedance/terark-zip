@@ -4759,5 +4759,9 @@ Patricia::Iterator::~Iterator() {
     RT_ASSERT(DisposeDone == m_flags.state);
 }
 
+void Patricia::Iterator::dispose() {
+    ReaderToken::dispose();
+}
+
 } // namespace terark
 

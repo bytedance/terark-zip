@@ -646,7 +646,7 @@ if (write_thread_num > 0) {
     );
     t0 = pf.now();
   {
-    std::unique_ptr<ADFA_LexIterator> iter(pt->adfa_make_iter());
+    ADFA_LexIteratorUP iter(pt->adfa_make_iter());
     bool ok = iter->seek_begin();
     for (size_t i = 0; i < strVec.size(); ++i) {
         assert(ok);
@@ -676,7 +676,7 @@ if (write_thread_num > 0) {
     #define DECL_NLT_ITER nlt_t::Iterator nltIter(&nlt)
 #else
     #define DECL_NLT_ITER \
-        std::unique_ptr<ADFA_LexIterator> uNltIter(nlt.adfa_make_iter()); \
+        ADFA_LexIteratorUP uNltIter(nlt.adfa_make_iter()); \
         auto& nltIter = *uNltIter
 #endif
     auto nlt_lb = [&](int tid, size_t Beg, size_t End) {
