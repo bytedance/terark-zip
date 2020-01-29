@@ -299,20 +299,30 @@ public:
     }
 
 	// size = capacity = sz, memory is not initialized/constructed
+	terark_no_inline
 	valvec(size_t sz, valvec_no_init) {
 		p = NULL;
 		n = c = 0;
-		resize_no_init(sz);
+		if (sz) {
+			p = (T*)malloc(sizeof(T) * sz);
+			if (NULL == p) {
+				throw std::bad_alloc();
+			}
+			n = c = sz;
+		}
 	}
 	// size = 0, capacity = sz
+	terark_no_inline
 	valvec(size_t sz, valvec_reserve) {
 		p = NULL;
 		n = c = 0;
-		p = (T*)malloc(sizeof(T) * sz);
-		if (NULL == p) {
-			throw std::bad_alloc();
+		if (sz) {
+			p = (T*)malloc(sizeof(T) * sz);
+			if (NULL == p) {
+				throw std::bad_alloc();
+			}
+			c = sz;
 		}
-		c = sz;
 	}
 
 	template<class AnyIter>
