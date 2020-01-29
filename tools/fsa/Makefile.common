@@ -233,6 +233,13 @@ ${EXE_BINS_R} : LIBS := -L${LIB_DIR} $(addprefix -lterark-,$(addsuffix -${COMPIL
 clean :
 	rm -rf ${BUILD_ROOT} dbg rls afr
 
+.PHONY : afr
+.PHONY : dbg
+.PHONY : rls
+afr: ${EXE_BINS_A}
+dbg: ${EXE_BINS_D}
+rls: ${EXE_BINS_R}
+
 UNIT_TESTS_DBG := $(addsuffix .test_dbg,${EXE_BINS_D})
 UNIT_TESTS_AFR := $(addsuffix .test_afr,${EXE_BINS_A})
 UNIT_TESTS_RLS := $(addsuffix .test_rls,${EXE_BINS_R})
