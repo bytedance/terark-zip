@@ -12,7 +12,7 @@ namespace terark {
         if (!adfa) {
             THROW_STD(invalid_argument, "dfa is not an AcyclicPathDFA");
         }
-        std::unique_ptr<ADFA_LexIterator> iter(adfa->adfa_make_iter());
+        ADFA_LexIteratorUP iter(adfa->adfa_make_iter());
         bool hasNext = iter->seek_begin();
         size_t nth = 0;
         while (hasNext) {

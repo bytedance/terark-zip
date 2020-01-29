@@ -80,6 +80,12 @@ template<class CharT>
 ADFA_LexIteratorT<CharT>::~ADFA_LexIteratorT() {}
 
 template<class CharT>
+void ADFA_LexIteratorT<CharT>::dispose() {
+	// default is to direct delete
+	delete this;
+}
+
+template<class CharT>
 bool ADFA_LexIteratorT<CharT>::seek_begin() {
 	return seek_lower_bound(fstr());
 }

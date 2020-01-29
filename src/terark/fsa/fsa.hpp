@@ -137,11 +137,13 @@ protected:
 	valvec<uch_t>  m_word;
 	size_t m_curr;
 
+	virtual ~ADFA_LexIteratorT();
 public:
+	virtual void dispose();
+
 	typedef basic_fstring<CharT> fstr;
 	ADFA_LexIteratorT(const BaseDFA* dfa);
 	ADFA_LexIteratorT(valvec_no_init);
-	virtual ~ADFA_LexIteratorT();
 	virtual void reset(const BaseDFA* dfa, size_t root = 0) = 0;
 
 	virtual bool incr() = 0;
@@ -164,6 +166,13 @@ public:
 };
 typedef ADFA_LexIteratorT<char    >  ADFA_LexIterator;
 typedef ADFA_LexIteratorT<uint16_t>  ADFA_LexIterator16;
+
+struct DisposeAsDelete {
+	template<class T> void operator()(T* p) const { p->dispose(); }
+};
+
+typedef std::unique_ptr<ADFA_LexIterator  , DisposeAsDelete> ADFA_LexIteratorUP;
+typedef std::unique_ptr<ADFA_LexIterator16, DisposeAsDelete> ADFA_LexIterator16UP;
 
 template<class CharT>
 class TERARK_DLL_EXPORT ADFA_LexIteratorData :
