@@ -308,7 +308,11 @@ public:
 	valvec(size_t sz, valvec_reserve) {
 		p = NULL;
 		n = c = 0;
-		reserve(sz);
+		p = (T*)malloc(sizeof(T) * sz);
+		if (NULL == p) {
+			throw std::bad_alloc();
+		}
+		c = sz;
 	}
 
 	template<class AnyIter>
