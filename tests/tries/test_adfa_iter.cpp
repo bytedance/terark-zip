@@ -15,7 +15,7 @@ template<class T> void Unused(const T&) {}
 
 template<class DFA>
 void test_empty_dfa(const DFA& dfa) {
-	std::unique_ptr<ADFA_LexIterator> iterU(dfa.adfa_make_iter(initial_state));
+	ADFA_LexIteratorUP iterU(dfa.adfa_make_iter(initial_state));
 	auto iter = iterU.get();
 	assert(!iter->seek_begin());
 	assert(!iter->seek_end());
@@ -127,16 +127,15 @@ void run_benchmark() {
         bytes += strVec.key_len(i);
     }
 
-    Patricia::WriterToken wtoken(&trie);
+    Patricia::WriterTokenPtr wtoken(new Patricia::WriterToken(&trie));
     t0 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = strVec.key(i);
         auto  & val = strVec.val(i);
-        wtoken.update_lazy();
-        bool ok = wtoken.insert(key, &val);
+        bool ok = wtoken->insert(key, &val);
         assert(ok);
         Unused(ok);
-        assert(wtoken.value_of<uint32_t>() == val);
+        assert(wtoken->value_of<uint32_t>() == val);
     }
     trie.set_readonly();
     t1 = pf.now();
@@ -156,13 +155,11 @@ void run_benchmark() {
     t1 = pf.now();
     printf("shuf  index: time = %10.3f\n", pf.sf(t0,t1));
 
-    char iter_mem[Patricia::ITER_SIZE];
-    trie.construct_iter(iter_mem);
-    Patricia::Iterator& iter = *reinterpret_cast<Patricia::Iterator*>(&iter_mem);
+    Patricia::IteratorPtr iter(trie.new_iter());
     t0 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = strVec.key(i);
-        bool ok = iter.seek_lower_bound(key);
+        bool ok = iter->seek_lower_bound(key);
         Unused(ok);
         assert(ok);
     }
@@ -174,10 +171,10 @@ void run_benchmark() {
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = strVec.key(i);
         auto    val = strVec.val(i);
-        bool ok = iter.lookup(key);
+        bool ok = iter->lookup(key);
         Unused(ok);
         assert(ok);
-        assert(iter.value_of<uint32_t>() == val);
+        assert(iter->value_of<uint32_t>() == val);
     }
     auto t3 = pf.now();
     printf("trie lookup: time = %10.3f, QPS = %10.3f M, TP = %10.3f MB/sec, %8.3f X speed of lower_bound\n"
@@ -187,19 +184,16 @@ void run_benchmark() {
   if (bench_iter_create) {
     t2 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
-        char iter_mem2[Patricia::ITER_SIZE];
-        trie.construct_iter(iter_mem2);
-        Patricia::Iterator& iter2 = *reinterpret_cast<Patricia::Iterator*>(&iter_mem2);
+        Patricia::IteratorPtr iter2(trie.new_iter());
         fstring key = strVec.key(i);
-        bool ok = iter2.seek_lower_bound(key);
+        bool ok = iter2->seek_lower_bound(key);
         Unused(ok);
         assert(ok);
 #if !defined(NDEBUG)
         auto va1 = strVec.val(i);
-        auto va2 = iter2.value_of<uint32_t>();
+        auto va2 = iter2->value_of<uint32_t>();
         assert(va1 == va2);
 #endif
-        iter2.~Iterator();
     }
     t3 = pf.now();
     printf("NewIter low: time = %10.3f, QPS = %10.3f M, TP = %10.3f MB/sec, %8.3f X speed of lower_bound\n"
@@ -207,22 +201,22 @@ void run_benchmark() {
         , pf.nf(t0,t1)/pf.nf(t2,t3));
   }
     t2 = pf.now();
-    bool hasData = iter.seek_begin();
+    bool hasData = iter->seek_begin();
     assert(hasData);
     for (size_t i = 0; i < strVec.end_i() - 1; ++i) {
         fstring key = strVec.key(i);
-        fstring ke2 = iter.word();
+        fstring ke2 = iter->word();
 #if !defined(NDEBUG)
         auto    va1 = strVec.val(i);
-        auto    va2 = iter.value_of<uint32_t>();
+        auto    va2 = iter->value_of<uint32_t>();
         assert(va1 == va2);
         assert(key == ke2);
 #endif
-        bool ok = iter.incr();
+        bool ok = iter->incr();
         assert(ok);
         Unused(ok);
     }
-    hasData = iter.incr();
+    hasData = iter->incr();
     assert(!hasData);
     t3 = pf.now();
     printf("trie   walk: time = %10.3f, QPS = %10.3f M, TP = %10.3f MB/sec, %8.3f X speed of lower_bound\n"
@@ -247,7 +241,7 @@ void run_benchmark() {
     auto t4 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = fstrVec[i];
-        bool ok = iter.seek_lower_bound(key);
+        bool ok = iter->seek_lower_bound(key);
         assert(ok);
         Unused(ok);
     }
@@ -262,7 +256,7 @@ void run_benchmark() {
     t2 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = fstrVec[i];
-        bool ok = iter.lookup(key);
+        bool ok = iter->lookup(key);
         assert(ok);
         Unused(ok);
     }
@@ -274,11 +268,9 @@ void run_benchmark() {
   if (bench_iter_create) {
     t2 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
-        char iter_mem2[Patricia::ITER_SIZE];
-        trie.construct_iter(iter_mem2);
-        Patricia::Iterator& iter2 = *reinterpret_cast<Patricia::Iterator*>(&iter_mem2);
+        ADFA_LexIteratorUP iterp2(trie.adfa_make_iter());
         fstring key = fstrVec[i];
-        bool ok = iter2.seek_lower_bound(key);
+        bool ok = iterp2->seek_lower_bound(key);
         assert(ok);
         Unused(ok);
     }
@@ -287,7 +279,6 @@ void run_benchmark() {
         , pf.sf(t2,t3), strVec.end_i()/pf.uf(t2,t3), bytes/pf.uf(t2,t3)
         , pf.nf(t0,t1)/pf.nf(t2,t3));
   }
-    iter.~Iterator();
 }
 
 template<class NLT>
@@ -319,11 +310,11 @@ void unit_test() {
         test_run_impl(*dfa, strVec);
         if (auto pt = dynamic_cast<const MainPatricia*>(dfa.get())) {
             MainPatricia dyna(pt->get_valsize(), pt->mem_size() * 9/8);
-            MainPatricia::WriterToken token(&dyna);
+            MainPatricia::WriterTokenPtr token(new Patricia::WriterToken(&dyna));
             for (size_t i = 0; i < strVec.end_i(); ++i) {
                 fstring key = strVec.key(i);
                 size_t v = i;
-                dyna.insert(key, &v, &token);
+                dyna.insert(key, &v, &*token);
             }
             printf("inserted to MainPatricia, keys = %zd\n", strVec.size());
             test_run_impl(dyna, strVec);
@@ -338,18 +329,17 @@ void unit_test() {
         printf("unit_test_run: MainPatricia\n\n");
         {
             MainPatricia trie(sizeof(uint32_t));
-            MainPatricia::WriterToken token(&trie);
+            MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken(&trie));
             for (uint32_t i = 0; i < 256; ++i) {
                 char strkey[2] = { char(i), '\0' };
-                token.insert(fstring(strkey, 2), &i);
+                token->insert(fstring(strkey, 2), &i);
             }
             {
                 uint32_t val = UINT32_MAX;
-                token.insert(fstring(""), &val);
+                token->insert(fstring(""), &val);
             }
-            char iter_mem[Patricia::ITER_SIZE];
-            trie.construct_iter(iter_mem);
-            Patricia::Iterator& iter = *reinterpret_cast<Patricia::Iterator*>(&iter_mem);
+            Patricia::IteratorPtr iterp(trie.new_iter());
+            Patricia::Iterator& iter = *iterp;
             printf("MainPatricia iter incr basic...\n");
             {
                 bool ok = iter.seek_begin();
@@ -380,15 +370,14 @@ void unit_test() {
                 ok = iter.decr();
                 assert(!ok);
             }
-            iter.~Iterator();
             printf("MainPatricia iter decr basic... passed\n");
         }
         auto insert = [](MainPatricia& trie, const hash_strmap<>& strVec) {
-            MainPatricia::WriterToken token(&trie);
+            MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken(&trie));
             for (size_t i = 0, n = strVec.end_i(); i < n; i++) {
                 fstring key = strVec.key(i);
-                token.update_lazy();
-                trie.insert(key, NULL, &token);
+                token->update();
+                trie.insert(key, NULL, &*token);
             }
         };
         unit_test_run<MainPatricia>(insert);
@@ -438,7 +427,7 @@ void unit_test_run(Inserter insert) {
 }
 
 void test_run_impl(const MatchingDFA& dfa, const hash_strmap<>& strVec) {
-	std::unique_ptr<ADFA_LexIterator> iterU(dfa.adfa_make_iter(initial_state));
+	ADFA_LexIteratorUP iterU(dfa.adfa_make_iter(initial_state));
 	auto iter = iterU.get();
 
 	printf("test incr...\n");

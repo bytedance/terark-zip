@@ -30,19 +30,19 @@ void test_patricia(SortableStrVec strVec) {
     printf("test_patricia...\n");
     MainPatricia trie(sizeof(size_t));
     {
-        Patricia::WriterToken token(&trie);
+        Patricia::WriterTokenPtr token(new Patricia::WriterToken(&trie));
         for (size_t i = 0; i < strVec.size(); ++i) {
             fstring key = strVec[i];
             size_t seq_id = strVec.m_index[i].seq_id;
-            trie.insert(key, &seq_id, &token);
+            trie.insert(key, &seq_id, &*token);
         }
-        token.release();
+        token->release();
     }
     strVec.sort();
     SortableStrVec rkeys;
     trie.dfa_get_random_keys(&rkeys, trie.num_words());
 
-    Patricia::ReaderToken token(&trie);
+    Patricia::ReaderToken& token = *trie.acquire_tls_reader_token();
     for (size_t i = 0; i < rkeys.size(); ++i) {
         fstring key = rkeys[i];
         bool ret = trie.lookup(key, &token);
@@ -63,6 +63,7 @@ void test_patricia(SortableStrVec strVec) {
         if (!ret || !hasValue)
             abort();
     }
+    token.release();
     printf("test_patricia passed!\n\n");
 }
 
