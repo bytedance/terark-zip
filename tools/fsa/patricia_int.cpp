@@ -112,6 +112,7 @@ int main(int argc, char* argv[]) {
             break;
         case 'l':
             little_endian = true;
+	    break;
         case 's':
             print_stat = true;
             break;
