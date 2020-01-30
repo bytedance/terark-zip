@@ -2950,7 +2950,6 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     // but this is ok, the penalty is just an extra sort in the future.
     trie->m_sorted_acqseq = m_acqseq;
 
-    TokenBase* prev = &trie->m_dummy;
     TokenBase* curr = cpu_vec[0].token;
     while (this != curr) {
         RT_ASSERT(curr != trie->m_token_tail);
@@ -2976,7 +2975,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         case DisposeWait:
             as_atomic(trie->m_token_qlen)
                      .fetch_sub(1, std::memory_order_relaxed);
-            prev->m_link.next = next; // delete curr from list
+            trie->m_dummy.m_link.next = next; // delete curr from list
             curr->m_flags.state = DisposeDone;
             delete curr;
             curr = next;
@@ -2985,7 +2984,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             if (cax_strong(curr->m_flags, flags, {ReleaseDone, false})) {
                 as_atomic(trie->m_token_qlen)
                          .fetch_sub(1, std::memory_order_relaxed);
-                prev->m_link.next = next; // delete curr from list
+                trie->m_dummy.m_link.next = next; // delete curr from list
                 curr = next;
                 break;
             }
@@ -3049,7 +3048,18 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
+#if 0
     RT_ASSERT(AcquireDone == m_flags.state);
+#else
+    switch (m_flags.state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+    case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+    case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
+    case AcquireDone: break; // OK
+    }
+#endif
     if (m_flags.is_head) {
     ThisIsQueueHead:
         assert(this == trie->m_dummy.m_link.next); // is head
