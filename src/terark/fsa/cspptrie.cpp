@@ -3096,6 +3096,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     }
     else {
         if (cas_strong(m_flags, {AcquireDone, false}, {ReleaseWait, false})) {
+            fprintf(stderr, "DEBUG: thread-%llX ReleaseWait self token\n", m_thread_id);
             m_value = NULL;
         }
         else {
