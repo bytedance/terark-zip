@@ -403,12 +403,16 @@ public:
             m_hot_end = pos + len;
         }
     }
+
+    virtual bool reuse() { return true; }
 };
 
 template<int AlignSize>
 class TCMemPoolTlsHolder :
     public instance_tls_owner<TCMemPoolTlsHolder<AlignSize>,
                               TCMemPoolOneThread<AlignSize> > {
+public:
+    bool reuse(TCMemPoolOneThread<AlignSize>* t) { return t->reuse(); }
 };
 
 /// mempool which alloc mem block identified by
