@@ -2821,6 +2821,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         case ReleaseWait:
             if (curr != trie->m_token_tail) {
                 if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
+                    fprintf(stderr, "DEBUG: thread-%llX ReleaseDone token of thread-%llX\n", ThisThreadID(), curr->m_thread_id);
                     trie->m_dummy.m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
@@ -2984,6 +2985,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             break;
         case ReleaseWait:
             if (cax_strong(curr->m_flags, flags, {ReleaseDone, false})) {
+                fprintf(stderr, "DEBUG: sort_cpu: thread-%llX ReleaseDone token of thread-%llX\n", m_thread_id, curr->m_thread_id);
                 as_atomic(trie->m_token_qlen)
                          .fetch_sub(1, std::memory_order_relaxed);
                 trie->m_dummy.m_link.next = next; // delete curr from list
@@ -3076,6 +3078,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             return;
         }
         if (curr->dequeue(trie)) {
+            fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
             m_link.verseq = 0;
             m_link.next = NULL; // safe, because this != trie->m_token_tail
             m_flags = {ReleaseDone, false};
@@ -3083,6 +3086,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
         }
         else {
+            fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue fail\n", m_thread_id);
             assert(this != trie->m_token_tail);
             assert(NULL != m_link.next);
             m_flags = {ReleaseDone, false};
