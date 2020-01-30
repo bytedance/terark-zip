@@ -312,13 +312,7 @@ GetoptDone:
 	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
 		auto fins = [&](int tid) {
 			//fprintf(stderr, "thread-%03d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
-            auto& ptoken = ptrie->tls_writer_token();
-            //assert(ptoken->get() == nullptr);
-            if (ptoken.get() == nullptr) {
-                // user may extends WriterToken and override init() ...
-                ptoken.reset(new Patricia::WriterToken());
-            }
-            Patricia::WriterToken& token = *ptoken;
+            Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
             size_t sumvaluelen1 = 0;
             auto insert_v0 = [&](fstring key, size_t i) {
@@ -428,13 +422,7 @@ GetoptDone:
 		};
 		auto finsInterleave = [&](int tid) {
 			//fprintf(stderr, "thread-%03d: interleave, num = %8zd\n", tid, strVec.size() / tnum);
-            auto& ptoken = ptrie->tls_writer_token();
-            //assert(ptoken->get() == nullptr);
-            if (ptoken.get() == nullptr) {
-                // user may extends WriterToken and override init() ...
-                ptoken.reset(new Patricia::WriterToken());
-            }
-            Patricia::WriterToken& token = *ptoken;
+            Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
 			for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
 				fstring s = strVec[i];

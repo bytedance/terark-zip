@@ -141,7 +141,6 @@ public:
         virtual ~ReaderToken();
     public:
         ReaderToken();
-        explicit ReaderToken(Patricia*);
         void acquire(Patricia*);
         bool lookup(fstring);
     };
@@ -155,7 +154,6 @@ public:
         virtual ~WriterToken();
     public:
         WriterToken();
-        explicit WriterToken(Patricia*);
         void acquire(Patricia*);
         bool insert(fstring key, void* value);
     };
@@ -215,10 +213,35 @@ public:
     virtual WriterTokenPtr& tls_writer_token() = 0;
     virtual ReaderToken* acquire_tls_reader_token() = 0;
 
-    Iterator* new_iter(size_t root = initial_state) {
-        auto iter = this->adfa_make_iter(root);
-        return static_cast<Iterator*>(iter);
+    WriterToken* tls_writer_token_nn() {
+        return tls_writer_token_nn<WriterToken>();
     }
+    /// '_nn' suffix means 'not null'
+    template<class WriterTokenType>
+    WriterTokenType* tls_writer_token_nn() {
+        WriterTokenPtr& token = tls_writer_token();
+        if (terark_likely(token.get() != NULL)) {
+            assert(dynamic_cast<WriterTokenType*>(token.get()) != NULL);
+        }
+        else {
+            token.reset(new WriterTokenType());
+        }
+        return static_cast<WriterTokenType*>(token.get());
+    }
+    template<class NewFunc>
+    auto tls_writer_token_nn(NewFunc New) -> decltype(New()) {
+        typedef decltype(New()) PtrType;
+        WriterTokenPtr& token = tls_writer_token();
+        if (terark_likely(token.get() != NULL)) {
+            assert(dynamic_cast<PtrType>(token.get()) != NULL);
+        }
+        else {
+            token.reset(New());
+        }
+        return static_cast<PtrType>(token.get());
+    }
+
+    Iterator* new_iter(size_t root = initial_state) const;
 
     struct Stat {
         size_t n_fork;

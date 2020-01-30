@@ -238,27 +238,28 @@ ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
 
 template<size_t Align>
 Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
+    ReaderToken* tok = NULL;
     if (MultiWriteMultiRead == m_mempool_concurrent_level) {
         auto tc = m_mempool_lock_free.tls();
         auto lzf = static_cast<LazyFreeListTLS*>(tc);
-        auto tok = lzf->m_reader_token.get();
         assert(NULL != lzf->m_reader_token.get());
-        switch (tok->m_flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-        case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
-        case ReleaseWait: // OK
-        case ReleaseDone: // OK
-            lzf->m_reader_token->acquire(this);
-            break;
-        }
-        return lzf->m_reader_token.get();
+        tok = lzf->m_reader_token.get();
     }
     else {
-        return m_reader_token_tls.get_tls(
-            [this]{ return new ReaderTokenTLS_Object(this); });
+        tok = m_reader_token_tls.get_tls(
+            []{ return new ReaderTokenTLS_Object; });
     }
+    switch (tok->m_flags.state) {
+    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+    case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
+    case ReleaseWait: // OK
+    case ReleaseDone: // OK
+        tok->acquire(this);
+        break;
+    }
+    return tok;
 }
 
 template<size_t Align>
@@ -3277,10 +3278,6 @@ Patricia::ReaderToken::ReaderToken() {
 
 }
 
-Patricia::ReaderToken::ReaderToken(Patricia* trie) {
-    acquire(trie);
-}
-
 void Patricia::ReaderToken::acquire(Patricia* trie) {
     assert(NULL != trie);
     assert(NULL == m_trie || trie == m_trie);
@@ -3344,9 +3341,7 @@ noexcept {
 Patricia::WriterToken::WriterToken() {
 }
 
-Patricia::WriterToken::WriterToken(Patricia* trie) {
-    acquire(trie);
-}
+
 void Patricia::WriterToken::acquire(Patricia* trie1) {
     assert(NULL == m_trie);
     assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
@@ -4768,6 +4763,11 @@ ADFA_LexIterator16* MainPatricia::adfa_make_iter16(size_t) const {
     return NULL;
 }
 #endif
+
+Patricia::Iterator* Patricia::new_iter(size_t root) const {
+    auto iter = this->adfa_make_iter(root);
+    return static_cast<Iterator*>(iter);
+}
 
 /// load & save
 

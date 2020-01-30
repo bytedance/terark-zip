@@ -109,7 +109,6 @@ protected:
     struct ReaderTokenTLS_Object : ReaderToken {
         ReaderTokenTLS_Object* m_next_free = nullptr;
         ReaderTokenTLS_Holder* tls_owner() const;
-        ReaderTokenTLS_Object(PatriciaMem* trie) : ReaderToken(trie) {}
     };
     struct ReaderTokenTLS_Holder
         : instance_tls_owner<ReaderTokenTLS_Holder, ReaderTokenTLS_Object> {

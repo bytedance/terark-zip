@@ -220,13 +220,8 @@ GetoptDone:
     };
 	auto pt_write = [&](MainPatricia* ptrie, size_t tnum) {
 		auto fins = [&](size_t tid) {
-            auto& ptoken = ptrie->tls_writer_token();
-            //assert(ptoken->get() == nullptr);
-            if (ptoken.get() == nullptr) {
-                // user may extends WriterToken and override init() ...
-                ptoken.reset(new Patricia::WriterToken(ptrie));
-            }
-            Patricia::WriterToken& token = *ptoken;
+            auto& token = *ptrie->tls_writer_token_nn();
+            token.acquire(ptrie);
             size_t beg = keyvec.size() * (tid + 0) / tnum;
             size_t end = keyvec.size() * (tid + 1) / tnum;
             fprintf(stderr, "thread-%03zd: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
@@ -242,16 +237,12 @@ GetoptDone:
                     }
                 }
             }
+            token.release();
 		};
 		auto finsInterleave = [&](size_t tid) {
 			//fprintf(stderr, "thread-%03d: interleave, num = %8zd\n", tid, strVec.size() / tnum);
-            auto& ptoken = ptrie->tls_writer_token();
-            //assert(ptoken->get() == nullptr);
-            if (ptoken.get() == nullptr) {
-                // user may extends WriterToken and override init() ...
-                ptoken.reset(new Patricia::WriterToken(ptrie));
-            }
-            Patricia::WriterToken& token = *ptoken;
+            auto& token = *ptrie->tls_writer_token_nn();
+            token.acquire(ptrie);
 			for (size_t i = tid, n = keyvec.size(); i < n; i += tnum) {
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (ptrie->insert(s, keyvec.data() + i, &token)) {

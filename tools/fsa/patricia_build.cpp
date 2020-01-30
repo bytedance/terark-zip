@@ -219,8 +219,9 @@ GetoptDone:
                         , nth, long(reclen-4), datalen);
                 break;
             }
-            Patricia::WriterTokenPtr token(new Patricia::WriterToken(&trie));
-            if (trie.insert(buf, &nth, token.get())) {
+            Patricia::WriterToken* token = trie.tls_writer_token_nn();
+            token->acquire(&trie);
+            if (trie.insert(buf, &nth, token)) {
                 nth++;
             } else {
                 fprintf(stderr, "dup binary key, len = %zd\n", buf.size());
@@ -421,11 +422,8 @@ GetoptDone:
     size_t nth = 0;
     for (size_t i = 0; i < strVec.size(); ++i) {
         fstring s = strVec[i];
-        Patricia::WriterTokenPtr& ptoken = trie.tls_writer_token();
-        if (!ptoken) {
-            ptoken.reset(new Patricia::WriterToken(&trie));
-        }
-        auto& token = *ptoken;
+        Patricia::WriterToken& token = *trie.tls_writer_token_nn();
+        token.acquire(&trie);
         if (trie.insert(s, &nth, &token)) {
             if (token.value()) {
                 nth++;
@@ -464,11 +462,8 @@ GetoptDone:
     if (write_thread_num > 0) {
         auto fins = [&](int tid, size_t beg, size_t end) {
             fprintf(stderr, "thread-%02d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
-            Patricia::WriterTokenPtr& ptoken = trie2.tls_writer_token();
-            if (!ptoken) {
-                ptoken.reset(new Patricia::WriterToken(&trie2));
-            }
-            Patricia::WriterToken& token = *ptoken;
+            Patricia::WriterToken& token = *trie2.tls_writer_token_nn();
+            token.acquire(&trie2);
             for (size_t i = beg; i < end; ++i) {
                 fstring s = strVec[i];
                 if (trie2.insert(s, &i, &token)) {
@@ -481,15 +476,13 @@ GetoptDone:
                     }
                 }
             }
+            token.release();
         };
         auto finsInterleave = [&](int tid) {
             size_t tnum = write_thread_num;
             fprintf(stderr, "thread-%02d: interleave, num = %8zd\n", tid, strVec.size()/tnum);
-            Patricia::WriterTokenPtr& ptoken = trie2.tls_writer_token();
-            if (!ptoken) {
-                ptoken.reset(new Patricia::WriterToken(&trie2));
-            }
-            Patricia::WriterToken& token = *ptoken;
+            Patricia::WriterToken& token = *trie2.tls_writer_token_nn([](){return new Patricia::WriterToken();});
+            token.acquire(&trie2);
             for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
                 fstring s = strVec[i];
                 if (trie2.insert(s, &i, &token)) {
@@ -502,6 +495,7 @@ GetoptDone:
                     }
                 }
             }
+            token.release();
         };
         valvec<std::thread> thrVec(write_thread_num, valvec_reserve());
         for (int i = 0; i < write_thread_num; ++i) {
