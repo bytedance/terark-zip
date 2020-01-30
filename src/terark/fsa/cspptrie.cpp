@@ -2810,9 +2810,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
 
 bool Patricia::TokenBase::dequeue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    trie->m_dummy.m_link.next = this; // delete head from list
     TokenBase* curr = this;
-    while (curr) {
+    while (true) {
+        assert(NULL != curr);
         auto next = curr->m_link.next;
         TokenFlags flags = curr->m_flags;
         RT_ASSERT(!flags.is_head);
@@ -2830,10 +2830,10 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 p = p->m_link.next;
             }
         #endif
-            trie->m_dummy.m_link.next = curr;
             trie->m_dummy.m_min_age = min_age;
             curr->m_min_age = min_age;
             if (cax_weak(curr->m_flags, flags, {AcquireDone, true})) {
+                trie->m_dummy.m_link.next = curr;
                 return true; // done!!
             }
             else if (AcquireDone == flags.state) {
@@ -2850,7 +2850,6 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             if (curr != trie->m_token_tail) {
                 if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
                     fprintf(stderr, "DEBUG: thread-%llX ReleaseDone token of thread-%llX\n", ThisThreadID(), curr->m_thread_id);
-                    trie->m_dummy.m_link.next = next; // delete curr from list
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -2866,7 +2865,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 }
             }
             else {
-                curr = next;
+                goto Done_HeadIsWait;
             }
             break;
         case DisposeWait:
@@ -2875,13 +2874,15 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 curr->m_flags.state = DisposeDone;
                 delete curr; // we delete other token
-                trie->m_dummy.m_link.next = next; // delete curr from list
             }
-            curr = next;
+            else {
+                goto Done_HeadIsWait;
+            }
             break;
         }
     }
-    assert(trie->m_dummy.m_link.next == curr);
+Done_HeadIsWait:
+    trie->m_dummy.m_link.next = curr;
     return false;
 }
 
