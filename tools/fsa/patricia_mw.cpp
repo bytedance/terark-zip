@@ -316,9 +316,10 @@ GetoptDone:
             //assert(ptoken->get() == nullptr);
             if (ptoken.get() == nullptr) {
                 // user may extends WriterToken and override init() ...
-                ptoken.reset(new Patricia::WriterToken(ptrie));
+                ptoken.reset(new Patricia::WriterToken());
             }
             Patricia::WriterToken& token = *ptoken;
+            token.acquire(ptrie);
             size_t sumvaluelen1 = 0;
             auto insert_v0 = [&](fstring key, size_t i) {
                 if (ptrie->insert(key, &i, &token)) {
@@ -431,9 +432,10 @@ GetoptDone:
             //assert(ptoken->get() == nullptr);
             if (ptoken.get() == nullptr) {
                 // user may extends WriterToken and override init() ...
-                ptoken.reset(new Patricia::WriterToken(ptrie));
+                ptoken.reset(new Patricia::WriterToken());
             }
             Patricia::WriterToken& token = *ptoken;
+            token.acquire(ptrie);
 			for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
 				fstring s = strVec[i];
 				if (ptrie->insert(s, &i, &token)) {
