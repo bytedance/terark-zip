@@ -156,6 +156,7 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
     void sync_atomic(PatriciaMem<Align>*);
     void sync_no_atomic(PatriciaMem<Align>*);
     void reset_zero();
+    bool reuse() final;
     LazyFreeListTLS(PatriciaMem<Align>* trie);
     ~LazyFreeListTLS();
 };
@@ -324,6 +325,33 @@ PatriciaMem<Align>::LazyFreeListTLS::~LazyFreeListTLS() {
 }
 
 template<size_t Align>
+bool PatriciaMem<Align>::LazyFreeListTLS::reuse() {
+    {
+        TokenFlags flags = m_reader_token->m_flags;
+        switch (flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: break; // OK
+        case ReleaseWait: break; // OK
+        }
+    }
+    if (m_writer_token) {
+        TokenFlags flags = m_writer_token->m_flags;
+        switch (flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: break; // OK
+        case ReleaseWait: break; // OK
+        }
+    }
+    return true;
+}
+
+template<size_t Align>
 void PatriciaMem<Align>::set_readonly() {
     assert(m_mempool_concurrent_level > NoWriteReadOnly);
     if (NoWriteReadOnly == m_writing_concurrent_level) {
@@ -389,17 +417,17 @@ void PatriciaMem<Align>::set_readonly() {
         auto base = (byte_t*)mmap_base;
         assert(m_mempool.data() == (byte_t*)(mmap_base + 1));
         size_t realsize = sizeof(DFA_MmapHeader) + m_mempool.size();
-#if defined(_MSC_VER)
+      #if defined(_MSC_VER)
         FlushViewOfFile(base, realsize); // this flush is async
         // windows can not unmap unused address range
-#else
+      #else
         size_t filesize = sizeof(DFA_MmapHeader) + m_mempool.capacity();
         size_t alignedsize = pow2_align_up(realsize, 4*1024);
         msync(base, realsize, MS_ASYNC);
         munmap(base + alignedsize, filesize - alignedsize);
         ftruncate(m_fd, realsize);
         m_mempool.risk_set_capacity(m_mempool.size());
-#endif
+      #endif
     }
     m_insert = (insert_func_t)&PatriciaMem::insert_readonly_throw;
     m_writing_concurrent_level = NoWriteReadOnly;
