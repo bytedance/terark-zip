@@ -2726,10 +2726,12 @@ Patricia::TokenBase::~TokenBase() {
 }
 
 void Patricia::TokenBase::dispose() {
+#if 0
     if (AcquireDone == m_flags.state) {
         RT_ASSERT(ThisThreadID() == m_thread_id);
         release(); // auto release on dispose
     }
+#endif
     switch (m_flags.state) {
     default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
     case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
