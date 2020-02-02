@@ -52,7 +52,27 @@ size_t maxMem = 0;
 const char* bench_input_fname = NULL;
 const char* patricia_trie_fname = NULL;
 
+#if BOOST_OS_LINUX
+  #include <pthread.h>
+#endif
+
 int main(int argc, char* argv[]) {
+#if BOOST_OS_LINUX
+    int cpu_num = std::thread::hardware_concurrency();
+    int cpu_idx = 0;
+    cpu_set_t* cpu_set = CPU_ALLOC(cpu_num);
+    size_t cpu_size = CPU_ALLOC_SIZE(cpu_num);
+    TERARK_SCOPE_EXIT(CPU_FREE(cpu_set));
+    CPU_ZERO_S(cpu_size, cpu_set);
+    auto thread_bind_cpu = [&]() {
+        CPU_SET(cpu_idx, cpu_set);
+        pthread_setaffinity_np(pthread_self(), cpu_size, cpu_set);
+        CPU_CLR(cpu_idx, cpu_set);
+        cpu_idx = (cpu_idx + 1) % cpu_num;
+    };
+#else
+    #define thread_bind_cpu() // do nothing
+#endif
     int write_thread_num = std::thread::hardware_concurrency();
     int read_thread_num = 0;
     bool mark_readonly = false;
@@ -266,6 +286,7 @@ GetoptDone:
 		);
 	}
     auto patricia_find = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
+        thread_bind_cpu();
         Patricia::ReaderToken& token = *pt->acquire_tls_reader_token();
         if (mark_readonly) {
             for (size_t i = Beg; i < End; ++i) {
@@ -285,6 +306,7 @@ GetoptDone:
         token.release();
     };
     auto patricia_lb = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
+        thread_bind_cpu();
         auto& iter = *pt->new_iter();
         for (size_t i = Beg; i < End; ++i) {
             fstring s = fstrVec[i];
@@ -311,6 +333,7 @@ GetoptDone:
     };
 	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
 		auto fins = [&](int tid) {
+            thread_bind_cpu();
 			//fprintf(stderr, "thread-%03d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
             Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
@@ -421,6 +444,7 @@ GetoptDone:
             token.release();
 		};
 		auto finsInterleave = [&](int tid) {
+            thread_bind_cpu();
 			//fprintf(stderr, "thread-%03d: interleave, num = %8zd\n", tid, strVec.size() / tnum);
             Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
