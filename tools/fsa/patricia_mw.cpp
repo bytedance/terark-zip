@@ -36,6 +36,7 @@ Options:
     -r Reader Thread Num
     -t Writer Thread Num, can be 0 to disable multi write
     -w Writer ConcurrentLevel
+    -V Use Virtual Memory(do not use malloc/posix_memalign)
     -v Value size ratio over key size
     -z Zero Value content
     -s print stat
@@ -50,7 +51,7 @@ bool inline isnewline(char c) { return ('\r' == c || '\n' == c); }
 
 bool setAffinity = false;
 size_t benchmarkLoop = 0;
-size_t maxMem = 0;
+intptr_t maxMem = 0;
 const char* bench_input_fname = NULL;
 const char* patricia_trie_fname = NULL;
 
@@ -85,10 +86,11 @@ int main(int argc, char* argv[]) {
     bool concWriteInterleave = false;
     bool single_thread_write = false;
     bool zeroValue = false;
+    bool useVirtualMem = false;
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "Ab:dhm:o:t:w:r:ijsSv:z");
+        int opt = getopt(argc, argv, "Ab:dhm:o:t:w:r:ijsSVv:z");
         switch (opt) {
         case -1:
             goto GetoptDone;
@@ -112,6 +114,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'm':
             maxMem = ParseSizeXiB(optarg);
+            break;
+        case 'V':
+            useVirtualMem = true;
             break;
         case 'o':
             patricia_trie_fname = optarg;
@@ -182,9 +187,10 @@ GetoptDone:
         direct_read_input = false;
         fprintf(stderr, "-d is ignored because -r %d is specified\n", read_thread_num);
     }
+    intptr_t argMaxMem = useVirtualMem ? -maxMem : maxMem;
     SortableStrVec strVec;
-    MainPatricia trie1(sizeof(size_t), maxMem, conLevel);
-    MainPatricia trie2(sizeof(size_t), maxMem, Patricia::MultiWriteMultiRead);
+    MainPatricia trie1(sizeof(size_t), argMaxMem, conLevel);
+    MainPatricia trie2(sizeof(size_t), argMaxMem, Patricia::MultiWriteMultiRead);
     size_t sumkeylen = 0;
     size_t sumvaluelen = 0;
     size_t numkeys = 0;
