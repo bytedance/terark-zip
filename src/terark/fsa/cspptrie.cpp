@@ -613,9 +613,9 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
             MAP_ANONYMOUS|MAP_HUGETLB|MAP_UNINITIALIZED|MAP_NORESERVE,
             -1, 0);
 #endif
-        if (NULL == mem) {
-            fprintf(stderr, "%s:%d: out of address space: maxMem = %zd",
-                    __FILE__, __LINE__, maxMem);
+        if (MAP_FAILED == mem) {
+            fprintf(stderr, "%s:%d: out of address space: maxMem = %zd, err = %s\n",
+                    __FILE__, __LINE__, maxMem, strerror(errno));
             std::terminate(); // something is broken
         }
         m_mempool.risk_set_data(mem);
