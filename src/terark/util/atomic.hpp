@@ -33,6 +33,7 @@ namespace terark {
   )
 // only for gnu gcc
 // because gnu gcc atomic<> will not generate cmpxchg16b for x86
+// see https://gcc.gnu.org/bugzilla/show_bug.cgi?id=80878
 
     template<size_t> struct GccAtomicType;
     template<> struct GccAtomicType< 1> { typedef char  type; };
