@@ -238,6 +238,8 @@ public:
         assert(size_t(00) != m_appdata_length);
         return m_appdata_length;
     }
+
+    void mempool_tc_populate(size_t) override;
 };
 
 // Patricia is an interface

@@ -404,6 +404,12 @@ public:
         }
     }
 
+    void populate_hot_area(byte_t* base, size_t pageSize) {
+        for (size_t pos = m_hot_pos; pos < m_hot_end; pos += pageSize) {
+            base[pos] = 0;
+        }
+    }
+
     virtual bool reuse() { return true; }
 };
 
@@ -656,6 +662,28 @@ public:
         len = pow2_align_up(len, AlignSize);
         assert(pos + len <= mem::n);
         tc->sfree(mem::p, pos, len);
+    }
+
+    void tc_populate(size_t sz) {
+        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
+        size_t  chunk_len = pow2_align_down(sz, ArenaSize);;
+        size_t  cap  = mem::c;
+        size_t  oldn; // = mem::n;
+        byte_t* base = mem::p;
+        do {
+            oldn = mem::n;
+            size_t endpos = size_t(base + oldn);
+            if (terark_unlikely(endpos % ArenaSize != 0)) {
+                chunk_len += ArenaSize - endpos % ArenaSize;
+            }
+            if (terark_unlikely(oldn + chunk_len > cap)) {
+                chunk_len = cap - oldn;
+            }
+            assert(oldn + chunk_len <= cap);
+        } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
+
+        tc->set_hot_area(base, oldn, chunk_len);
+        tc->populate_hot_area(base, sz);
     }
 };
 

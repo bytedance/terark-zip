@@ -653,6 +653,14 @@ PatriciaMem<Align>::~PatriciaMem() {
     destroy();
 }
 
+template<size_t Align>
+void PatriciaMem<Align>::mempool_tc_populate(size_t sz) {
+    if (m_writing_concurrent_level < MultiWriteMultiRead) {
+        return;
+    }
+    m_mempool_lock_free.tc_populate(sz);
+}
+
 template<class T>
 static void destroy_obj(T* p) { p->~T(); }
 

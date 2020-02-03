@@ -28,6 +28,7 @@ void usage(const char* prog) {
 Options:
     -h Show this help information
     -A set thread affinity
+    -c commit/populate thread local mempool area
     -m MaxMem
     -o Output-Trie-File
     -i Condurrent write interleave
@@ -87,10 +88,11 @@ int main(int argc, char* argv[]) {
     bool single_thread_write = false;
     bool zeroValue = false;
     bool useVirtualMem = false;
+    bool commitMemArea = false;
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "Ab:dhm:o:t:w:r:ijsSVv:z");
+        int opt = getopt(argc, argv, "Abc:dhm:o:t:w:r:ijsSVv:z");
         switch (opt) {
         case -1:
             goto GetoptDone;
@@ -106,6 +108,9 @@ int main(int argc, char* argv[]) {
                 }
                 break;
             }
+        case 'c':
+            commitMemArea = true;
+            break;
         case 'd':
             direct_read_input = true;
             break;
@@ -356,6 +361,9 @@ GetoptDone:
         dd = 0;
 		auto fins = [&](int tid) {
             thread_bind_cpu();
+            if (commitMemArea) {
+                ptrie->mempool_tc_populate(maxMem / tnum);
+            }
 			//fprintf(stderr, "thread-%03d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
             Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
@@ -470,6 +478,9 @@ GetoptDone:
 		};
 		auto finsInterleave = [&](int tid) {
             thread_bind_cpu();
+            if (commitMemArea) {
+                ptrie->mempool_tc_populate(maxMem / tnum);
+            }
 			//fprintf(stderr, "thread-%03d: interleave, num = %8zd\n", tid, strVec.size() / tnum);
             Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
