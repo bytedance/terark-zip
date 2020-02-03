@@ -685,7 +685,8 @@ public:
 
         auto tc = m_tls.get_tls(bind(&m_new_tc, this));
         tc->set_hot_area(base, oldn, chunk_len);
-        tc->populate_hot_area(base, ArenaSize);
+        //tc->populate_hot_area(base, ArenaSize);
+        tc->populate_hot_area(base, 4*1024);
     }
 };
 
