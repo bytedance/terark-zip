@@ -610,6 +610,7 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
   #endif
         byte_t* mem = (byte_t*)mmap(NULL, maxMem,
             PROT_READ|PROT_WRITE,
+            MAP_PRIVATE|
             MAP_ANONYMOUS|MAP_HUGETLB|MAP_UNINITIALIZED|MAP_NORESERVE,
             -1, 0);
 #endif
