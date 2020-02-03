@@ -27,6 +27,7 @@ void usage(const char* prog) {
     fprintf(stderr, R"EOS(Usage: %s Options Input-TXT-File
 Options:
     -h Show this help information
+    -A set thread affinity
     -m MaxMem
     -o Output-Trie-File
     -i Condurrent write interleave
@@ -47,6 +48,7 @@ If Input-TXT-File is omitted, use stdin
 
 bool inline isnewline(char c) { return ('\r' == c || '\n' == c); }
 
+bool setAffinity = false;
 size_t benchmarkLoop = 0;
 size_t maxMem = 0;
 const char* bench_input_fname = NULL;
@@ -65,6 +67,8 @@ int main(int argc, char* argv[]) {
     TERARK_SCOPE_EXIT(CPU_FREE(cpu_set));
     CPU_ZERO_S(cpu_size, cpu_set);
     auto thread_bind_cpu = [&]() {
+        if (!setAffinity)
+            return;
         CPU_SET(cpu_idx, cpu_set);
         pthread_setaffinity_np(pthread_self(), cpu_size, cpu_set);
         CPU_CLR(cpu_idx, cpu_set);
@@ -84,10 +88,13 @@ int main(int argc, char* argv[]) {
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "b:dhm:o:t:w:r:ijsSv:z");
+        int opt = getopt(argc, argv, "Ab:dhm:o:t:w:r:ijsSv:z");
         switch (opt) {
         case -1:
             goto GetoptDone;
+        case 'A':
+            setAffinity = true;
+            break;
         case 'b':
             {
                 char* endpos = NULL;
