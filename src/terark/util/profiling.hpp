@@ -39,6 +39,7 @@ namespace terark {
 		double mf(long long x, long long y) const { return (y-x)*1e3 / m_freq; }
 
 		double sf(long long x, long long y) const { return double(y-x) / m_freq; }
+		double sf(long long x) const { return double(x) / m_freq; }
 #else
 		long long ns(long long x) const { return x; }
 		long long us(long long x) const	{ return x / 1000; }
@@ -57,6 +58,7 @@ namespace terark {
 		double mf(long long x, long long y) const { return (y-x) / 1e6; }
 
 		double sf(long long x, long long y) const { return (y-x) / 1e9; }
+		double sf(long long x) const { return x / 1e9; }
 #endif
 	};
 }

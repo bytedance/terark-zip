@@ -189,6 +189,7 @@ GetoptDone:
     size_t sumvaluelen = 0;
     size_t numkeys = 0;
     long long t0, t1, t2, t3, t4, t5, t6;
+    long long d0, d1, d2, d3, d4, d5, dd;
     auto mmapReadStrVec = [&]() {
         strVec.m_strpool.reserve(mmap.size);
         strVec.m_index.reserve(mmap.size / 16);
@@ -295,6 +296,7 @@ GetoptDone:
     auto patricia_find = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
         thread_bind_cpu();
         Patricia::ReaderToken& token = *pt->acquire_tls_reader_token();
+        long long tt0 = pf.now();
         if (mark_readonly) {
             for (size_t i = Beg; i < End; ++i) {
                 fstring s = fstrVec[i];
@@ -310,20 +312,26 @@ GetoptDone:
                     fprintf(stderr, "pttrie not found: %.*s\n", s.ilen(), s.data());
             }
         }
+        long long tt1 = pf.now();
+        as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
         token.release();
     };
     auto patricia_lb = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
         thread_bind_cpu();
         auto& iter = *pt->new_iter();
+        long long tt0 = pf.now();
         for (size_t i = Beg; i < End; ++i) {
             fstring s = fstrVec[i];
             if (!iter.seek_lower_bound(s))
                 fprintf(stderr, "pttrie lower_bound failed: %.*s\n", s.ilen(), s.data());
         }
+        long long tt1 = pf.now();
+        as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
         iter.dispose();
     };
     auto exec_read = [&](MainPatricia* pt,
       std::function<void(MainPatricia*,int,size_t,size_t)> read) {
+        dd = 0;
         if (read_thread_num < 1) {
             return;
         }
@@ -339,11 +347,13 @@ GetoptDone:
         for (auto& t : thrVec) t.join();
     };
 	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
+        dd = 0;
 		auto fins = [&](int tid) {
             thread_bind_cpu();
 			//fprintf(stderr, "thread-%03d: beg = %8zd , end = %8zd , num = %8zd\n", tid, beg, end, end - beg);
             Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
+            long long tt0 = pf.now();
             size_t sumvaluelen1 = 0;
             auto insert_v0 = [&](fstring key, size_t i) {
                 if (ptrie->insert(key, &i, &token)) {
@@ -448,6 +458,8 @@ GetoptDone:
                     }
                 }
             }
+            long long tt1 = pf.now();
+            as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
             token.release();
 		};
 		auto finsInterleave = [&](int tid) {
@@ -455,6 +467,7 @@ GetoptDone:
 			//fprintf(stderr, "thread-%03d: interleave, num = %8zd\n", tid, strVec.size() / tnum);
             Patricia::WriterToken& token = *ptrie->tls_writer_token_nn();
             token.acquire(ptrie);
+            long long tt0 = pf.now();
 			for (size_t i = tid, n = strVec.size(); i < n; i += tnum) {
 				fstring s = strVec[i];
 				if (ptrie->insert(s, &i, &token)) {
@@ -467,6 +480,8 @@ GetoptDone:
 					}
 				}
 			}
+            long long tt1 = pf.now();
+            as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
             token.release();
 		};
 		valvec<std::thread> thrVec(tnum, valvec_reserve());
@@ -485,13 +500,20 @@ GetoptDone:
 		if (mark_readonly) {
 			ptrie->set_readonly();
 		}
+        dd /= tnum;
 	};
-	t0 = pf.now(); if (single_thread_write) { pt_write(1, &trie1); };
+	t0 = pf.now(); if (single_thread_write) { pt_write(1, &trie1); }
+    d0 = dd;
 	t1 = pf.now(); if (write_thread_num)    { pt_write(write_thread_num, &trie2); }
+    d1 = dd;
 	t2 = pf.now(); if (single_thread_write) { exec_read(&trie1, patricia_find); }
+    d2 = dd;
 	t3 = pf.now(); if (single_thread_write) { exec_read(&trie1, patricia_lb);   }
+    d3 = dd;
 	t4 = pf.now(); if (write_thread_num)    { exec_read(&trie2, patricia_find); }
+    d4 = dd;
 	t5 = pf.now(); if (write_thread_num)    { exec_read(&trie2, patricia_lb);   }
+    d5 = dd;
     t6 = pf.now();
   if (strVec.size() == 0) {
     fprintf(stderr, "numkeys = %zd, sumkeylen = %zd, avglen = %f\n"
@@ -502,6 +524,14 @@ GetoptDone:
     fprintf(stderr
         , "patricia st_Add: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f\n"
         , pf.sf(t0, t1), (sumkeylen + sumvaluelen) / pf.uf(t0, t1), numkeys / pf.uf(t0, t1)
+        , trie1.mem_size() / 1e6, (trie1.mem_size() - sumvaluelen) / 1e6, sumvaluelen / 1e6
+        , trie1.mem_frag_size(), 100.0*trie1.mem_frag_size()/trie1.mem_size()
+        , trie1.num_words(), trie1.v_gnode_states()
+        , trie1.num_words() / double(trie1.v_gnode_states() - trie1.num_words())
+    );
+    fprintf(stderr
+        , "patricia st_Add: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f\n"
+        , pf.sf(d0), (sumkeylen + sumvaluelen) / pf.uf(d0), numkeys / pf.uf(d0)
         , trie1.mem_size() / 1e6, (trie1.mem_size() - sumvaluelen) / 1e6, sumvaluelen / 1e6
         , trie1.mem_frag_size(), 100.0*trie1.mem_frag_size()/trie1.mem_size()
         , trie1.num_words(), trie1.v_gnode_states()
@@ -518,6 +548,15 @@ GetoptDone:
         , trie2.num_words() / double(trie2.v_gnode_states() - trie2.num_words())
         , pf.uf(t0, t1) / pf.uf(t1, t2)
     );
+    fprintf(stderr
+        , "patricia mt_Add: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f, speed ratio = %.2f\n"
+        , pf.sf(d1), (sumkeylen + sumvaluelen) / pf.uf(d1), numkeys / pf.uf(d1)
+        , trie2.mem_size() / 1e6, (trie2.mem_size() - sumvaluelen) / 1e6, sumvaluelen / 1e6
+        , trie2.mem_frag_size(), 100.0*trie2.mem_frag_size()/trie2.mem_size()
+        , trie2.num_words(), trie2.v_gnode_states()
+        , trie2.num_words() / double(trie2.v_gnode_states() - trie2.num_words())
+        , double(d0) / d1
+    );
   }
 	if (read_thread_num > 0 && single_thread_write) {
 		fprintf(stderr
@@ -525,9 +564,18 @@ GetoptDone:
 			, pf.sf(t2,t3), sumkeylen/pf.uf(t2,t3), numkeys/pf.uf(t2,t3)
 		);
 		fprintf(stderr
+			, "patricia s.find: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, pf.sf(d2), sumkeylen/pf.uf(d2), numkeys/pf.uf(d2)
+		);
+		fprintf(stderr
 			, "patricia s.lowb: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
 			, pf.sf(t3,t4), sumkeylen/pf.uf(t3,t4), numkeys/pf.uf(t3,t4)
 			, 100.0*(t3-t2)/(t4-t3)
+		);
+		fprintf(stderr
+			, "patricia s.lowb: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
+			, pf.sf(d3), sumkeylen/pf.uf(d3), numkeys/pf.uf(d3)
+			, 100.0*d2/d3
 		);
 	}
 	if (read_thread_num > 0 && write_thread_num > 0) {
@@ -536,9 +584,18 @@ GetoptDone:
 			, pf.sf(t4,t5), sumkeylen/pf.uf(t4,t5), numkeys/pf.uf(t4,t5)
 		);
 		fprintf(stderr
+			, "patricia m.find: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, pf.sf(d4), sumkeylen/pf.uf(d4), numkeys/pf.uf(d4)
+		);
+		fprintf(stderr
 			, "patricia m.lowb: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
 			, pf.sf(t5,t6), sumkeylen/pf.uf(t5,t6), numkeys/pf.uf(t5,t6)
 			, 100.0*(t5-t4)/(t6-t5)
+		);
+		fprintf(stderr
+			, "patricia m.lowb: time = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
+			, pf.sf(d5), sumkeylen/pf.uf(d5), numkeys/pf.uf(d5)
+			, 100.0*d4/d5
 		);
 	}
     if (patricia_trie_fname) {
