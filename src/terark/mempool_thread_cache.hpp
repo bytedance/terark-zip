@@ -551,11 +551,12 @@ public:
     // should not throw
     terark_no_inline
     bool chunk_alloc(TCMemPoolOneThread<AlignSize>* tc, size_t request) {
-        size_t  chunk_len = pow2_align_up(request, ArenaSize);
+        size_t  chunk_len; // = pow2_align_up(request, ArenaSize);
         size_t  cap  = mem::c;
         size_t  oldn; // = mem::n;
         byte_t* base = mem::p;
         do {
+            chunk_len = pow2_align_up(request, ArenaSize);
             oldn = mem::n;
             size_t endpos = size_t(base + oldn);
             if (terark_unlikely(endpos % ArenaSize != 0)) {
@@ -665,12 +666,12 @@ public:
     }
 
     void tc_populate(size_t sz) {
-        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
-        size_t  chunk_len = pow2_align_down(sz, ArenaSize);;
+        size_t  chunk_len; // = pow2_align_down(sz, ArenaSize);
         size_t  cap  = mem::c;
         size_t  oldn; // = mem::n;
         byte_t* base = mem::p;
         do {
+            chunk_len = pow2_align_down(sz, ArenaSize);
             oldn = mem::n;
             size_t endpos = size_t(base + oldn);
             if (terark_unlikely(endpos % ArenaSize != 0)) {
@@ -682,8 +683,9 @@ public:
             assert(oldn + chunk_len <= cap);
         } while (!cas_weak(mem::n, oldn, oldn + chunk_len));
 
+        auto tc = m_tls.get_tls(bind(&m_new_tc, this));
         tc->set_hot_area(base, oldn, chunk_len);
-        tc->populate_hot_area(base, sz);
+        tc->populate_hot_area(base, ArenaSize);
     }
 };
 
