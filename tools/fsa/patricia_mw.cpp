@@ -92,7 +92,7 @@ int main(int argc, char* argv[]) {
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "Abc:dhm:o:t:w:r:ijsSVv:z");
+        int opt = getopt(argc, argv, "Ab:cdhm:o:t:w:r:ijsSVv:z");
         switch (opt) {
         case -1:
             goto GetoptDone;
