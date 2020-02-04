@@ -3154,7 +3154,7 @@ terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(m_flags.is_head);
-    assert(this == trie->m_dummy.m_link.next);
+//  assert(this == trie->m_dummy.m_link.next); // may false positive
     assert(AcquireDone == m_flags.state);
     if (m_link.next) {
     RingThisToken:
@@ -3165,6 +3165,9 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 m_cpu = cpu;
                 trie->m_num_cpu_migrated++;
             }
+        }
+        while (this != trie->m_dummy.m_link.next) {
+            fprintf(stderr, "DEBUG: wait for other thread set queue head as me(this = %p)\n", this);
         }
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
