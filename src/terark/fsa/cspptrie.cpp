@@ -3167,7 +3167,8 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             }
         }
         while (this != trie->m_dummy.m_link.next) {
-            fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
+            //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
+            std::this_thread::yield();
         }
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
