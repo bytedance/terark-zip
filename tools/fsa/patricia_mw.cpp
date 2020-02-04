@@ -29,6 +29,7 @@ Options:
     -h Show this help information
     -A set thread affinity
     -c commit/populate thread local mempool area
+    -l lock input file's mmap area(needs permission)
     -m MaxMem
     -o Output-Trie-File
     -i Condurrent write interleave
@@ -560,7 +561,7 @@ GetoptDone:
         , trie1.num_words() / double(trie1.v_gnode_states() - trie1.num_words())
     );
     fprintf(stderr
-        , "patricia st_Add: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f\n"
+        , "patricia st_Add: real = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f\n"
         , pf.sf(d0), (sumkeylen + sumvaluelen) / pf.uf(d0), numkeys / pf.uf(d0)
         , trie1.mem_size() / 1e6, (trie1.mem_size() - sumvaluelen) / 1e6, sumvaluelen / 1e6
         , trie1.mem_frag_size(), 100.0*trie1.mem_frag_size()/trie1.mem_size()
@@ -579,7 +580,7 @@ GetoptDone:
         , pf.uf(t0, t1) / pf.uf(t1, t2)
     );
     fprintf(stderr
-        , "patricia mt_Add: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f, speed ratio = %.2f\n"
+        , "patricia mt_Add: real = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, memory(sum = %8.3f M, key = %8.3f M, val = %8.3f M, fragments = %7zd (%.2f%%)), words = %zd, nodes = %zd, fanout = %.3f, speed ratio = %.2f\n"
         , pf.sf(d1), (sumkeylen + sumvaluelen) / pf.uf(d1), numkeys / pf.uf(d1)
         , trie2.mem_size() / 1e6, (trie2.mem_size() - sumvaluelen) / 1e6, sumvaluelen / 1e6
         , trie2.mem_frag_size(), 100.0*trie2.mem_frag_size()/trie2.mem_size()
@@ -594,7 +595,7 @@ GetoptDone:
 			, pf.sf(t2,t3), sumkeylen/pf.uf(t2,t3), numkeys/pf.uf(t2,t3)
 		);
 		fprintf(stderr
-			, "patricia s.find: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, "patricia s.find: real = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(d2), sumkeylen/pf.uf(d2), numkeys/pf.uf(d2)
 		);
 		fprintf(stderr
@@ -603,7 +604,7 @@ GetoptDone:
 			, 100.0*(t3-t2)/(t4-t3)
 		);
 		fprintf(stderr
-			, "patricia s.lowb: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
+			, "patricia s.lowb: real = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M, speed ratio = %6.3f%%(over patricia point)\n"
 			, pf.sf(d3), sumkeylen/pf.uf(d3), numkeys/pf.uf(d3)
 			, 100.0*d2/d3
 		);
@@ -614,7 +615,7 @@ GetoptDone:
 			, pf.sf(t4,t5), sumkeylen/pf.uf(t4,t5), numkeys/pf.uf(t4,t5)
 		);
 		fprintf(stderr
-			, "patricia m.find: user = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
+			, "patricia m.find: real = %8.3f sec, %8.3f MB/sec, QPS = %8.3f M\n"
 			, pf.sf(d4), sumkeylen/pf.uf(d4), numkeys/pf.uf(d4)
 		);
 		fprintf(stderr
