@@ -56,7 +56,7 @@ intptr_t maxMem = 0;
 const char* bench_input_fname = NULL;
 const char* patricia_trie_fname = NULL;
 
-#if BOOST_OS_LINUX
+#if !BOOST_OS_WINDOWS
   #include <pthread.h>
 #endif
 
@@ -64,20 +64,19 @@ int main(int argc, char* argv[]) {
 #if BOOST_OS_LINUX
     int cpu_num = std::thread::hardware_concurrency();
     int cpu_idx = 0;
-    cpu_set_t* cpu_set = CPU_ALLOC(cpu_num);
     size_t cpu_size = CPU_ALLOC_SIZE(cpu_num);
-    TERARK_SCOPE_EXIT(CPU_FREE(cpu_set));
-    CPU_ZERO_S(cpu_size, cpu_set);
     auto thread_bind_cpu = [&]() {
         if (!setAffinity)
             return;
+        auto cpu_set = (cpu_set_t*)alloca(cpu_size);
+        CPU_ZERO_S(cpu_size, cpu_set);
+        int idx = as_atomic(cpu_idx).fetch_add(1, std::memory_order_relaxed) % cpu_num;
         assert(CPU_COUNT_S(cpu_size, cpu_set) == 0);
-        CPU_SET_S(cpu_idx, cpu_size, cpu_set);
+        CPU_SET_S(idx, cpu_size, cpu_set);
         assert(CPU_COUNT_S(cpu_size, cpu_set) == 1);
         pthread_setaffinity_np(pthread_self(), cpu_size, cpu_set);
-        CPU_CLR_S(cpu_idx, cpu_size, cpu_set);
+        CPU_CLR_S(idx, cpu_size, cpu_set);
         assert(CPU_COUNT_S(cpu_size, cpu_set) == 0);
-        cpu_idx = (cpu_idx + 1) % cpu_num;
     };
 #else
     #define thread_bind_cpu() // do nothing
