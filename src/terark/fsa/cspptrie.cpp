@@ -1566,7 +1566,9 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
     assert(AcquireDone == token->m_flags.state);
     if (terark_unlikely(token->m_flags.is_head)) {
-        assert(token == m_dummy.m_link.next);
+        //now is_head is set before m_dummy.m_link.next, this assert
+        //may fail false positive
+        //assert(token == m_dummy.m_link.next);
         if (lzf->m_mem_size > 32*1024) {
             auto header = const_cast<DFA_MmapHeader*>(mmap_base);
             if (header) {
