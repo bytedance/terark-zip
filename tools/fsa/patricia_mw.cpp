@@ -58,6 +58,7 @@ const char* patricia_trie_fname = NULL;
 
 #if !BOOST_OS_WINDOWS
   #include <pthread.h>
+  #include <sys/mman.h>
 #endif
 
 int main(int argc, char* argv[]) {
@@ -91,10 +92,11 @@ int main(int argc, char* argv[]) {
     bool zeroValue = false;
     bool useVirtualMem = false;
     bool commitMemArea = false;
+    bool lockMmap = false;
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "Ab:cdhm:o:t:w:r:ijsSVv:z");
+        int opt = getopt(argc, argv, "Ab:cdhlm:o:t:w:r:ijsSVv:z");
         switch (opt) {
         case -1:
             goto GetoptDone;
@@ -118,6 +120,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'i':
             concWriteInterleave = true;
+            break;
+        case 'l':
+            lockMmap = true;
             break;
         case 'm':
             maxMem = ParseSizeXiB(optarg);
@@ -186,6 +191,12 @@ GetoptDone:
             bool writable = false;
             bool populate = true;
             mmap.base = mmap_load(input_fname, &mmap.size, writable, populate);
+            if (lockMmap) {
+                err = mlock(mmap.base, mmap.size);
+                if (err) {
+                    fprintf(stderr, "WARN: mlock(%s) = %s\n", input_fname, strerror(errno));
+                }
+            }
             if (0 == maxMem)
                 maxMem = 2*st.st_size;
         }
