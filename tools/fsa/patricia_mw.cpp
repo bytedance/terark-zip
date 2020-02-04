@@ -71,9 +71,12 @@ int main(int argc, char* argv[]) {
     auto thread_bind_cpu = [&]() {
         if (!setAffinity)
             return;
-        CPU_SET(cpu_idx, cpu_set);
+        assert(CPU_COUNT_S(cpu_size, cpu_set) == 0);
+        CPU_SET_S(cpu_idx, cpu_size, cpu_set);
+        assert(CPU_COUNT_S(cpu_size, cpu_set) == 1);
         pthread_setaffinity_np(pthread_self(), cpu_size, cpu_set);
-        CPU_CLR(cpu_idx, cpu_set);
+        CPU_CLR_S(cpu_idx, cpu_size, cpu_set);
+        assert(CPU_COUNT_S(cpu_size, cpu_set) == 0);
         cpu_idx = (cpu_idx + 1) % cpu_num;
     };
 #else
