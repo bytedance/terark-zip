@@ -44,6 +44,7 @@ Options:
     -s print stat
     -S Single thread write
     -b BenchmarkLoop : Run benchmark
+    -p pause after read/mmap(MAP_POPULATE) input file
 If Input-TXT-File is omitted, use stdin
 )EOS", prog);
     exit(1);
@@ -94,10 +95,11 @@ int main(int argc, char* argv[]) {
     bool useVirtualMem = false;
     bool commitMemArea = false;
     bool lockMmap = false;
+    bool pauseAfterReadInput = false;
     double valueRatio = 0;
     auto conLevel = Patricia::MultiWriteMultiRead;
     for (;;) {
-        int opt = getopt(argc, argv, "Ab:cdhlm:o:t:w:r:ijsSVv:z");
+        int opt = getopt(argc, argv, "Ab:cdhlm:o:pt:w:r:ijsSVv:z");
         switch (opt) {
         case -1:
             goto GetoptDone;
@@ -133,6 +135,9 @@ int main(int argc, char* argv[]) {
             break;
         case 'o':
             patricia_trie_fname = optarg;
+            break;
+        case 'p':
+            pauseAfterReadInput = true;
             break;
         case 't':
             write_thread_num = atoi(optarg);
@@ -264,6 +269,10 @@ GetoptDone:
         }
     };
     readStrVec();
+    if (pauseAfterReadInput) {
+        fprintf(stderr, "Pausing for option -p, press Enter to continue\n");
+        getchar();
+    }
     t0 = pf.now();
     valvec<size_t> randvec(strVec.size(), valvec_no_init());
     fstrvecll fstrVec;
