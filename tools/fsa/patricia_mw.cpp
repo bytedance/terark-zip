@@ -370,6 +370,7 @@ GetoptDone:
         }
         long long tt1 = pf.now();
         as_atomic(dd).fetch_add(tt1 - tt0, std::memory_order_relaxed);
+        iter.release();
         iter.dispose();
     };
     auto exec_read = [&](MainPatricia* pt,
