@@ -3199,6 +3199,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             // be wait free, do nothing
             return;
         }
+        assert(!trie->m_head_is_dead);
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
             ( m_acqseq == trie->m_dummy.m_acqseq &&
