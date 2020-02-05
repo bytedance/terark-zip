@@ -389,6 +389,7 @@ GetoptDone:
                 read(pt, i, Beg, End);
         }
         for (auto& t : thrVec) t.join();
+        dd /= read_thread_num;
     };
 	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
         dd = 0;
@@ -690,6 +691,7 @@ GetoptDone:
             , smThread // single/multi thread
             , pf.sf(t0, t1), sumkeylen / pf.uf(t0, t1), numkeys / pf.uf(t0, t1)
         );
+        iter->release();
       };
       if (single_thread_write) { bench_iter(&trie1, 's'); }
       if (write_thread_num)    { bench_iter(&trie2, 'm'); }
@@ -814,7 +816,8 @@ GetoptDone:
     fprintf(stderr, " done!\n");
     fprintf(stderr, "incr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f M/sec\n", pf.sf(t0,t1), 2*sumkeylen/pf.uf(t0,t1), 2*numkeys/pf.uf(t0,t1));
     fprintf(stderr, "decr time = %f sec, throughput = %8.3f MB/sec, QPS = %8.3f M/sec\n", pf.sf(t2,t3), 2*sumkeylen/pf.uf(t2,t3), 2*numkeys/pf.uf(t2,t3));
-
+    iter1->release();
+    iter2->release();
   }
     return 0;
 }
