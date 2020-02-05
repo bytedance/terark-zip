@@ -3154,11 +3154,18 @@ terark_forceinline
 void Patricia::TokenBase::mt_update(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(m_flags.is_head);
-//  assert(this == trie->m_dummy.m_link.next); // may false positive
     assert(AcquireDone == m_flags.state);
     if (m_link.next) {
     RingThisToken:
         assert(m_link.verseq <= m_link.next->m_link.verseq);
+        if (this != trie->m_dummy.m_link.next) {
+            // this immediate return is for wait free:
+            //  1. update is an advise, not a promise.
+            //  2. to be wait free, just do nothing
+            //  3. let this thread to do useful work(after the return)
+            //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
+            return;
+        }
         if (++m_getcpu_cnt % 32 == 0) {
             unsigned cpu = ThisCpuID(); ///< expensive
             if (cpu != m_cpu) {
@@ -3166,10 +3173,12 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 trie->m_num_cpu_migrated++;
             }
         }
+    #if 0 // this is not wait free
         while (this != trie->m_dummy.m_link.next) {
             //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
             std::this_thread::yield();
         }
+    #endif
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
             ( m_acqseq == trie->m_dummy.m_acqseq &&
@@ -3190,6 +3199,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         }
     }
     else {
+        assert(this == trie->m_dummy.m_link.next);
         // intentionally self link 'this',
         // to co-operate with mt_acquire.enqueue
         uint64_t verseq = m_link.verseq;
