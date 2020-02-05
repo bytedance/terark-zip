@@ -52,7 +52,7 @@ static void rt_assert_fail(const char* file, int line, const char* func, const c
     fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed.\n", file, line, func, expr);
     abort();
 }
-  #define RT_ASSERT(...) (__VA_ARGS__) ? (void)0 : \
+  #define RT_ASSERT(...) terark_likely(__VA_ARGS__) ? (void)0 : \
     rt_assert_fail(__FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #__VA_ARGS__)
 #else
   #define RT_ASSERT assert
@@ -1957,7 +1957,7 @@ ForkBranch: {
         return true;
     }
     assert(ni.n_skip <= 10);
-    assert(ni.n_children <= 256);
+    RT_ASSERT(ni.n_children <= 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     TERARK_IF_DEBUG(cpfore(bkskip, &a[curr], ni.n_skip),);
     size_t newCurr = fork<MultiWriteMultiRead>(curr, zidx, &ni, key[pos], newSuffixNode, lzf);
