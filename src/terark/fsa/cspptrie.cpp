@@ -3203,6 +3203,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
               m_acqseq > trie->m_sorted_acqseq))
         {
             this->sort_cpu(trie);
+            as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
             return;
         }
         auto new_head = this->m_link.next;
