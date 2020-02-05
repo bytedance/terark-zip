@@ -2829,6 +2829,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
 
 bool Patricia::TokenBase::dequeue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
+    assert(trie->m_head_lock);
     TokenBase* curr = this;
     while (true) {
         assert(NULL != curr);
@@ -3144,6 +3145,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             assert(this != trie->m_token_tail);
             assert(NULL != m_link.next);
             m_flags = {ReleaseDone, false};
+            trie->m_head_is_dead = true;
             as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             assert(this != m_link.next);
         }
@@ -3209,13 +3211,8 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
         enqueue(trie);
-        if (new_head->dequeue(trie)) {
-            m_min_age = trie->m_dummy.m_min_age;
-        }
-        else {
-            assert(this == trie->m_dummy.m_link.next);
-            m_flags.is_head = true;
-        }
+        RT_ASSERT(new_head->dequeue(trie)); // at least, I'm alive
+        m_min_age = trie->m_dummy.m_min_age;
         // unlock
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
