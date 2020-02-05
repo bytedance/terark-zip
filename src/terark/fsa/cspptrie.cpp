@@ -1889,7 +1889,7 @@ assert(pos < key.size());
     }
     if (15 != a[curr].meta.n_cnt_type) {
         assert(ni.n_skip <= 10);
-        assert(ni.n_children <= 256);
+        RT_ASSERT(ni.n_children <= 256);
         cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
         size_t newCurr = add_state_move<MultiWriteMultiRead>(curr, ch, suffix_node, valsize, lzf);
         if (size_t(-1) == newCurr) {
@@ -2000,7 +2000,7 @@ SplitZpath: {
     lzf->m_stat.n_split += 1;
     revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     assert(ni.n_skip <= 10);
-    assert(ni.n_children <= 256);
+    RT_ASSERT(ni.n_children <= 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     size_t valpos = size_t(-1);
     size_t newCurr = split_zpath<MultiWriteMultiRead>(curr, zidx, &ni, &valpos, valsize, lzf);
