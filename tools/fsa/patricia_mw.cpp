@@ -197,6 +197,15 @@ GetoptDone:
             bool writable = false;
             bool populate = true;
             mmap.base = mmap_load(input_fname, &mmap.size, writable, populate);
+            size_t sum = 0;
+            long long t0 = pf.now();
+            for (size_t i = 0; i < mmap.size; i += 4*1024) {
+                sum += ((byte_t*)mmap.base)[i];
+            }
+            long long t1 = pf.now();
+            fprintf(stderr
+                , "pre-fault  mmap: time = %8.3f sec, %8.3f GB/sec, sum = %zd\n"
+                , pf.sf(t0,t1), mmap.size/pf.nf(t0,t1), sum);
             if (lockMmap) {
                 err = mlock(mmap.base, mmap.size);
                 if (err) {
