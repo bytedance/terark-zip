@@ -904,7 +904,7 @@ struct MainPatricia::NodeInfo {
         size_t skip = s_skip_slots[cnt_type];
         n_skip = skip;
         n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
-        assert(n_children <= 256);
+        RT_ASSERT(n_children <= 256);
         zp_offset = sizeof(PatriciaNode) * (skip + n_children);
         va_offset = zp_offset + pow2_align_up(zlen, AlignSize);
         node_size = va_offset + valsize;
