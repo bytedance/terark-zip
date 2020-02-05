@@ -902,6 +902,7 @@ struct MainPatricia::NodeInfo {
         size_t cnt_type = p->meta.n_cnt_type;
         assert(cnt_type <= 8 || cnt_type == 15);
         size_t skip = s_skip_slots[cnt_type];
+        assert(skip <= 10);
         n_skip = skip;
         n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
         RT_ASSERT(n_children <= 256);
