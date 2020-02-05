@@ -1614,7 +1614,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     assert(curr_slot < total_states());
     assert(!a[newCurr].meta.b_lazy_free);
     assert(nil_state != ni.node_size);
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     uint32_t oldcurr = uint32_t(curr);
     PatriciaNode parent_unlock, parent_locked;
     PatriciaNode curr_unlock, curr_locked;
