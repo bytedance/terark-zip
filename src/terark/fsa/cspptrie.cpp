@@ -1587,8 +1587,9 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         //this is a false assert, because m_token_head may be set by others
         //assert(token != m_token_head);
         if (terark_unlikely(m_head_is_dead)) {
-            reclaim_head();
-            RT_ASSERT(!m_head_is_dead); // at least, I'm alive
+            if (reclaim_head()) {
+                RT_ASSERT(!m_head_is_dead); // at least, I'm alive
+            }
         }
     }
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
@@ -3090,8 +3091,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     // release may leave a dead(ReleaseWait) token at queue head
     // this dead token should be really deleted by acquire
     if (terark_unlikely(trie->m_head_is_dead)) {
-        trie->reclaim_head();
-        RT_ASSERT(!trie->m_head_is_dead); // at least, I'm alive
+        if (trie->reclaim_head()) {
+            RT_ASSERT(!trie->m_head_is_dead); // at least, I'm alive
+        }
     }
 }
 
@@ -3235,10 +3237,11 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     }
 }
 
+/// @returns lock success(true) or fail(false)
 template<size_t Align>
-void PatriciaMem<Align>::reclaim_head() {
-    if (!cas_weak(m_head_lock, false, true)) {
-        return;
+bool PatriciaMem<Align>::reclaim_head() {
+    if (terark_unlikely(!cas_weak(m_head_lock, false, true))) {
+        return false;
     }
     RT_ASSERT(m_head_is_dead);
     TokenBase* head = m_dummy.m_link.next;
@@ -3282,6 +3285,7 @@ void PatriciaMem<Align>::reclaim_head() {
   Done:
     m_dummy.m_link.next = head;
     as_atomic(m_head_lock).store(false, std::memory_order_release);
+    return true;
 }
 
 void Patricia::TokenBase::update() {
@@ -3292,10 +3296,11 @@ void Patricia::TokenBase::update() {
         if (m_flags.is_head) {
             mt_update(trie);
         }
-        else if (trie->m_head_is_dead) {
+        else if (terark_unlikely(trie->m_head_is_dead)) {
             RT_ASSERT(AcquireDone == m_flags.state);
-            trie->reclaim_head();
-            RT_ASSERT(!trie->m_head_is_dead); // at least I'm alive
+            if (trie->reclaim_head()) {
+                RT_ASSERT(!trie->m_head_is_dead); // at least I'm alive
+            }
         }
         else { // this is frequent branch, do not use RT_ASSERT
             assert(AcquireDone == m_flags.state);
