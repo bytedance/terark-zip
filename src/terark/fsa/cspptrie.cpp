@@ -187,6 +187,8 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
 
+    m_head_is_dead = false;
+    m_head_lock = false;
     m_is_virtual_alloc = false;
     m_fd = -1;
     m_appdata_offset = size_t(-1);
@@ -1584,6 +1586,10 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     else {
         //this is a false assert, because m_token_head may be set by others
         //assert(token != m_token_head);
+        if (terark_unlikely(m_head_is_dead)) {
+            reclaim_head();
+            RT_ASSERT(!m_head_is_dead); // at least, I'm alive
+        }
     }
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     size_t valsize = m_valsize;
@@ -2766,12 +2772,12 @@ Patricia::TokenBase::~TokenBase() {
 }
 
 void Patricia::TokenBase::dispose() {
-#if 0
+  #if 0
     if (AcquireDone == m_flags.state) {
         RT_ASSERT(ThisThreadID() == m_thread_id);
         release(); // auto release on dispose
     }
-#endif
+  #endif
     switch (m_flags.state) {
     default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
     case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
@@ -2893,7 +2899,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             break;
         }
     }
-Done_HeadIsWait:
+  Done_HeadIsWait:
     trie->m_dummy.m_link.next = curr;
     return false;
 }
@@ -3082,20 +3088,18 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         break;
     }
     // release may leave a dead(ReleaseWait) token at queue head
-    // this dead token should be really deleted by acquire?
-/*
-    if (trie->m_dummy.m_link.next) {
-        TokenFlags flags = {AcquireDone, false};
-        cas_strong(m_flags, flags, {AcquireDone, true});
+    // this dead token should be really deleted by acquire
+    if (terark_unlikely(trie->m_head_is_dead)) {
+        trie->reclaim_head();
+        RT_ASSERT(!trie->m_head_is_dead); // at least, I'm alive
     }
-*/
 }
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-#if 0
+  #if 0
     RT_ASSERT(AcquireDone == m_flags.state);
-#else
+  #else
     switch (m_flags.state) {
     default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
     case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
@@ -3104,7 +3108,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
     case AcquireDone: break; // OK
     }
-#endif
+  #endif
     if (m_flags.is_head) {
     ThisIsQueueHead:
         assert(this == trie->m_dummy.m_link.next); // is head
@@ -3116,6 +3120,13 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             // may calling acquire(append to the list)
             // this is a dead token at head, may block the ring!
             m_flags = {ReleaseWait, false};
+            trie->m_head_is_dead = true;
+            return;
+        }
+        if (!cas_weak(trie->m_head_lock, false, true)) {
+            // be wait free
+            m_flags = {ReleaseWait, false};
+            trie->m_head_is_dead = true;
             return;
         }
         if (curr->dequeue(trie)) {
@@ -3134,6 +3145,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             assert(this != m_link.next);
         }
+        as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
     else {
         if (cas_strong(m_flags, {AcquireDone, false}, {ReleaseWait, false})) {
@@ -3179,6 +3191,10 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             std::this_thread::yield();
         }
     #endif
+        if (!cas_weak(trie->m_head_lock, false, true)) {
+            // be wait free, do nothing
+            return;
+        }
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
             ( m_acqseq == trie->m_dummy.m_acqseq &&
@@ -3197,6 +3213,8 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             assert(this == trie->m_dummy.m_link.next);
             m_flags.is_head = true;
         }
+        // unlock
+        as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
     else {
         assert(this == trie->m_dummy.m_link.next);
@@ -3217,13 +3235,71 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     }
 }
 
+template<size_t Align>
+void PatriciaMem<Align>::reclaim_head() {
+    if (!cas_weak(m_head_lock, false, true)) {
+        return;
+    }
+    RT_ASSERT(m_head_is_dead);
+    TokenBase* head = m_dummy.m_link.next;
+    assert(NULL != head);
+    while (true) {
+        TokenBase* next = head->m_link.next;
+        auto flags = head->m_flags;
+        switch (flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case ReleaseWait:
+            if (head != m_token_tail) {
+                if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
+                    head = next;
+                } else {
+                    // retry loop
+                }
+            } else {
+                goto Done;
+            }
+            break;
+        case DisposeWait:
+            if (head != m_token_tail) {
+                head->m_flags.state = DisposeDone;
+                delete head;
+                head = next;
+            } else {
+                goto Done;
+            }
+            break;
+        case AcquireDone:
+            if (cas_weak(head->m_flags, flags, {AcquireDone, true})) {
+                m_head_is_dead = false;
+                goto Done;
+            } else {
+                // retry loop
+            }
+        }
+    }
+  Done:
+    m_dummy.m_link.next = head;
+    as_atomic(m_head_lock).store(false, std::memory_order_release);
+}
+
 void Patricia::TokenBase::update() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(ThisThreadID() == m_thread_id);
     if (conLevel >= SingleThreadShared) {
-        if (m_flags.is_head)
+        if (m_flags.is_head) {
             mt_update(trie);
+        }
+        else if (trie->m_head_is_dead) {
+            RT_ASSERT(AcquireDone == m_flags.state);
+            trie->reclaim_head();
+            RT_ASSERT(!trie->m_head_is_dead); // at least I'm alive
+        }
+        else { // this is frequent branch, do not use RT_ASSERT
+            assert(AcquireDone == m_flags.state);
+        }
     }
     else {
         // may be MultiReadMultiWrite some milliseconds ago

@@ -122,6 +122,12 @@ protected:
     void init(ConcurrentLevel conLevel);
     void mempool_lock_free_cons(size_t valsize);
 
+    intptr_t  m_fd;
+    size_t    m_appdata_offset;
+    size_t    m_appdata_length;
+
+    bool      m_head_is_dead;
+
     union {
         MemPool_CompileX<AlignSize> m_mempool;
         MemPool_LockNone<AlignSize> m_mempool_lock_none;
@@ -131,13 +137,9 @@ protected:
         ThreadCacheMemPool<AlignSize> m_mempool_lock_free;
     };
 
-    intptr_t            m_fd;
-    size_t              m_appdata_offset;
-    size_t              m_appdata_length;
-
 //-------------------------------------------------------------
 //  byte_t     m_padding2[64-sizeof(size_t)];
-    byte_t     m_padding2[64-32]; // m_token_sham's const part is 32 byte
+    byte_t     m_padding2[64-32]; // m_dummy's const part is 32 byte
 
     // following fields are frequently updating
     TokenBase  m_dummy; // m_dummy.m_next is real head
@@ -145,6 +147,7 @@ protected:
     uint32_t   m_token_qlen;
     uint32_t   m_num_cpu_migrated;
     uint64_t   m_sorted_acqseq;
+    bool       m_head_lock;
 
 //  std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
@@ -153,6 +156,8 @@ protected:
     size_t     m_n_nodes;
     size_t     m_n_words;
     Stat       m_stat;
+
+    void reclaim_head();
 
     void alloc_mempool_space(intptr_t maxMem);
 
