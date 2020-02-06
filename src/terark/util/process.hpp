@@ -71,6 +71,7 @@ public:
     ProcPipeStream(fstring cmd, fstring mode, function<void(ProcPipeStream*)> onFinish);
     void open(fstring cmd, fstring mode, function<void(ProcPipeStream*)> onFinish);
     bool xopen(fstring cmd, fstring mode, function<void(ProcPipeStream*)> onFinish) noexcept;
+    void wait_finish() noexcept;
     ///@}
 
     void close();

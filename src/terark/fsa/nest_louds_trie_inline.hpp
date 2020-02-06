@@ -534,7 +534,7 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
                         byte_t c1 = byte_t(word.p[i++]);
                         byte_t c2 = zs[j++];
                         if (c1 != c2)
-                            return trans_state(map_state, c1 < c2 && is_term.is1(map_state));
+                            return trans_state(map_state + (c1 > c2), c1 < c2 && is_term.is1(map_state));
                     }
                     if (j < zn)
                         return trans_state(map_state, is_term.is1(map_state));
@@ -593,7 +593,7 @@ lower_bound_impl(MatchContext& ctx, fstring word, size_t* index, size_t* dict_ra
                 byte_t c1 = byte_t(word.p[i++]);
                 byte_t c2 = zs[j++];
                 if (c1 != c2)
-                  return trans_state(curr, c1 < c2 && is_term.is1(curr));
+                    return trans_state(curr + (c1 > c2), c1 < c2 && is_term.is1(curr));
             }
             if (j < zn)
                 return trans_state(curr, is_term.is1(curr));
