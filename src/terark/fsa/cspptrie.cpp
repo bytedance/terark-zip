@@ -3083,6 +3083,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         }
         else {
             // we are unlocked by other threads
+            // they can only make me ReleaseWait -> ReleaseDone
             // should be very unlikely
             RT_ASSERT(ReleaseDone == flags.state); // check compiler bug
             RT_ASSERT(ReleaseDone == m_flags.state);
@@ -3115,7 +3116,8 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
   #endif
     if (m_flags.is_head) {
     ThisIsQueueHead:
-        assert(this == trie->m_dummy.m_link.next); // is head
+        //may be false positive, this assert should be moved to later
+        //assert(this == trie->m_dummy.m_link.next);
         auto curr = this->m_link.next;
         if (NULL == curr) {
             // at this time point, 'this' is m_token_tail.
@@ -3133,6 +3135,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             trie->m_head_is_dead = true;
             return;
         }
+        assert(this == trie->m_dummy.m_link.next); // now it must be true
         if (curr->dequeue(trie)) {
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
             m_link.verseq = 0;
@@ -3196,12 +3199,6 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 trie->m_num_cpu_migrated++;
             }
         }
-      #if 0 // this is not wait free
-        while (this != trie->m_dummy.m_link.next) {
-            //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
-            std::this_thread::yield();
-        }
-      #endif
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
             ( m_acqseq == trie->m_dummy.m_acqseq &&
