@@ -3183,6 +3183,12 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
             return;
         }
+        if (!cas_weak(trie->m_head_lock, false, true)) {
+            // be wait free, do nothing
+            return;
+        }
+        assert(!trie->m_head_is_dead);
+    #if 0 // temporary disable sort_cpu
         if (++m_getcpu_cnt % 32 == 0) {
             unsigned cpu = ThisCpuID(); ///< expensive
             if (cpu != m_cpu) {
@@ -3190,17 +3196,12 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
                 trie->m_num_cpu_migrated++;
             }
         }
-    #if 0 // this is not wait free
+      #if 0 // this is not wait free
         while (this != trie->m_dummy.m_link.next) {
             //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
             std::this_thread::yield();
         }
-    #endif
-        if (!cas_weak(trie->m_head_lock, false, true)) {
-            // be wait free, do nothing
-            return;
-        }
-        assert(!trie->m_head_is_dead);
+      #endif
         // quick check m_acqseq
         if (trie->m_num_cpu_migrated * 8 >= trie->m_token_qlen ||
             ( m_acqseq == trie->m_dummy.m_acqseq &&
@@ -3210,6 +3211,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
             return;
         }
+    #endif
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
         enqueue(trie);
@@ -3682,14 +3684,14 @@ public:
 
     inline static void Entry_init(Entry* e, size_t curr, size_t zlen) {
         BOOST_STATIC_ASSERT(sizeof(Entry) == 8);
-    #if 0
+      #if 0
         e->state      = uint32_t(curr);
         e->n_children = 0;
         e->nth_child  = 0;
         e->zpath_len  = byte_t(zlen);
-    #else
+      #else
         *(uint64_t*)e = curr | uint64_t(zlen) << 56;
-    #endif
+      #endif
     }
 
     terark_no_inline
@@ -3748,13 +3750,13 @@ public:
         } while (nil_state != curr);
         m_iter.back().nth_child = 0;
         m_curr = m_iter.back().state;
-#if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         if (15 == a[m_curr].meta.n_cnt_type) {
             assert(0 == a[m_curr+1].big.n_children);
         } else {
             assert(a[m_curr].meta.b_is_final);
         }
-#endif
+      #endif
         m_word.back() = '\0';
         m_word.pop_back();
         m_value = (void*)(zptr + pow2_align_up(zlen, AlignSize));
@@ -3766,15 +3768,15 @@ public:
         m_value = NULL;
     }
     size_t calc_word_len() const {
-    #if 0
+      #if 0
         size_t len = 0;
         for (size_t pos = 0; pos < m_iter.size(); ++pos)
             len += m_iter[pos].zlen;
         len += m_iter.size() - 1;
         return len;
-    #else
+      #else
         return m_word.size();
-    #endif
+      #endif
     }
     bool seek_lower_bound_impl(fstring key);
 };
