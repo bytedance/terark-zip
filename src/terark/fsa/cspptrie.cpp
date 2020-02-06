@@ -1562,6 +1562,8 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     constexpr auto ConLevel = MultiWriteMultiRead;
     assert(MultiWriteMultiRead == m_writing_concurrent_level);
     assert(nullptr != m_token_tail);
+    assert(token->m_min_age <= token->m_link.verseq);
+    assert(token->m_min_age <= m_token_tail->m_link.verseq);
     assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
     assert(token->m_link.verseq >= m_dummy.m_min_age);
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
@@ -2756,8 +2758,8 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
     m_link.next  = NULL;
-    m_min_age = 0;
     m_link.verseq   = 0;
+    m_min_age = 0;
     m_trie  = NULL;
     m_value = NULL;
     m_flags.state = ReleaseDone;
@@ -3139,22 +3141,23 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         assert(this != trie->m_token_tail);
         if (curr->dequeue(trie)) {
             assert(this != trie->m_token_tail);
+            assert(this != trie->m_dummy.m_link.next);
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
             m_link.verseq = 0;
             m_link.next = NULL; // safe, because this != trie->m_token_tail
             m_flags = {ReleaseDone, false};
             m_value = NULL;
-            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
         }
         else {
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue fail\n", m_thread_id);
             assert(this != trie->m_token_tail);
+            assert(this != trie->m_dummy.m_link.next);
             assert(NULL != m_link.next);
             m_flags = {ReleaseDone, false};
             trie->m_head_is_dead = true;
-            as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             assert(this != m_link.next);
         }
+        as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
     else {
