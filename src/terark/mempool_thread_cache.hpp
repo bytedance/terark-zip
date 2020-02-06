@@ -64,27 +64,27 @@ public:
 
     TCMemPoolTlsHolder<AlignSize>* tls_owner() const;
 
-#if defined(__GNUC__)
+  #if defined(__GNUC__)
     unsigned int m_rand_seed = 1;
     unsigned int rand() { return rand_r(&m_rand_seed); }
-#endif
+  #endif
     size_t random_level() {
         size_t level = 1;
         while (rand() % 4 == 0 && level < skip_list_level_max)
             ++level;
         return level - 1;
     }
-#if defined(NDEBUG)
+  #if defined(NDEBUG)
     #define mptc1t_debug_fill_alloc(mem, len)
     #define mptc1t_debug_fill_free(mem, len)
-#else
+  #else
     void mptc1t_debug_fill_alloc(void* /*mem*/, size_t /*len*/) {
         //memset(mem, 0xCC, len);
     }
-    void mptc1t_debug_fill_free(void* /*mem*/, size_t /*len*/) {
-        //memset(mem, 0xDD, len);
+    void mptc1t_debug_fill_free(void* mem, size_t len) {
+        memset(mem, 0xDD, len);
     }
-#endif
+  #endif
 
     terark_no_inline
     size_t alloc(byte_t* base, size_t request) {
@@ -146,7 +146,7 @@ public:
                     return pos;
                 }
             }
-#if defined(TERARK_MPTC_USE_SKIPLIST)
+          #if defined(TERARK_MPTC_USE_SKIPLIST)
             // set huge_list largest block as {m_hot_pos,m_hot_end} if exists
             huge_link_t* update[skip_list_level_max];
             huge_link_t* n2 = &huge_list;
@@ -192,7 +192,7 @@ public:
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
             }
-#else
+          #else
             if (list_tail != size_t(huge_list.next[0])) {
                 size_t res = size_t(huge_list.next[0]) << offset_shift;
                 size_t rlen = ((huge_link_t*)(base + res))->size;
@@ -216,11 +216,11 @@ public:
                     return res;
                 }
             }
-#endif
+          #endif
         }
         else {
             assert(request >= sizeof(huge_link_t));
-#if defined(TERARK_MPTC_USE_SKIPLIST)
+          #if defined(TERARK_MPTC_USE_SKIPLIST)
             huge_link_t* update[skip_list_level_max];
             huge_link_t* n1 = &huge_list;
             huge_link_t* n2 = nullptr;
@@ -254,7 +254,7 @@ public:
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
             }
-#else
+          #else
             if (list_tail != size_t(huge_list.next[0])) {
                 size_t res = size_t(huge_list.next[0]) << offset_shift;
                 size_t rlen = ((huge_link_t*)(base + res))->size;
@@ -276,7 +276,7 @@ public:
                     return res;
                 }
             }
-#endif
+          #endif
             assert(m_hot_pos <= m_hot_end);
             assert(m_hot_end <= m_mempool->size());
             size_t pos = m_hot_pos;
@@ -325,7 +325,7 @@ public:
     void sfree(byte_t* base, size_t pos, size_t len) {
         assert(pos % AlignSize == 0);
         assert(len % AlignSize == 0);
-        assert(len > 0);
+        assert(len >= sizeof(link_t));
         if (pos + len == m_hot_pos) {
             m_hot_pos = pos;
             return;
@@ -340,7 +340,7 @@ public:
         }
         else {
             assert(len >= sizeof(huge_link_t));
-#if defined(TERARK_MPTC_USE_SKIPLIST)
+          #if defined(TERARK_MPTC_USE_SKIPLIST)
             huge_link_t* update[skip_list_level_max];
             huge_link_t* n1 = &huge_list;
             huge_link_t* n2;
@@ -366,12 +366,12 @@ public:
                 n1->next[k] = pos_shift;
             } while(k-- > 0);
             n2->size = len;
-#else
+          #else
             huge_link_t* n2 = (huge_link_t*)(base + pos);
             n2->size = link_size_t(len);
             n2->next[0] = huge_list.next[0];
             huge_list.next[0] = link_size_t(pos >> offset_shift);
-#endif
+          #endif
             mptc1t_debug_fill_free(n2 + 1, len - sizeof(*n2));
             huge_size_sum += len;
             huge_node_cnt++;
