@@ -1644,8 +1644,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     }
     if (cas_weak(a[curr_slot].child, oldcurr, uint32_t(newCurr))) {
         as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
-    //  uint64_t age = as_atomic(m_max_age).fetch_add(1, std::memory_order_relaxed);
-        uint64_t age = token->m_link.verseq; // can not be token->m_link.verseq
+        uint64_t age = token->m_link.verseq;
         assert(age >= m_dummy.m_min_age);
         maximize(lzf->m_max_word_len, key.size());
         lzf->m_n_nodes += nodeIncNum;
@@ -3066,8 +3065,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     case ReleaseDone:
     DoLock:
         m_flags = {AcquireDone, false};
-        m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
-                      .fetch_add(1, std::memory_order_relaxed);
+        //m_acqseq is for sort_cpu()
+        //m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
+        //              .fetch_add(1, std::memory_order_relaxed);
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
@@ -3136,7 +3136,9 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             return;
         }
         assert(this == trie->m_dummy.m_link.next); // now it must be true
+        assert(this != trie->m_token_tail);
         if (curr->dequeue(trie)) {
+            assert(this != trie->m_token_tail);
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
             m_link.verseq = 0;
             m_link.next = NULL; // safe, because this != trie->m_token_tail
@@ -3242,7 +3244,8 @@ bool PatriciaMem<Align>::reclaim_head() {
     if (terark_unlikely(!cas_weak(m_head_lock, false, true))) {
         return false;
     }
-    RT_ASSERT(m_head_is_dead);
+    //this RT_ASSERT maybe fail, but it is ok to rescan the queue
+    //RT_ASSERT(m_head_is_dead);
     TokenBase* head = m_dummy.m_link.next;
     assert(NULL != head);
     while (true) {
