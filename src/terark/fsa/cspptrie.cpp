@@ -2799,7 +2799,6 @@ void Patricia::TokenBase::dispose() {
 
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    m_link.next = NULL;
     assert(AcquireDone == m_flags.state);
     assert(!m_flags.is_head);
     while (true) {
@@ -2821,8 +2820,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // change m_token_tail to keep it updated
             //
             // this check is required, because prev compare_exchange_weak
-            // may fail even when pNull is really NULL
-            if (NULL != pNull.next) {
+            // may spuriously fail(when p->m_link.next is really NULL).
+            // --- spuriously fail will not happen on x86
+            if (p->m_link.next) {
                 cas_weak(trie->m_token_tail, p, p->m_link.next);
             }
         }
@@ -2896,6 +2896,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 curr->m_flags.state = DisposeDone;
                 delete curr; // we delete other token
+                curr = next;
             }
             else {
                 goto Done_HeadIsWait;
@@ -3150,18 +3151,17 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
             m_link.verseq = 0;
             m_link.next = NULL; // safe, because this != trie->m_token_tail
-            m_flags = {ReleaseDone, false};
-            m_value = NULL;
         }
         else {
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue fail\n", m_thread_id);
             assert(this != trie->m_token_tail);
             assert(this != trie->m_dummy.m_link.next);
             assert(NULL != m_link.next);
-            m_flags = {ReleaseDone, false};
-            trie->m_head_is_dead = true;
             assert(this != m_link.next);
+            trie->m_head_is_dead = true;
         }
+        m_flags = {ReleaseDone, false};
+        m_value = NULL;
         as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
@@ -3188,6 +3188,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     if (m_link.next) {
     RingThisToken:
         assert(m_link.verseq <= m_link.next->m_link.verseq);
+        assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
         if (this != trie->m_dummy.m_link.next) {
             // this immediate return is for wait free:
             //  1. update is an advise, not a promise.
