@@ -3057,6 +3057,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
 }
 
 void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
+  Retry:
     auto trie = static_cast<MainPatricia*>(trie1);
     auto flags = m_flags;
     switch (flags.state) {
@@ -3065,7 +3066,6 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
     case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
     case ReleaseDone:
-    DoLock:
         m_flags = {AcquireDone, false};
         //m_acqseq is for sort_cpu()
         //m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
@@ -3073,25 +3073,30 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
-        if (this == trie->m_dummy.m_link.next) {
-            m_flags.is_head = true;
-        }
         m_min_age = trie->m_dummy.m_min_age;
         break;
     case ReleaseWait:
-        if (cas_strong(m_flags, flags, {AcquireDone, false})) {
+        if (cas_weak(m_flags, flags, {AcquireDone, false})) {
             // acquire done, no one should change me
             assert(AcquireDone == m_flags.state);
         }
         else {
-            // we are unlocked by other threads
-            // they can only make me ReleaseWait -> ReleaseDone
-            // should be very unlikely
-            RT_ASSERT(ReleaseDone == flags.state); // check compiler bug
-            RT_ASSERT(ReleaseDone == m_flags.state);
-            goto DoLock;
+            if (AcquireDone == flags.state) {
+                // spuriously fail
+            }
+            else {
+                // we are unlocked by other threads
+                // they can only make me ReleaseWait -> ReleaseDone
+                // should be very unlikely
+                RT_ASSERT(ReleaseDone == flags.state); // check compiler bug
+                RT_ASSERT(ReleaseDone == m_flags.state);
+            }
+            goto Retry;
         }
         break;
+    }
+    if (this == trie->m_dummy.m_link.next) {
+        m_flags.is_head = true;
     }
     // release may leave a dead(ReleaseWait) token at queue head
     // this dead token should be really deleted by acquire
