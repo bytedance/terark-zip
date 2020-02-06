@@ -2852,10 +2852,10 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 p = p->m_link.next;
             }
         #endif
-            trie->m_dummy.m_min_age = min_age;
-            curr->m_min_age = min_age;
             if (cax_weak(curr->m_flags, flags, {AcquireDone, true})) {
+                trie->m_dummy.m_min_age = min_age;
                 trie->m_dummy.m_link.next = curr;
+                curr->m_min_age = min_age;
                 return true; // done!!
             }
             else if (AcquireDone == flags.state) {
