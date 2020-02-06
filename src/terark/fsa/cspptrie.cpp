@@ -3228,9 +3228,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
     else {
-        assert(this == trie->m_dummy.m_link.next);
-        // intentionally self link 'this',
-        // to co-operate with mt_acquire.enqueue
+        //assert(this == trie->m_dummy.m_link.next); // false positive
         uint64_t verseq = m_link.verseq;
         if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
             // now concurrent mt_acquire may go into enqueue dead loop
@@ -3267,6 +3265,7 @@ bool PatriciaMem<Align>::reclaim_head() {
             if (head != m_token_tail) {
                 if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                     head = next;
+                    as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 } else {
                     // retry loop
                 }
@@ -3279,6 +3278,7 @@ bool PatriciaMem<Align>::reclaim_head() {
                 head->m_flags.state = DisposeDone;
                 delete head;
                 head = next;
+                as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             } else {
                 goto Done;
             }
