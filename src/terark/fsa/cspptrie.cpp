@@ -2905,7 +2905,10 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         }
     }
   Done_HeadIsWait:
+    uint64_t min_age = curr->m_link.verseq;
     trie->m_dummy.m_link.next = curr;
+    trie->m_dummy.m_min_age = min_age;
+    curr->m_min_age = min_age;
     return false;
 }
 
@@ -3251,8 +3254,12 @@ bool PatriciaMem<Align>::reclaim_head() {
     if (terark_unlikely(!cas_weak(m_head_lock, false, true))) {
         return false;
     }
-    //this RT_ASSERT maybe fail, but it is ok to rescan the queue
-    //RT_ASSERT(m_head_is_dead);
+    // before calling this function m_head_is_dead is true
+    // but after locked, it may be false(very rarely)
+    if (terark_unlikely(!m_head_is_dead)) {
+        as_atomic(m_head_lock).store(false, std::memory_order_release);
+        return true;
+    }
     TokenBase* head = m_dummy.m_link.next;
     assert(NULL != head);
     while (true) {
@@ -3294,7 +3301,10 @@ bool PatriciaMem<Align>::reclaim_head() {
         }
     }
   Done:
+    uint64_t min_age = head->m_link.verseq;
     m_dummy.m_link.next = head;
+    m_dummy.m_min_age = min_age;
+    head->m_min_age = min_age;
     as_atomic(m_head_lock).store(false, std::memory_order_release);
     return true;
 }
