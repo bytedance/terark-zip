@@ -2803,9 +2803,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     assert(!m_flags.is_head);
     while (true) {
         TokenBase* p = trie->m_token_tail;
-        LinkType pNull = {NULL, p->m_link.verseq};
-        this->m_link = {NULL, pNull.verseq+1};
-        if (terark_likely(cas_weak(p->m_link, pNull, {this, pNull.verseq}))) {
+        uint64_t verseq = p->m_link.verseq;
+        this->m_link = {NULL, verseq+1};
+        if (terark_likely(cas_weak(p->m_link,{NULL,verseq},{this,verseq}))) {
             assert(this == p->m_link.next);
             ///
             /// if here use compare_exchange_weak, m_token_tail
