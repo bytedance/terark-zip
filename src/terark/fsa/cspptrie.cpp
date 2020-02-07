@@ -3513,11 +3513,11 @@ bool Patricia::WriterToken::insert(fstring key, void* value) {
 
 /// Iterator
 size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = p - a;
     assert(curr < total_states());
-#endif
+  #endif
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
     default: assert(false); break;
@@ -3556,11 +3556,11 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
 }
 
 size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = p - a;
     assert(curr < total_states());
-#endif
+  #endif
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
     default: assert(false); break;
@@ -3612,11 +3612,11 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
 size_t
 MainPatricia::nth_child(const PatriciaNode* p, size_t nth, byte_t* ch)
 const {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = p - a;
     assert(curr < total_states());
-#endif
+  #endif
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
     default: assert(false); return nil_state;
@@ -4004,7 +4004,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         size_t ch = (byte_t)key.p[pos];
         assert(curr < trie->total_states());
         assert(ch <= 255);
-#define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
+  #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
         default: RT_ASSERT(!"Invalid == cnt_type"); break;
         case 0:
@@ -4065,7 +4065,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                 assert(n_children >=  7);
                 assert(n_children <= 16);
                 auto label = p->meta.c_label + 2; // do not use [0,1]
-#if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
+              #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
                     size_t lo = size_t(-1);
                     do lo++; while (label[lo] < ch);
@@ -4076,7 +4076,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     ch = label[lo];
                     goto IterNextL;
                 }
-#else
+              #else
                 size_t lo = lower_bound_0(label, n_children, ch);
                 if (lo < n_children) {
                     SetNth(5, lo);
@@ -4086,7 +4086,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
                     ch = label[lo];
                     goto IterNextL;
                 }
-#endif
+              #endif
             }
             goto rewind_stack_for_next;
         case 8: // cnt >= 17
@@ -4249,8 +4249,8 @@ seek_lower_bound_fast:
         size_t ch = (byte_t)key.p[pos];
         assert(curr < trie->total_states());
         assert(ch <= 255);
-#undef  SetNth
-#define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
+  #undef  SetNth
+  #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
         switch (cnt_type) {
         default: RT_ASSERT(!"Invalid == cnt_type"); break;
         case 0:
@@ -4310,7 +4310,7 @@ seek_lower_bound_fast:
                 assert(n_children >=  7);
                 assert(n_children <= 16);
                 auto label = p->meta.c_label + 2; // do not use [0,1]
-#if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
+              #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
                     size_t lo = size_t(-1);
                     do lo++; while (label[lo] < ch);
@@ -4321,7 +4321,7 @@ seek_lower_bound_fast:
                     ch = label[lo];
                     goto IterNextL;
                 }
-#else
+              #else
                 size_t lo = lower_bound_0(label, n_children, ch);
                 if (lo < n_children) {
                     SetNth(5, lo);
@@ -4331,7 +4331,7 @@ seek_lower_bound_fast:
                     ch = label[lo];
                     goto IterNextL;
                 }
-#endif
+              #endif
             }
             goto RewindStackForNext;
         case 8: // cnt >= 17
@@ -4339,8 +4339,8 @@ seek_lower_bound_fast:
                 size_t n_children = p->big.n_children;
                 assert(n_children == popcount_rs_256(p[1].bytes));
                 assert(n_children == p->big.n_children);
-          //#define patricia_seek_lower_bound_readable
-            #ifdef  patricia_seek_lower_bound_readable
+              //#define patricia_seek_lower_bound_readable
+              #ifdef  patricia_seek_lower_bound_readable
                 size_t lo = fast_search_byte_rs_idx(p[1].bytes, ch);
                 if (lo < n_children) {
                     SetNth(10, lo);
@@ -4350,7 +4350,7 @@ seek_lower_bound_fast:
                     ch = rs_next_one_pos(&p[2].child, ch);
                     goto IterNextL;
                 }
-            #else
+              #else
                 size_t i = ch / TERARK_WORD_BITS;
                 size_t j = ch % TERARK_WORD_BITS;
                 size_t w = unaligned_load<size_t>(p+2, i);
@@ -4372,7 +4372,7 @@ seek_lower_bound_fast:
                     }
                     goto IterNextL;
                 }
-            #endif
+              #endif
             }
             goto RewindStackForNext;
         case 15:
@@ -4407,23 +4407,23 @@ seek_lower_bound_fast:
           }
         }
         assert(false);
-    IterNextL:
+      IterNextL:
         assert(nil_state != curr); // now curr is child
         while (zlen) *wp++ = *zptr++, zlen--;
-    IterNextNoZpathL:
+      IterNextNoZpathL:
         *wp = ch;
         m_iter.risk_set_end(ip+1);
         m_word.risk_set_end(wp+1);
         append_lex_min_suffix(curr, a);
         return true;
-    NextLoopL:
+      NextLoopL:
         assert(nil_state != curr); // now curr is child
         while (zlen) *wp++ = *zptr++, zlen--;
-    ThisLoopDone:
+      ThisLoopDone:
         *wp++ = ch;
         ip++;
     }
-RewindStackForNext:
+  RewindStackForNext:
     m_iter.risk_set_end(ip);
     m_word.risk_set_end(wp);
 //  goto rewind_stack_for_next;
@@ -4434,13 +4434,13 @@ rewind_stack_for_next:
         auto& top = m_iter.back();
         if (top.has_next()) {
             top.nth_child++;
-#if 0
+          #if 0
             size_t curr = trie->nth_child(a+top.state, top.nth_child, &m_word.back());
             if (nil_state != curr) {
                 append_lex_min_suffix(curr, a);
                 return true;
             }
-#else
+          #else
             size_t  curr = top.state;
             auto    p = a + curr;
             size_t  cnt_type = p->meta.n_cnt_type;
@@ -4519,17 +4519,17 @@ rewind_stack_for_next:
                 }
                 goto StackPop;
             }
-        switch_done:;
+          switch_done:;
             append_lex_min_suffix(curr, a);
             return true;
-#endif
+          #endif
         }
         if (terark_unlikely(m_iter.size() == 1)) {
             assert(top.state == initial_state);
             reset1();
             return false;
         }
-    StackPop:
+      StackPop:
         assert(m_word.size() >= top.zpath_len + 1u);
         m_word.pop_n(top.zpath_len + 1);
         m_iter.pop_back();
@@ -4556,7 +4556,7 @@ bool MainPatricia::IterImpl::incr() {
         assert(a[m_curr].meta.b_is_final);
         size_t top = m_iter.size();
         size_t len = m_word.size();
-    LoopForType15:
+      LoopForType15:
         while (!m_iter[--top].has_next()) {
             if (terark_unlikely(0 == top)) {
                 reset1();
@@ -4638,7 +4638,7 @@ bool MainPatricia::IterImpl::incr() {
             len--;
             goto LoopForType15;
         }
-    switch_done:
+      switch_done:
         assert(calc_word_len() == m_word.size());
         m_word.unchecked_push_back(ch);
     }
@@ -4666,7 +4666,7 @@ bool MainPatricia::IterImpl::decr() {
     }
     assert(len >= m_iter[top].zpath_len + 1u);
     len -= m_iter[top].zpath_len + 1;
-LoopForType15:
+  LoopForType15:
     while (m_iter[--top].nth_child == 0) {
         size_t curr = m_iter[top].state;
         if (a[curr].meta.b_is_final) {
@@ -4729,12 +4729,12 @@ LoopForType15:
         assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
         ch = m_word.data()[len]; assert(ch > 0); // larger char
         ch = rs_prev_one_pos(&p[2].child, ch);
-#if !defined(NDEBUG)
+      #if !defined(NDEBUG)
         {
             size_t ch1 = rs_select1(p[1].bytes, nth_child);
             assert(ch == ch1);
         }
-#endif
+      #endif
         curr = p[10 + nth_child].child;
         break;
     case 15:
@@ -4767,7 +4767,7 @@ LoopForType15:
         len--;
         goto LoopForType15;
     }
-switch_done:
+  switch_done:
     assert(calc_word_len() == m_word.size());
     m_word.unchecked_push_back(ch);
     append_lex_max_suffix(curr, a);
@@ -4817,11 +4817,11 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
             goto RestoreLastMatch;
         }
         assert(n_children > 0);
-#define match_nth_char(skip, nth) \
-        curr = p[skip+nth].child; \
-        e->nth_child = nth;       \
-        break
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+      #define match_nth_char(skip, nth) \
+              curr = p[skip+nth].child; \
+              e->nth_child = nth;       \
+              break
+      //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const auto ch = (byte_t)key[pos];
         switch (cnt_type) {
         default: RT_ASSERT(!"Invalid == cnt_type"); break;
@@ -4867,7 +4867,7 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
             goto RestoreLastMatch;
         }
     }
-RestoreLastMatch:
+  RestoreLastMatch:
     if (last_stack_top) {
         m_iter[last_stack_top - 1].nth_child = 0;
         m_curr = m_iter[last_stack_top - 1].state;
