@@ -2814,7 +2814,20 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         TokenBase* p = t.next;
         this->m_link = {NULL, t.verseq+1};
         if (cas_weak(p->m_link, {NULL, t.verseq}, {this, t.verseq})) {
-            assert(this == p->m_link.next);
+            /// if ABA problem happens, verseq will be greater
+            /// so the later cas_strong will fail
+            assert(this == p->m_link.next || p->m_link.verseq > t.verseq);
+          #if !defined(NDEBUG) // this is temporary debug
+	    //std::this_thread::yield();
+	    usleep(100000); // easy trigger ABA on DEBUG
+            if (this != p->m_link.next) {
+		fprintf(stderr
+                    , "DEBUG: ABA problem detected: p = %p: (%p %llu) -> (%p %llu), this=%p\n"
+                    , p, this, t.verseq+1, p->m_link.next, p->m_link.verseq, this);
+		assert(p->m_link.verseq > t.verseq);
+		//abort();
+	    }
+          #endif
             ///
             /// if here use compare_exchange_weak, m_token_tail
             /// may not point to the real tail, so we use the strong
@@ -2832,6 +2845,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // --- spuriously fail will not happen on x86
             if (auto t2 = p->m_link.next) {
                 cas_weak(trie->m_tail, t, {t2, t.verseq+1});
+		//fprintf(stderr
+                //    , "DEBUG: help other thread to update m_tail (%p %llu) -> (%p %llu), this=%p\n"
+                //    , p, t.verseq, t2, t.verseq+1, this);
             }
         }
     }
