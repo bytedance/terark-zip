@@ -2814,7 +2814,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         TokenBase* const p = t.next;
         uint64_t verseq = p->m_link.verseq;
         this->m_link = {NULL, verseq+1};
-        if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq+1})) {
+        if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq})) {
             /// if ABA problem happens, verseq will be greater
             /// so the later cas_strong will fail
             assert(this == p->m_link.next || p->m_link.verseq > verseq);
@@ -2825,7 +2825,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
                 fprintf(stderr
                   , "DEBUG: ABA problem detected: %p: (%p %llu) -> (%p %llu)\n"
                   , p, this, verseq+1, p->m_link.next, p->m_link.verseq);
-                assert(p->m_link.verseq > verseq);
+                assert(p->m_link.verseq > verseq+1);
                 //abort();
             }
           #endif
@@ -2840,7 +2840,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // bad assert, others may help me set tail as me
             // RT_ASSERT(this != p->m_link.next);
             //
-            // at this time, other thread may modified p->next, then
+            // at this time, other thread may modified p->m_link, then
             // suspended, thus m_tail is keep unchanged, so let us
             // change m_tail to keep it updated
             //
