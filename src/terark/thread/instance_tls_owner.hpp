@@ -26,7 +26,7 @@ protected:
             auto owner0 = t->tls_owner();
             auto owner = static_cast<Owner*>(owner0);
             assert(NULL != owner0);
-            assert(dynamic_cast<Owner*>(owner0) != NULL);
+            assert(dynamic_cast<Owner*>(owner0) == owner);
             if (!owner->m_is_dying) { // is called by thread die
                 // put into free list, to be reused by another thread
                 owner->reuse(t);
