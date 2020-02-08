@@ -3269,6 +3269,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         //assert(this == trie->m_dummy.m_link.next); // false positive
         uint64_t verseq = m_link.verseq;
         if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
+            cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1});
             trie->m_dummy.m_min_age = verseq+1;
             this->m_min_age = verseq+1;
         }
