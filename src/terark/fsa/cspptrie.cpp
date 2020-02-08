@@ -2810,8 +2810,8 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     assert(AcquireDone == m_flags.state);
     assert(!m_flags.is_head);
     while (true) {
-        LinkType t = trie->m_tail;
-        TokenBase* p = t.next;
+        const LinkType t = trie->m_tail;
+        TokenBase* const p = t.next;
         this->m_link = {NULL, t.verseq+1};
         if (cas_weak(p->m_link, {NULL, t.verseq}, {this, t.verseq})) {
             /// if ABA problem happens, verseq will be greater
@@ -2844,10 +2844,10 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // may spuriously fail(when p->m_link.next is really NULL).
             // --- spuriously fail will not happen on x86
             if (auto t2 = p->m_link.next) {
-                cas_weak(trie->m_tail, t, {t2, t.verseq+1});
+                cas_weak(trie->m_tail, t, {t2, t2->m_link.verseq});
                 //fprintf(stderr
                 //    , "DEBUG: help other thread to update m_tail (%p %llu) -> (%p %llu), this=%p\n"
-                //    , p, t.verseq, t2, t.verseq+1, this);
+                //    , p, t.verseq, t2, t2->m_link.verseq, this);
             }
         }
     }
