@@ -64,8 +64,8 @@ const char* patricia_trie_fname = NULL;
 #endif
 
 int main(int argc, char* argv[]) {
-#if BOOST_OS_LINUX
     int cpu_num = std::thread::hardware_concurrency();
+#if BOOST_OS_LINUX
     int cpu_idx = 0;
     size_t cpu_size = CPU_ALLOC_SIZE(cpu_num);
     auto thread_bind_cpu = [&]() {
@@ -84,7 +84,7 @@ int main(int argc, char* argv[]) {
 #else
     #define thread_bind_cpu() // do nothing
 #endif
-    int write_thread_num = std::thread::hardware_concurrency();
+    int write_thread_num = cpu_num;
     int read_thread_num = 0;
     bool mark_readonly = false;
     bool direct_read_input = false;
@@ -197,16 +197,16 @@ GetoptDone:
             bool writable = false;
             bool populate = true;
             mmap.base = mmap_load(input_fname, &mmap.size, writable, populate);
-            size_t sum = 0;
-            long long t0 = pf.now();
-            for (size_t i = 0; i < mmap.size; i += 4*1024) {
-                sum += ((byte_t*)mmap.base)[i];
-            }
-            long long t1 = pf.now();
-            fprintf(stderr
-                , "pre-fault  mmap: time = %8.3f sec, %8.3f GB/sec, sum = %zd\n"
-                , pf.sf(t0,t1), mmap.size/pf.nf(t0,t1), sum);
             if (lockMmap) {
+                size_t sum = 0;
+                long long t0 = pf.now();
+                for (size_t i = 0; i < mmap.size; i += 4*1024) {
+                    sum += ((byte_t*)mmap.base)[i];
+                }
+                long long t1 = pf.now();
+                fprintf(stderr
+                    , "pre-fault  mmap: time = %8.3f sec, %8.3f GB/sec, sum = %zd\n"
+                    , pf.sf(t0,t1), mmap.size/pf.nf(t0,t1), sum);
                 err = mlock(mmap.base, mmap.size);
                 if (err) {
                     fprintf(stderr, "WARN: mlock(%s) = %s\n", input_fname, strerror(errno));
@@ -389,7 +389,7 @@ GetoptDone:
                 read(pt, i, Beg, End);
         }
         for (auto& t : thrVec) t.join();
-        dd /= read_thread_num;
+        dd /= std::min(read_thread_num, cpu_num);
     };
 	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
         dd = 0;
@@ -551,7 +551,7 @@ GetoptDone:
 		if (mark_readonly) {
 			ptrie->set_readonly();
 		}
-        dd /= tnum;
+        dd /= std::min(tnum, cpu_num);
 	};
 	t0 = pf.now(); if (single_thread_write) { pt_write(1, &trie1); }
     d0 = dd;
