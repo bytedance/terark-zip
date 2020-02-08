@@ -2836,7 +2836,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             return;
         }
         else {
-            RT_ASSERT(this != p->m_link.next);
+            // bad assert, others may help me set tail as me
+            // RT_ASSERT(this != p->m_link.next);
+            //
             // at this time, other thread may modified p->next, then
             // suspended, thus m_tail is keep unchanged, so let us
             // change m_tail to keep it updated
