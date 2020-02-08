@@ -132,9 +132,6 @@ protected:
     };
 
 public:
-    struct TokenDeleter {
-        void operator()(TokenBase* p) const { p->dispose(); }
-    };
     class TERARK_DLL_EXPORT ReaderToken : public TokenBase {
         TERARK_friend_class_Patricia;
     protected:
@@ -144,7 +141,7 @@ public:
         void acquire(Patricia*);
         bool lookup(fstring);
     };
-    using ReaderTokenPtr = std::unique_ptr<ReaderToken, TokenDeleter>;
+    using ReaderTokenPtr = std::unique_ptr<ReaderToken, DisposeAsDelete>;
 
     class TERARK_DLL_EXPORT WriterToken : public TokenBase {
         TERARK_friend_class_Patricia;
@@ -157,7 +154,7 @@ public:
         void acquire(Patricia*);
         bool insert(fstring key, void* value);
     };
-    using WriterTokenPtr = std::unique_ptr<WriterToken, TokenDeleter>;
+    using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
 
     class TERARK_DLL_EXPORT Iterator : public ReaderToken, public ADFA_LexIterator {
     protected:
@@ -167,15 +164,7 @@ public:
         void dispose() final;
         virtual void token_detach_iter() = 0;
     };
-    using IteratorPtr = std::unique_ptr<Iterator, TokenDeleter>;
-
-    // template<class TokenType>
-    // TokenType* alloc_token() {
-    //     void* mem = this->alloc_token_imp(sizeof(TokenType));
-    //     TokenType* token = new(mem) TokenType();
-    //     token->m_trie = this;
-    //     return token;
-    // }
+    using IteratorPtr = std::unique_ptr<Iterator, DisposeAsDelete>;
 
     struct MemStat {
         valvec<size_t> fastbin;
