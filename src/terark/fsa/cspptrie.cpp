@@ -3075,9 +3075,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
-        if (m_min_age == 0) {
-            m_min_age = trie->m_dummy.m_min_age;
-        }
+        //if (m_min_age == 0) {
+        //    m_min_age = trie->m_dummy.m_min_age;
+        //}
         break;
     case ReleaseWait:
         if (cax_weak(m_flags, flags, {AcquireDone, false})) {
@@ -3152,8 +3152,9 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             assert(this != trie->m_token_tail);
             assert(this != trie->m_dummy.m_link.next);
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
-            m_link.verseq = 0;
+            //m_link.verseq = 0; // DO NOT change m_link.verseq
             m_link.next = NULL; // safe, because this != trie->m_token_tail
+            m_min_age = m_link.verseq; // for later re-acquire
         }
         else {
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue fail\n", m_thread_id);
