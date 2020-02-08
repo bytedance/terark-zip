@@ -271,7 +271,7 @@ GetoptDone:
         t1 = pf.now();
         if (strVec.size()) {
             fprintf(stderr
-                , "read %s input: time = %8.3f sec, %8.3f MB/sec, avglen = %8.3f\n"
+                , "read %s input: time = %8.3f sec, %8.3f MB/sec, AVG = %8.3f Bytes/Line\n"
                 , mmap.base ? "mmap" : "line"
                 , pf.sf(t0,t1), sumkeylen/pf.uf(t0,t1), strVec.avg_size()
             );
