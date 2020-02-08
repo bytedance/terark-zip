@@ -34,22 +34,20 @@ protected:
             }
         }
         void push_head(Owner* owner, TlsMember* t) {
-        #if 1
-            owner->m_free_cnt++;
-            auto old_head = as_atomic(owner->m_first_free).load(std::memory_order_relaxed);
+          #if defined(TERARK_INSTANCE_TLS_LOCK_FREE)
+            as_atomic(owner->m_free_cnt).fetch_add(1, std::memory_order_relaxed);
+            TlsMember* old_head;
             do {
+                old_head = as_atomic(owner->m_first_free).load(std::memory_order_relaxed);
                 t->m_next_free = old_head;
-            } while (!as_atomic(owner->m_first_free).compare_exchange_weak(
-                         old_head, t,
-                         std::memory_order_release,
-                         std::memory_order_relaxed));
-        #else
+            } while (!cas_weak(owner->m_first_free, old_head, t));
+          #else
             owner->m_tls_mtx.lock();
             t->m_next_free = owner->m_first_free;
             owner->m_first_free = t;
             owner->m_free_cnt++;
             owner->m_tls_mtx.unlock();
-        #endif
+          #endif
         }
     };
     friend struct TlsPtr;
@@ -73,6 +71,9 @@ protected:
     }
     template<class NewTLS>
     TlsMember* fill_tls(TlsPtr& tls, NewTLS New) const {
+      #if defined(TERARK_INSTANCE_TLS_LOCK_FREE)
+        #error "TERARK_INSTANCE_TLS_LOCK_FREE" is not fully implemented
+      #else
         if (m_first_free) {
             std::lock_guard<std::mutex> lock(m_tls_mtx);
             if (m_first_free) { // reuse from free list
@@ -84,6 +85,7 @@ protected:
                 return pto;
             }
         }
+      #endif
         // safe to do not use unique_ptr
         TlsMember* pto = New();
         if (nullptr == pto) {
