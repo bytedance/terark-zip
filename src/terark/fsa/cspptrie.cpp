@@ -3082,7 +3082,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         }
         break;
     case ReleaseWait:
-        if (cas_weak(m_flags, flags, {AcquireDone, false})) {
+        if (cax_weak(m_flags, flags, {AcquireDone, false})) {
             // acquire done, no one should change me
             assert(AcquireDone == m_flags.state);
         }
