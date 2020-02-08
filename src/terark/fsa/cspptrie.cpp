@@ -3473,11 +3473,11 @@ Patricia::WriterToken::WriterToken() {
 
 
 void Patricia::WriterToken::acquire(Patricia* trie1) {
-//  assert(NULL == m_trie); // should be re-acquired
-    assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
     auto trie = static_cast<MainPatricia*>(trie1);
     auto conLevel = trie->m_writing_concurrent_level;
+    assert(NULL == m_trie || trie == m_trie);
     assert(NoWriteReadOnly != conLevel);
+    assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
     m_thread_id = ThisThreadID();
     m_cpu = ThisCpuID();
     if (MultiWriteMultiRead == conLevel) {
