@@ -3077,7 +3077,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
-        m_min_age = trie->m_dummy.m_min_age;
+        if (m_min_age == 0) {
+            m_min_age = trie->m_dummy.m_min_age;
+        }
         break;
     case ReleaseWait:
         if (cas_weak(m_flags, flags, {AcquireDone, false})) {
@@ -3227,7 +3229,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         m_flags.is_head = false;
         enqueue(trie);
         RT_ASSERT(new_head->dequeue(trie)); // at least, I'm alive
-        m_min_age = trie->m_dummy.m_min_age;
+        //m_min_age = trie->m_dummy.m_min_age; // do not update
         // unlock
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
@@ -3274,6 +3276,7 @@ bool PatriciaMem<Align>::reclaim_head() {
                 if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                     head = next;
                     as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                    //fprintf(stderr, "DEBUG: reclaim: thread-%llX ReleaseDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
                 } else {
                     // retry loop
                 }
@@ -3283,6 +3286,7 @@ bool PatriciaMem<Align>::reclaim_head() {
             break;
         case DisposeWait:
             if (head != m_token_tail) {
+                //fprintf(stderr, "DEBUG: reclaim: thread-%llX DisposeDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
                 head->m_flags.state = DisposeDone;
                 delete head;
                 head = next;
@@ -3294,6 +3298,7 @@ bool PatriciaMem<Align>::reclaim_head() {
         case AcquireDone:
             if (cas_weak(head->m_flags, flags, {AcquireDone, true})) {
                 m_head_is_dead = false;
+                //fprintf(stderr, "DEBUG: reclaim: thread-%llX {AcquireDone,true} token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
                 goto Done;
             } else {
                 // retry loop
