@@ -453,6 +453,7 @@ GetoptDone:
                 auto mmap_endp = (const char*)mmap.base + mmap.size;
                 auto line = (const char*)mmap.base + mmap.size * (size_t(tid) + 0) / tnum;
                 auto endp = (const char*)mmap.base + mmap.size * (size_t(tid) + 1) / tnum;
+                terark::minimize(endp, mmap_endp);
                 while (endp < mmap_endp && !isnewline(*endp)) endp++;
                 if (0 != tid) {
                     while (line < endp && !isnewline(*line)) line++;
