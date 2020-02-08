@@ -1,5 +1,6 @@
 #pragma once
 #include "instance_tls.hpp"
+#include <thread>
 
 namespace terark {
 
@@ -17,8 +18,11 @@ protected:
             TlsMember* t = as_atomic(ptr).load(std::memory_order_relaxed);
             if (nullptr == t)
                 return;
-            if (!as_atomic(ptr).compare_exchange_strong(t, nullptr))
+            if (!as_atomic(ptr).compare_exchange_strong(t, nullptr)) {
+                assert(NULL == ptr);
                 return;
+            }
+            assert(NULL == t->m_next_free);
             auto owner0 = t->tls_owner();
             auto owner = static_cast<Owner*>(owner0);
             assert(NULL != owner0);
@@ -28,16 +32,19 @@ protected:
                 owner->reuse(t);
                 push_head(owner, t);
             }
+            else {
+                as_atomic(owner->m_kill_cnt).fetch_add(1, std::memory_order_relaxed);
+            }
         }
         static
         void push_head(Owner* owner, TlsMember* t) {
           #if defined(TERARK_INSTANCE_TLS_LOCK_FREE)
-            as_atomic(owner->m_free_cnt).fetch_add(1, std::memory_order_relaxed);
             TlsMember* old_head;
             do {
                 old_head = as_atomic(owner->m_first_free).load(std::memory_order_relaxed);
                 t->m_next_free = old_head;
             } while (!cas_weak(owner->m_first_free, old_head, t));
+            as_atomic(owner->m_free_cnt).fetch_add(1, std::memory_order_relaxed);
           #else
             owner->m_tls_mtx.lock();
             t->m_next_free = owner->m_first_free;
@@ -52,6 +59,7 @@ protected:
     mutable std::mutex m_tls_mtx;
     mutable TlsMember* m_first_free = NULL;
     mutable size_t     m_free_cnt;
+    mutable size_t     m_kill_cnt;
     mutable valvec<std::unique_ptr<TlsMember> > m_tls_vec;
     union {
         // to manually control the life time, because:
@@ -72,16 +80,18 @@ protected:
         #error "TERARK_INSTANCE_TLS_LOCK_FREE" is not fully implemented
       #else
         if (m_first_free) {
-            std::lock_guard<std::mutex> lock(m_tls_mtx);
+            m_tls_mtx.lock();
             if (m_first_free) { // reuse from free list
                 TlsMember* pto = m_first_free;
                 m_first_free = pto->m_next_free;
                 assert(m_free_cnt > 0);
                 m_free_cnt--;
+                m_tls_mtx.unlock();
                 pto->m_next_free = NULL;
                 tls.ptr = pto;
                 return pto;
             }
+            m_tls_mtx.unlock();
         }
       #endif
         // safe to do not use unique_ptr
@@ -181,10 +191,23 @@ public:
         // This class must be inherited as last base class
         assert(size_t(static_cast<Owner*>(this)) <= size_t(this));
         m_free_cnt = 0;
+        m_kill_cnt = 0;
     }
     ~instance_tls_owner() {
+        assert(!m_is_dying);
         m_is_dying = true; // must before m_tls_ptr.~instance_tls()
         m_tls_ptr.~instance_tls(); // explicit destruct
+        m_tls_mtx.lock();
+        while (m_free_cnt + m_kill_cnt < m_tls_vec.size()) {
+            fprintf(stderr
+                , "%s:%d: %s: DEBUG:rare:wait: free = %zd, kill = %zd, vec = %zd\n"
+                , __FILE__, __LINE__, BOOST_CURRENT_FUNCTION
+                , m_free_cnt, m_kill_cnt, m_tls_vec.size());
+            m_tls_mtx.unlock();
+            std::this_thread::yield();
+            m_tls_mtx.lock();
+        }
+        m_tls_mtx.unlock();
     }
     inline void reuse(TlsMember* /*tls*/) {}
     void init_fixed_cap(size_t cap) {
