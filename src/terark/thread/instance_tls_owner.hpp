@@ -25,14 +25,11 @@ protected:
             assert(dynamic_cast<Owner*>(owner0) != NULL);
             if (!owner->m_is_dying) { // is called by thread die
                 // put into free list, to be reused by another thread
-                if (owner->reuse(t)) {
-                    push_head(owner, t);
-                }
-                else {
-                    delete t;
-                }
+                owner->reuse(t);
+                push_head(owner, t);
             }
         }
+        static
         void push_head(Owner* owner, TlsMember* t) {
           #if defined(TERARK_INSTANCE_TLS_LOCK_FREE)
             as_atomic(owner->m_free_cnt).fetch_add(1, std::memory_order_relaxed);
@@ -81,6 +78,7 @@ protected:
                 m_first_free = pto->m_next_free;
                 assert(m_free_cnt > 0);
                 m_free_cnt--;
+                pto->m_next_free = NULL;
                 tls.ptr = pto;
                 return pto;
             }
@@ -91,6 +89,7 @@ protected:
         if (nullptr == pto) {
             return nullptr;
         }
+        assert(NULL == pto->m_next_free);
         if (m_is_fixed_cap) {
             m_tls_mtx.lock(); // safe to do not use RAII lock_guard
             if (terark_likely(m_tls_vec.size() < m_tls_vec.capacity())) {
@@ -187,7 +186,7 @@ public:
         m_is_dying = true; // must before m_tls_ptr.~instance_tls()
         m_tls_ptr.~instance_tls(); // explicit destruct
     }
-    inline bool reuse(TlsMember* /*tls*/) { return true; }
+    inline void reuse(TlsMember* /*tls*/) {}
     void init_fixed_cap(size_t cap) {
         assert(cap > 0);
         assert(m_tls_vec.size() == 0);

@@ -410,7 +410,7 @@ public:
         }
     }
 
-    virtual bool reuse() { return true; }
+    virtual void reuse() {}
 };
 
 template<int AlignSize>
@@ -418,7 +418,7 @@ class TCMemPoolTlsHolder :
     public instance_tls_owner<TCMemPoolTlsHolder<AlignSize>,
                               TCMemPoolOneThread<AlignSize> > {
 public:
-    bool reuse(TCMemPoolOneThread<AlignSize>* t) { return t->reuse(); }
+    void reuse(TCMemPoolOneThread<AlignSize>* t) { t->reuse(); }
 };
 
 /// mempool which alloc mem block identified by

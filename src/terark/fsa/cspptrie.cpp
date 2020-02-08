@@ -156,7 +156,7 @@ struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, Lazy
     void sync_atomic(PatriciaMem<Align>*);
     void sync_no_atomic(PatriciaMem<Align>*);
     void reset_zero();
-    bool reuse() final;
+    void reuse() final;
     LazyFreeListTLS(PatriciaMem<Align>* trie);
     ~LazyFreeListTLS();
 };
@@ -225,7 +225,7 @@ PatriciaMem<Align>::tls_writer_token() {
 }
 
 template<size_t Align>
-bool PatriciaMem<Align>::
+void PatriciaMem<Align>::
 ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
     switch (token->m_flags.state) {
     default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
@@ -235,7 +235,6 @@ ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
     case ReleaseWait: break; // OK
     case ReleaseDone: break; // OK
     }
-    return true;
 }
 
 template<size_t Align>
@@ -328,7 +327,7 @@ PatriciaMem<Align>::LazyFreeListTLS::~LazyFreeListTLS() {
 }
 
 template<size_t Align>
-bool PatriciaMem<Align>::LazyFreeListTLS::reuse() {
+void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
     {
         TokenFlags flags = m_reader_token->m_flags;
         switch (flags.state) {
@@ -351,7 +350,6 @@ bool PatriciaMem<Align>::LazyFreeListTLS::reuse() {
         case ReleaseWait: break; // OK
         }
     }
-    return true;
 }
 
 template<size_t Align>
