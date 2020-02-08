@@ -190,7 +190,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
     m_dummy.m_flags.state = DisposeDone;
-    m_tail = {&m_dummy, 0};
+    m_token_tail = &m_dummy;
     m_token_qlen = 0;
     m_num_cpu_migrated = 0;
     m_sorted_acqseq = 0;
