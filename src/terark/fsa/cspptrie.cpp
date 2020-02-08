@@ -143,6 +143,8 @@ const uint32_t MainPatricia::s_skip_slots[16] = {
 
 static profiling g_pf;
 
+#define m_token_tail m_tail.next
+
 template<size_t Align>
 struct PatriciaMem<Align>::LazyFreeListTLS : TCMemPoolOneThread<AlignSize>, LazyFreeList {
     size_t m_n_nodes = 0;
@@ -188,7 +190,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
     m_dummy.m_flags.state = DisposeDone;
-    m_token_tail = &m_dummy;
+    m_tail = {&m_dummy, 0};
     m_token_qlen = 0;
     m_num_cpu_migrated = 0;
     m_sorted_acqseq = 0;
@@ -2808,28 +2810,28 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     assert(AcquireDone == m_flags.state);
     assert(!m_flags.is_head);
     while (true) {
-        TokenBase* p = trie->m_token_tail;
-        uint64_t verseq = p->m_link.verseq;
-        this->m_link = {NULL, verseq+1};
-        if (terark_likely(cas_weak(p->m_link,{NULL,verseq},{this,verseq}))) {
+        LinkType t = trie->m_tail;
+        TokenBase* p = t.next;
+        this->m_link = {NULL, t.verseq+1};
+        if (cas_weak(p->m_link, {NULL, t.verseq}, {this, t.verseq})) {
             assert(this == p->m_link.next);
             ///
             /// if here use compare_exchange_weak, m_token_tail
             /// may not point to the real tail, so we use the strong
             /// version
-            cas_strong(trie->m_token_tail, p, this);
+            cas_strong(trie->m_tail, t, {this, t.verseq+1});
             return;
         }
         else {
             // at this time, other thread may modified p->next, then
-            // suspended, thus m_token_tail is keep unchanged, so let us
-            // change m_token_tail to keep it updated
+            // suspended, thus m_tail is keep unchanged, so let us
+            // change m_tail to keep it updated
             //
             // this check is required, because prev compare_exchange_weak
             // may spuriously fail(when p->m_link.next is really NULL).
             // --- spuriously fail will not happen on x86
-            if (p->m_link.next) {
-                cas_weak(trie->m_token_tail, p, p->m_link.next);
+            if (auto t2 = p->m_link.next) {
+                cas_weak(trie->m_tail, t, {t2, t.verseq+1});
             }
         }
     }
@@ -2919,6 +2921,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
 }
 
 void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
+  #if 0
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(this == trie->m_dummy.m_link.next);
     struct Cpu {
@@ -3064,6 +3067,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     trie->m_dummy.m_link.next = this;
     RT_ASSERT(this->m_flags.is_head);
     RT_ASSERT(AcquireDone == this->m_flags.state);
+  #endif
 }
 
 void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
@@ -3235,6 +3239,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
         enqueue(trie);
+        assert(this == trie->m_dummy.m_link.next);
         RT_ASSERT(new_head->dequeue(trie)); // at least, I'm alive
         //m_min_age = trie->m_dummy.m_min_age; // do not update
         // unlock
@@ -3244,9 +3249,6 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         //assert(this == trie->m_dummy.m_link.next); // false positive
         uint64_t verseq = m_link.verseq;
         if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
-            // now concurrent mt_acquire may go into enqueue dead loop
-            // this cause enqueue being not wait free
-            // let me update m_link.verseq
             trie->m_dummy.m_min_age = verseq+1;
             this->m_min_age = verseq+1;
         }
@@ -3348,9 +3350,8 @@ void Patricia::TokenBase::update() {
         case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
-            m_link.next = NULL;
+            m_link = {NULL, 0};
             m_tls = NULL;
-            m_link.verseq = 0;
             break;
         }
       #if !defined(NDEBUG)
@@ -3382,9 +3383,8 @@ void Patricia::TokenBase::release() {
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_flags.state = ReleaseDone;
-            m_link.next = NULL;
+            m_link = {NULL, 0};
             m_tls = NULL;
-            m_link.verseq = 0;
             break;
         }
       #if !defined(NDEBUG)
@@ -3440,9 +3440,8 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
             m_flags.state = AcquireDone;
-            m_link.next = NULL;
+            m_link = {NULL, 0};
             m_tls = NULL;
-            m_link.verseq = 0;
             break;
         }
       #if !defined(NDEBUG)
@@ -3504,8 +3503,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     }
     else {
         m_flags.state = AcquireDone;
-        m_link.verseq  = 0;
-        m_link.next = NULL;
+        m_link = {NULL, 0};
     }
     m_value = NULL;
     m_trie = trie;
