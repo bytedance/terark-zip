@@ -3282,6 +3282,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
 
 /// @returns lock success(true) or fail(false)
 template<size_t Align>
+terark_no_inline
 bool PatriciaMem<Align>::reclaim_head() {
     if (terark_unlikely(!cas_weak(m_head_lock, false, true))) {
         return false;
