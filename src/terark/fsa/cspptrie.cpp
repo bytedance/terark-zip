@@ -3179,7 +3179,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             // old head set me as new head
             RT_ASSERT(AcquireDone == m_flags.state);
             RT_ASSERT(this->m_flags.is_head);
-            RT_ASSERT(this == trie->m_dummy.m_link.next); // is head
+            //RT_ASSERT(this == trie->m_dummy.m_link.next); // false positive
             goto ThisIsQueueHead;
         }
     }
