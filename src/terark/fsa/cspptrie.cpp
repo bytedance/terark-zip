@@ -47,6 +47,12 @@ namespace terark {
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 
+#define RT_ASSERT_F(expr, fmt, ...) \
+    do { if (terark_unlikely(!(expr))) { \
+        fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed: " fmt " !\n", \
+                __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #expr, ##__VA_ARGS__); \
+        abort(); }} while (0)
+
 #if defined(NDEBUG)
 static void rt_assert_fail(const char* file, int line, const char* func, const char* expr) {
     fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed.\n", file, line, func, expr);
@@ -54,8 +60,10 @@ static void rt_assert_fail(const char* file, int line, const char* func, const c
 }
   #define RT_ASSERT(...) terark_likely(__VA_ARGS__) ? (void)0 : \
     rt_assert_fail(__FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #__VA_ARGS__)
+  #define assertf RT_ASSERT_F
 #else
   #define RT_ASSERT assert
+  #define assertf(...)
 #endif
 
 inline static uint64_t ThisThreadID() {
@@ -3478,7 +3486,8 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     auto conLevel = trie->m_writing_concurrent_level;
     assert(NULL == m_trie || trie == m_trie);
     assert(NoWriteReadOnly != conLevel);
-    assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
+    assertf(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state,
+            "m_flags.state = %d", m_flags.state);
     m_thread_id = ThisThreadID();
     m_cpu = ThisCpuID();
     if (MultiWriteMultiRead == conLevel) {
