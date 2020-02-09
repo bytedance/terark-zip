@@ -432,6 +432,11 @@ public:
 /// @see valvec
 template<int AlignSize>
 class ThreadCacheMemPool : public valvec<byte_t>, boost::noncopyable {
+    ThreadCacheMemPool(const ThreadCacheMemPool&) = delete;
+    ThreadCacheMemPool(ThreadCacheMemPool&&) = delete;
+    ThreadCacheMemPool& operator=(const ThreadCacheMemPool&) = delete;
+    ThreadCacheMemPool& operator=(ThreadCacheMemPool&&) = delete;
+
     friend class TCMemPoolOneThread<AlignSize>;
     static const size_t ArenaSize = 2 * 1024 * 1024;
 
