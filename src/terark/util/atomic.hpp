@@ -45,22 +45,22 @@ namespace terark {
     template<class T>
     inline bool cas_weak(T& x, T expected, T desired) {
         typedef typename GccAtomicType<sizeof(T)>::type A;
-        return __sync_bool_compare_and_swap((A*)&x, (A&)expected, (A&)desired);
+        return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
     template<class T>
     inline bool cas_weak(volatile T& x, T expected, T desired) {
         typedef typename GccAtomicType<sizeof(T)>::type A;
-        return __sync_bool_compare_and_swap((A*)&x, (A&)expected, (A&)desired);
+        return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
     template<class T>
     inline bool cas_strong(T& x, T expected, T desired) {
         typedef typename GccAtomicType<sizeof(T)>::type A;
-        return __sync_bool_compare_and_swap((A*)&x, (A&)expected, (A&)desired);
+        return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
     template<class T>
     inline bool cas_strong(volatile T& x, T expected, T desired) {
         typedef typename GccAtomicType<sizeof(T)>::type A;
-        return __sync_bool_compare_and_swap((A*)&x, (A&)expected, (A&)desired);
+        return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
 #else
     template<class T>
