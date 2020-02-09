@@ -60,7 +60,7 @@ protected:
     mutable TlsMember* m_first_free = NULL;
     mutable size_t     m_free_cnt;
     mutable size_t     m_kill_cnt;
-    mutable valvec<std::unique_ptr<TlsMember> > m_tls_vec;
+    mutable valvec<TlsMember*> m_tls_vec;
     union {
         // to manually control the life time, because:
         // m_is_dying and ~TlsPtr() has strict time sequence dependency
@@ -127,7 +127,7 @@ private:
             auto vec = m_tls_vec.data();
             auto len = m_tls_vec.size();
             for (size_t i = 0; i < len; ++i) {
-                if (fun(vec[i].get()))
+                if (fun(vec[i]))
                     return true;
             }
             return false;
@@ -141,7 +141,7 @@ private:
                 size_t n = m_tls_vec.size(), m = std::min(n-i, dim);
                 auto src = m_tls_vec.data() + i;
                 for (size_t j = 0; j < m; ++j) {
-                    vec[j] = src[j].get(); assert(NULL != vec[j]);
+                    vec[j] = src[j]; assert(NULL != vec[j]);
                 }
                 m_tls_mtx.unlock();
                 for (size_t j = 0; j < m; ++j) {
@@ -160,7 +160,7 @@ private:
             auto vec = m_tls_vec.data();
             auto len = m_tls_vec.size();
             for (size_t i = 0; i < len; ++i) {
-                fun(vec[i].get());
+                fun(vec[i]);
             }
         }
         else {
@@ -172,7 +172,7 @@ private:
                 size_t n = m_tls_vec.size(), m = std::min(n-i, dim);
                 auto src = m_tls_vec.data() + i;
                 for (size_t j = 0; j < m; ++j) {
-                    vec[j] = src[j].get(); assert(NULL != vec[j]);
+                    vec[j] = src[j]; assert(NULL != vec[j]);
                 }
                 m_tls_mtx.unlock();
                 for (size_t j = 0; j < m; ++j) {
@@ -208,6 +208,10 @@ public:
             m_tls_mtx.lock();
         }
         m_tls_mtx.unlock();
+        for (size_t i = m_tls_vec.size(); i > 0; ) {
+            TlsMember* p = m_tls_vec[--i];
+            delete p;
+        }
     }
     inline void reuse(TlsMember* /*tls*/) {}
     void init_fixed_cap(size_t cap) {
@@ -224,7 +228,7 @@ public:
         auto dst = tlsVec->data();
         auto src = m_tls_vec.data();
         for (size_t i = 0; i < n; ++i) {
-            dst[i] = src[i].get();
+            dst[i] = src[i];
         }
         m_tls_mtx.unlock();
     }
