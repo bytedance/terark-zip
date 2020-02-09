@@ -2812,12 +2812,13 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     while (true) {
         const LinkType t = trie->m_tail;
         TokenBase* const p = t.next;
-        uint64_t verseq = p->m_link.verseq;
+        const uint64_t verseq = p->m_link.verseq;
         this->m_link = {NULL, verseq+1};
         if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq})) {
             /// if ABA problem happens, verseq will be greater
             /// so the later cas_strong will fail
             assert(this == p->m_link.next || p->m_link.verseq > verseq);
+            assert(t.verseq == verseq);
           #if !defined(NDEBUG) // this is temporary debug
             //std::this_thread::yield();
             usleep(100000); // easy trigger ABA on DEBUG
