@@ -37,6 +37,10 @@
     #include <pthread.h>
 #endif
 
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
+
 namespace terark {
 
 using namespace std;

@@ -42,6 +42,9 @@
     #error ThisCpuID unsupported
 #endif
 
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 namespace terark {
 
 #undef prefetch
@@ -2825,7 +2828,8 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             if (this != p->m_link.next) {
                 fprintf(stderr
                   , "DEBUG: ABA problem detected: %p: (%p %llu) -> (%p %llu)\n"
-                  , p, this, verseq+1, p->m_link.next, p->m_link.verseq);
+                  , p, this, llong(verseq+1)
+                  , p->m_link.next, llong(p->m_link.verseq));
                 assert(p->m_link.verseq > verseq+1);
                 //abort();
             }

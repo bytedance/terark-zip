@@ -42,6 +42,8 @@ namespace terark {
     template<> struct GccAtomicType< 8> { typedef long long type; };
     template<> struct GccAtomicType<16> { typedef __int128 type; };
 
+  #pragma GCC diagnostic push
+  #pragma GCC diagnostic ignored "-Wstrict-aliasing"
     template<class T>
     inline bool cas_weak(T& x, T expected, T desired) {
         typedef typename GccAtomicType<sizeof(T)>::type A;
@@ -62,6 +64,7 @@ namespace terark {
         typedef typename GccAtomicType<sizeof(T)>::type A;
         return __sync_bool_compare_and_swap((A*)&x, *(A*)&expected, *(A*)&desired);
     }
+  #pragma GCC diagnostic pop
 #else
     template<class T>
     inline
