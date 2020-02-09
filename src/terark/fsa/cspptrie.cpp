@@ -3304,6 +3304,7 @@ bool PatriciaMem<Align>::reclaim_head() {
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
             if (head != m_token_tail) {
+                RT_ASSERT(NULL != next);
                 if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                     head = next;
                     as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
@@ -3317,6 +3318,7 @@ bool PatriciaMem<Align>::reclaim_head() {
             break;
         case DisposeWait:
             if (head != m_token_tail) {
+                RT_ASSERT(NULL != next);
                 //fprintf(stderr, "DEBUG: reclaim: thread-%llX DisposeDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
                 head->m_flags.state = DisposeDone;
                 delete head;
