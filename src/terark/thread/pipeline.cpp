@@ -1,5 +1,7 @@
 ﻿/* vim: set tabstop=4 : */
-
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 #include "pipeline.hpp"
 #include <terark/circular_queue.hpp>
 #include <terark/num_to_str.hpp>
@@ -35,10 +37,6 @@
 
 #if !defined(_MSC_VER)
     #include <pthread.h>
-#endif
-
-#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
-    #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
 
 namespace terark {
