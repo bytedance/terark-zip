@@ -157,7 +157,7 @@ protected:
     size_t     m_n_words;
     Stat       m_stat;
 
-    bool reclaim_head();
+    void reclaim_head();
 
     void alloc_mempool_space(intptr_t maxMem);
 
