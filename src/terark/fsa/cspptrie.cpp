@@ -63,10 +63,10 @@ static void rt_assert_fail(const char* file, int line, const char* func, const c
 }
   #define RT_ASSERT(...) terark_likely(__VA_ARGS__) ? (void)0 : \
     rt_assert_fail(__FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #__VA_ARGS__)
-  #define assertf RT_ASSERT_F
+  #define assertf(...)
 #else
   #define RT_ASSERT assert
-  #define assertf(...)
+  #define assertf RT_ASSERT_F
 #endif
 
 inline static uint64_t ThisThreadID() {
