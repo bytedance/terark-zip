@@ -3182,9 +3182,9 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             return;
         }
         assert(this == trie->m_dummy.m_link.next); // now it must be true
-        assert(this != trie->m_token_tail);
+        //assert(this != trie->m_token_tail); // may be false positive
         if (curr->dequeue(trie)) {
-            assert(this != trie->m_token_tail);
+            //assert(this != trie->m_token_tail); // may be false positive
             assert(this != trie->m_dummy.m_link.next);
             //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
             //m_link.verseq = 0; // DO NOT change m_link.verseq
