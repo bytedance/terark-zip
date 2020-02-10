@@ -2819,7 +2819,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             /// if ABA problem happens, verseq will be greater
             /// so the later cas_strong will fail
             assert(this == p->m_link.next || p->m_link.verseq > verseq);
-            assert(t.verseq == verseq);
+            assertf(t.verseq == verseq
+                 , "t.verseq = %llu, verseq = %llu\n"
+                 , llong(t.verseq), llong(verseq));
           #if !defined(NDEBUG) // this is temporary debug
             //std::this_thread::yield();
             usleep(100000); // easy trigger ABA on DEBUG
