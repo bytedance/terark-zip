@@ -732,21 +732,21 @@ void PatriciaMem<Align>::destroy() {
     case  SingleThreadShared: destroy_obj(&m_mempool_lock_none); break;
     case     NoWriteReadOnly: break; // do nothing
     }
-/*
-    if (conLevel >= MultiWriteMultiRead) {
-        assert(m_writer_token_sgl.get() == nullptr);
-        for (TokenBase* token = m_token_head; token; ) {
-            TokenBase* next = token->m_link.next;
-            token->gc(this);
-            token = next;
-        }
-    }
-*/
+    // delete waiting tokens, and check errors
     assert(m_token_tail->m_link.next == NULL);
-    assert(m_token_tail->m_flags.state != AcquireDone);
-    if (&m_dummy != m_token_tail) {
-        m_token_tail->m_flags.state = DisposeDone;
-        delete m_token_tail;
+    for(TokenBase* curr = m_dummy.m_link.next; curr; ) {
+        TokenBase* next = curr->m_link.next;
+        switch (curr->m_flags.state) {
+        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
+        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        case DisposeWait: break; // OK
+        case ReleaseWait: break; // OK
+        }
+        curr->m_flags.state = DisposeDone;
+        delete curr;
+        curr = next;
     }
 }
 
