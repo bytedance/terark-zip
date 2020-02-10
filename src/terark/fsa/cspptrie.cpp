@@ -2820,7 +2820,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             /// so the later cas_strong will fail
             assert(this == p->m_link.next || p->m_link.verseq > verseq);
             assertf(t.verseq == verseq
-                 , "t.verseq = %llu, verseq = %llu\n"
+                 , "t.verseq = %llu, verseq = %llu"
                  , llong(t.verseq), llong(verseq));
           #if !defined(NDEBUG) // this is temporary debug
             //std::this_thread::yield();
@@ -3306,7 +3306,7 @@ void PatriciaMem<Align>::reclaim_head() {
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
-            if (NULL != next) {
+            if (NULL != next) { // head is not equal to tail
                 // when next is NULL, head is likely being m_token_tail
                 if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                     head = next;
@@ -3320,7 +3320,7 @@ void PatriciaMem<Align>::reclaim_head() {
             }
             break;
         case DisposeWait:
-            if (NULL != next) {
+            if (NULL != next) { // head is not equal to tail
                 //fprintf(stderr, "DEBUG: reclaim: thread-%llX DisposeDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
                 head->m_flags.state = DisposeDone;
                 delete head;
