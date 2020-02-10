@@ -2902,7 +2902,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             }
             break; }
         case ReleaseWait:
-            if (curr != trie->m_token_tail) {
+            if (NULL != next) { // is not tail
                 if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
                     //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone token of thread-%llX\n", ThisThreadID(), curr->m_thread_id);
                     curr = next;
@@ -2924,7 +2924,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             }
             break;
         case DisposeWait:
-            if (curr != trie->m_token_tail) {
+            if (NULL != next) { // is not tail
                 // now curr must before m_token_tail
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 curr->m_flags.state = DisposeDone;
@@ -3308,8 +3308,8 @@ bool PatriciaMem<Align>::reclaim_head() {
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
-            if (head != m_token_tail) {
-                RT_ASSERT(NULL != next);
+            if (NULL != next) {
+                // when next is NULL, head is likely being m_token_tail
                 if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                     head = next;
                     as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
@@ -3322,8 +3322,7 @@ bool PatriciaMem<Align>::reclaim_head() {
             }
             break;
         case DisposeWait:
-            if (head != m_token_tail) {
-                RT_ASSERT(NULL != next);
+            if (NULL != next) {
                 //fprintf(stderr, "DEBUG: reclaim: thread-%llX DisposeDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
                 head->m_flags.state = DisposeDone;
                 delete head;
