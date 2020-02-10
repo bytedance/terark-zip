@@ -2811,17 +2811,21 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     assert(AcquireDone == m_flags.state);
     assert(!m_flags.is_head);
     while (true) {
-        const LinkType t = trie->m_tail;
+        const LinkType t = trie->m_tail; // load.1
         TokenBase* const p = t.next;
-        const uint64_t verseq = p->m_link.verseq;
+        const uint64_t verseq = p->m_link.verseq; // load.2
         this->m_link = {NULL, verseq+1};
         if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq})) {
             /// if ABA problem happens, verseq will be greater
             /// so the later cas_strong will fail
             assert(this == p->m_link.next || p->m_link.verseq > verseq);
+          #if 0
+            // ABA may happen between load.1 and load.2 (by context switch)
+            // then t.verseq != verseq, thus this assert is false positive
             assertf(t.verseq == verseq
                  , "t.verseq = %llu, verseq = %llu"
                  , llong(t.verseq), llong(verseq));
+          #endif
           #if !defined(NDEBUG) // this is temporary debug
             //std::this_thread::yield();
             usleep(100000); // easy trigger ABA on DEBUG
@@ -2870,12 +2874,20 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         assert(NULL != curr);
         auto next = curr->m_link.next;
         TokenFlags flags = curr->m_flags;
-        RT_ASSERT(!flags.is_head);
+
+        //when acquire is ReleaseWait -> AcquireDone
+        // this assert may be false positive
+        //RT_ASSERT(!flags.is_head);
+
         switch (flags.state) {
         default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone: {
+            if (terark_unlikely(flags.is_head)) {
+                RT_ASSERT(this == trie->m_dummy.m_link.next);
+                return true;
+            }
             uint64_t min_age = curr->m_link.verseq;
         #if !defined(NDEBUG)
             auto p = curr->m_link.next;
@@ -3137,7 +3149,15 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         break;
     }
     if (this == trie->m_dummy.m_link.next) {
-        m_flags.is_head = true;
+        as_atomic(m_flags).store({AcquireDone, true}, std::memory_order_release);
+        /*
+        if (cas_strong(trie->m_head_lock, false, true)) {
+            if (this == trie->m_dummy.m_link.next) {
+                m_flags.is_head = true;
+            }
+            as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
+        }
+        */
     }
     // release may leave a dead(ReleaseWait) token at queue head
     // this dead token should be really deleted by acquire
