@@ -1580,7 +1580,8 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     assert(token->m_min_age <= token->m_link.verseq);
     assert(token->m_min_age <= m_token_tail->m_link.verseq);
     assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
-    assertf(token->m_link.verseq >= m_dummy.m_min_age, "%lld %lld", token->m_link.verseq, m_dummy.m_min_age);
+    assertf(token->m_link.verseq >= m_dummy.m_min_age, "%lld %lld",
+            llong(token->m_link.verseq), llong(m_dummy.m_min_age));
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
