@@ -373,23 +373,23 @@ GetoptDone:
         iter.release();
         iter.dispose();
     };
-    auto exec_read = [&](MainPatricia* pt,
+    auto exec_read = [&](MainPatricia* pt, int tnum,
       std::function<void(MainPatricia*,int,size_t,size_t)> read) {
         dd = 0;
-        if (read_thread_num < 1) {
+        if (tnum < 1) {
             return;
         }
-        valvec<std::thread> thrVec(read_thread_num - 1, valvec_reserve());
-        for (int i = 0; i < read_thread_num; ++i) {
-            size_t Beg = (i + 0) * fstrVec.size() / read_thread_num;
-            size_t End = (i + 1) * fstrVec.size() / read_thread_num;
-            if (i < read_thread_num-1)
+        valvec<std::thread> thrVec(tnum - 1, valvec_reserve());
+        for (int i = 0; i < tnum; ++i) {
+            size_t Beg = (i + 0) * fstrVec.size() / tnum;
+            size_t End = (i + 1) * fstrVec.size() / tnum;
+            if (i < tnum-1)
                 thrVec.unchecked_emplace_back([=](){read(pt, i, Beg, End);});
             else
                 read(pt, i, Beg, End);
         }
         for (auto& t : thrVec) t.join();
-        dd /= std::min(read_thread_num, cpu_num);
+        dd /= std::min(tnum, cpu_num);
     };
 	auto pt_write = [&](int tnum, MainPatricia* ptrie) {
         dd = 0;
@@ -559,13 +559,13 @@ GetoptDone:
     d0 = dd;
 	t1 = pf.now(); if (write_thread_num)    { pt_write(write_thread_num, &trie2); }
     d1 = dd;
-	t2 = pf.now(); if (single_thread_write) { exec_read(&trie1, patricia_find); }
+	t2 = pf.now(); if (single_thread_write) { exec_read(&trie1, 1, patricia_find); }
     d2 = dd;
-	t3 = pf.now(); if (single_thread_write) { exec_read(&trie1, patricia_lb);   }
+	t3 = pf.now(); if (single_thread_write) { exec_read(&trie1, 1, patricia_lb);   }
     d3 = dd;
-	t4 = pf.now(); if (write_thread_num)    { exec_read(&trie2, patricia_find); }
+	t4 = pf.now(); if (write_thread_num)    { exec_read(&trie2, read_thread_num, patricia_find); }
     d4 = dd;
-	t5 = pf.now(); if (write_thread_num)    { exec_read(&trie2, patricia_lb);   }
+	t5 = pf.now(); if (write_thread_num)    { exec_read(&trie2, read_thread_num, patricia_lb);   }
     d5 = dd;
     t6 = pf.now();
   if (strVec.size() == 0) {
