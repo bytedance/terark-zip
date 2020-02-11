@@ -3325,9 +3325,11 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         }
       #else
         if (cas_weak(trie->m_head_lock, false, true)) {
-            uint64_t verseq = ++m_link.verseq;
-            trie->m_dummy.m_min_age = verseq;
-            this->m_min_age = verseq;
+            if (NULL == m_link.next) {
+                uint64_t verseq = ++m_link.verseq;
+                trie->m_dummy.m_min_age = verseq;
+                this->m_min_age = verseq;
+            }
             cas_unlock(trie->m_head_lock);
         }
         else {
