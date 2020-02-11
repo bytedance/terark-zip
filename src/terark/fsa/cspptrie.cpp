@@ -2863,9 +2863,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // --- spuriously fail will not happen on x86
             if (auto t2 = p->m_link.next) {
                 cas_weak(trie->m_tail, t, {t2, t2->m_link.verseq});
-                //fprintf(stderr
-                //    , "DEBUG: help other thread to update m_tail (%p %llu) -> (%p %llu), this=%p\n"
-                //    , p, t.verseq, t2, t2->m_link.verseq, this);
+                fprintf(stderr
+                   , "DEBUG: help other thread to update m_tail (%p %llu) -> (%p %llu), this=%p\n"
+                   , p, llong(t.verseq), t2, llong(t2->m_link.verseq), this);
             }
         }
     }
