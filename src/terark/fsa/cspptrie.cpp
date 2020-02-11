@@ -3200,7 +3200,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto flags = m_flags;
-    RT_ASSERT_F(AcquireDone == flags.state, "{%d %d}", flags.state, flags.is_head);
+    RT_ASSERT_F(AcquireDone == flags.state, "(%d %d)", flags.state, flags.is_head);
     if (flags.is_head) {
     ThisIsQueueHead:
         //may be false positive, this assert should be moved to later
@@ -3254,7 +3254,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             // old head set me as new head
             flags = m_flags;
             RT_ASSERT_F(AcquireDone == flags.state && flags.is_head,
-                        "{%d %d}", flags.state, flags.is_head);
+                        "(%d %d)", flags.state, flags.is_head);
             //RT_ASSERT(this == trie->m_dummy.m_link.next); // false positive
             goto ThisIsQueueHead;
         }
@@ -3311,6 +3311,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
     else {
+      #if 0
         //assert(this == trie->m_dummy.m_link.next); // false positive
         uint64_t verseq = m_link.verseq;
         if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
@@ -3322,6 +3323,17 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             RT_ASSERT(NULL != m_link.next);
             goto RingThisToken;
         }
+      #else
+        if (cas_weak(trie->m_head_lock, false, true)) {
+            uint64_t verseq = ++m_link.verseq;
+            trie->m_dummy.m_min_age = verseq;
+            this->m_min_age = verseq;
+            cas_unlock(trie->m_head_lock);
+        }
+        else {
+            // do nothing, ignore this update
+        }
+      #endif
     }
 }
 
