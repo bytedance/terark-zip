@@ -2847,7 +2847,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             /// if here use compare_exchange_weak, m_token_tail
             /// may not point to the real tail, so we use the strong
             /// version
-            cas_strong(trie->m_tail, t, {this, verseq+1});
+            cas_strong(trie->m_tail, {p, verseq}, {this, verseq+1});
             return;
         }
         else {
