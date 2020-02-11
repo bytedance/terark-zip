@@ -3269,7 +3269,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     if (m_link.next) {
     RingThisToken:
         assert(m_link.verseq <= m_link.next->m_link.verseq);
-        assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
+        //assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
         if (this != trie->m_dummy.m_link.next) {
             // this immediate return is for wait free:
             //  1. update is an advise, not a promise.
@@ -3301,6 +3301,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             return;
         }
     #endif
+        assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
         enqueue(trie);
