@@ -2876,22 +2876,24 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
     TokenBase* curr = this;
     while (true) {
         assert(NULL != curr);
-        auto next = curr->m_link.next;
+        TokenBase* next = curr->m_link.next;
         TokenFlags flags = curr->m_flags;
 
         //when acquire is ReleaseWait -> AcquireDone
         // this assert may be false positive
-        //RT_ASSERT(!flags.is_head);
+        // now we let is_head = true always in head lock
+        // so restore the assert
+        RT_ASSERT(!flags.is_head);
 
         switch (flags.state) {
         default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
         case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone: {
-            if (terark_unlikely(flags.is_head)) {
-                RT_ASSERT(curr == trie->m_dummy.m_link.next);
-                return true;
-            }
+            // if (terark_unlikely(flags.is_head)) {
+            //     RT_ASSERT(curr == trie->m_dummy.m_link.next);
+            //     return true;
+            // }
             uint64_t min_age = curr->m_link.verseq;
         #if !defined(NDEBUG)
             auto p = curr->m_link.next;
@@ -3171,19 +3173,9 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
 
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-  #if 0
-    RT_ASSERT(AcquireDone == m_flags.state);
-  #else
-    switch (m_flags.state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-    case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-    case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
-    case AcquireDone: break; // OK
-    }
-  #endif
-    if (m_flags.is_head) {
+    auto flags = m_flags;
+    RT_ASSERT_F(AcquireDone == flags.state, "{%d %d}", flags.state, flags.is_head);
+    if (flags.is_head) {
     ThisIsQueueHead:
         //may be false positive, this assert should be moved to later
         //assert(this == trie->m_dummy.m_link.next);
@@ -3234,8 +3226,9 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         }
         else {
             // old head set me as new head
-            RT_ASSERT(AcquireDone == m_flags.state);
-            RT_ASSERT(this->m_flags.is_head);
+            flags = m_flags;
+            RT_ASSERT_F(AcquireDone == flags.state && flags.is_head,
+                        "{%d %d}", flags.state, flags.is_head);
             //RT_ASSERT(this == trie->m_dummy.m_link.next); // false positive
             goto ThisIsQueueHead;
         }
