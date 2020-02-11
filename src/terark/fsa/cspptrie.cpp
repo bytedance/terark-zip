@@ -2865,7 +2865,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             auto t2 = p->m_link.next;
             if (NULL == t2)
                 continue;
-            RT_ASSERT_F(verseq < t2->m_link.verseq, "%llu %llu", verseq, t2->m_link.verseq);
+            RT_ASSERT_F(verseq < t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
             if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq}))
                 continue;
             fprintf(stderr
