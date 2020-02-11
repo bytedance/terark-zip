@@ -2866,8 +2866,10 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             if (NULL == t2)
                 continue;
             RT_ASSERT_F(verseq < t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
-            if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq}))
+            if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq})) {
+                RT_ASSERT_F(verseq+1 == t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
                 continue;
+            }
             fprintf(stderr
             , "DEBUG: failed help other thread updating m_tail (%p %llu) -> (%p %llu), this=%p\n"
             , p, llong(verseq), t2, llong(t2->m_link.verseq), this);
