@@ -2811,6 +2811,7 @@ void Patricia::TokenBase::dispose() {
     }
 }
 
+#if 0
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(AcquireDone == m_flags.state);
@@ -2876,6 +2877,19 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         }
     }
 }
+#else
+void Patricia::TokenBase::enqueue(Patricia* trie1) {
+    auto trie = static_cast<MainPatricia*>(trie1);
+    assert(AcquireDone == m_flags.state);
+    assert(!m_flags.is_head);
+    assert(trie->m_head_lock); // locked
+    TokenBase* const p = trie->m_token_tail;
+    const uint64_t verseq = p->m_link.verseq;
+    this->m_link = {NULL, verseq+1};
+    p->m_link.next = this;
+    trie->m_token_tail = this;
+}
+#endif
 
 bool Patricia::TokenBase::dequeue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
@@ -3134,12 +3148,17 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         //m_acqseq is for sort_cpu()
         //m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
         //              .fetch_add(1, std::memory_order_relaxed);
+        while (!cas_weak(trie->m_head_lock, false, true)) {
+            // this is not wait free
+            std::this_thread::yield();
+        }
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
         //if (m_min_age == 0) {
         //    m_min_age = trie->m_dummy.m_min_age;
         //}
+        cas_unlock(trie->m_head_lock);
         break;
     case ReleaseWait:
         if (cax_weak(m_flags, flags, {AcquireDone, false})) {
