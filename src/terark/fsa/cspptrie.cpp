@@ -50,6 +50,10 @@ namespace terark {
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 
+inline void cas_unlock(bool& lock) {
+    as_atomic(lock).store(false, std::memory_order_release);
+}
+
 #define RT_ASSERT_F(expr, fmt, ...) \
     do { if (terark_unlikely(!(expr))) { \
         fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed: " fmt " !\n", \
@@ -2885,7 +2889,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
         case AcquireDone: {
             if (terark_unlikely(flags.is_head)) {
-                RT_ASSERT(this == trie->m_dummy.m_link.next);
+                RT_ASSERT(curr == trie->m_dummy.m_link.next);
                 return true;
             }
             uint64_t min_age = curr->m_link.verseq;
@@ -3149,20 +3153,19 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         break;
     }
     if (this == trie->m_dummy.m_link.next) {
-        as_atomic(m_flags).store({AcquireDone, true}, std::memory_order_release);
-        /*
         if (cas_strong(trie->m_head_lock, false, true)) {
             if (this == trie->m_dummy.m_link.next) {
                 m_flags.is_head = true;
             }
-            as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
+            cas_unlock(trie->m_head_lock);
         }
-        */
     }
-    // release may leave a dead(ReleaseWait) token at queue head
-    // this dead token should be really deleted by acquire
-    if (terark_unlikely(trie->m_head_is_dead)) {
-        trie->reclaim_head();
+    else {
+        // release may leave a dead(ReleaseWait) token at queue head
+        // this dead token should be really deleted by acquire
+        if (terark_unlikely(trie->m_head_is_dead)) {
+            trie->reclaim_head();
+        }
     }
 }
 
