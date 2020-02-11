@@ -3267,7 +3267,6 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     assert(m_flags.is_head);
     assert(AcquireDone == m_flags.state);
     if (m_link.next) {
-    RingThisToken:
         if (this != trie->m_dummy.m_link.next) {
             // this immediate return is for wait free:
             //  1. update is an advise, not a promise.
@@ -3318,10 +3317,6 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1});
             trie->m_dummy.m_min_age = verseq+1;
             this->m_min_age = verseq+1;
-        }
-        else {
-            RT_ASSERT(NULL != m_link.next);
-            goto RingThisToken;
         }
       #else
         if (cas_weak(trie->m_head_lock, false, true)) {
