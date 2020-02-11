@@ -2861,16 +2861,11 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // this check is required, because prev compare_exchange_weak
             // may spuriously fail(when p->m_link.next is really NULL).
             // --- spuriously fail will never happen on x86
+            // but NULL == t2 may still happen by ABA problem
             auto t2 = p->m_link.next;
-          #if !( defined(__i386__) || defined(__i386) || defined(_M_IX86) || \
-                 defined(__X86__) || defined(_X86_) || \
-                 defined(__THW_INTEL__) || defined(__I86__) || \
-                 defined(__amd64__) || defined(__amd64) || \
-                 defined(__x86_64__) || defined(__x86_64) || defined(_M_X64) \
-               )
             if (NULL == t2)
                 continue;
-          #endif
+            RT_ASSERT_F(verseq < t2->m_link.verseq, "%llu %llu", verseq, t2->m_link.verseq);
             if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq}))
                 continue;
             fprintf(stderr
