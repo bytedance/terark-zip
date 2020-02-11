@@ -3263,7 +3263,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             // be wait free, do nothing
             return;
         }
-        assert(!trie->m_head_is_dead);
+        //assert(!trie->m_head_is_dead); // false positive
     #if 0 // temporary disable sort_cpu
         if (++m_getcpu_cnt % 32 == 0) {
             unsigned cpu = ThisCpuID(); ///< expensive
