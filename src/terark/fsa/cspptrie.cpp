@@ -3267,14 +3267,14 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     assert(m_flags.is_head);
     assert(AcquireDone == m_flags.state);
     if (m_link.next) {
-        if (this != trie->m_dummy.m_link.next) {
-            // this immediate return is for wait free:
-            //  1. update is an advise, not a promise.
-            //  2. to be wait free, just do nothing
-            //  3. let this thread to do useful work(after the return)
-            //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
-            return;
-        }
+        // if (this != trie->m_dummy.m_link.next) {
+        //     // this immediate return is for wait free:
+        //     //  1. update is an advise, not a promise.
+        //     //  2. to be wait free, just do nothing
+        //     //  3. let this thread to do useful work(after the return)
+        //     //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
+        //     return;
+        // }
         if (!cas_weak(trie->m_head_lock, false, true)) {
             // be wait free, do nothing
             return;
