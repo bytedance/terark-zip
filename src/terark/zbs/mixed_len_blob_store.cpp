@@ -2,6 +2,7 @@
 #include "blob_store_file_header.hpp"
 #include <terark/io/FileStream.hpp>
 #include <terark/util/crc.hpp>
+#include <terark/util/throw.hpp>
 #include <terark/thread/fiber_aio.hpp>
 #include <terark/util/mmap.hpp>
 #include <terark/util/checksum_exception.hpp>
@@ -770,8 +771,12 @@ public:
             + offsets_var_len_size
             + align_up(is_fixed_len_size, 16)
             + sizeof(BlobStoreFileFooter);
-        if (FileStream(m_fpath, "rb+").fsize() != file_size - sizeof(BlobStoreFileFooter)) {
-            throw std::logic_error("MixedLenBlobStore::Builder file size mismatch");
+        size_t current_file_size = FileStream(m_fpath, "rb+").fsize();
+        if (current_file_size != file_size - sizeof(BlobStoreFileFooter)) {
+            TERARK_THROW(std::length_error
+                , "MixedLenBlobStore::Builder file size mismatch. size = %zd, should be %zd"
+                , current_file_size, file_size - sizeof(BlobStoreFileFooter)
+            );
         }
         FileStream(m_fpath, "rb+").chsize(file_size);
         MmapWholeFile mmap(m_fpath, true);
