@@ -200,15 +200,13 @@ const {
             uint16_t crc1 = unaligned_load<uint16_t>(pData + m_fixedLenWithoutCRC);
             uint16_t crc2 = Crc16c_update(0, pData, m_fixedLenWithoutCRC);
             if (crc2 != crc1) {
-                throw BadCrc16cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordAppend", crc1, crc2);
+                throw BadCrc16cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         } else {
             uint32_t crc1 = unaligned_load<uint32_t>(pData + m_fixedLenWithoutCRC);
             uint32_t crc2 = Crc32c_update(0, pData, m_fixedLenWithoutCRC);
             if (crc2 != crc1) {
-                throw BadCrc32cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::getFixLenRecordAppend", crc1, crc2);
+                throw BadCrc32cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         }
     }
@@ -235,16 +233,14 @@ const {
             uint16_t crc1 = unaligned_load<uint16_t>(pData + nData);
             uint16_t crc2 = Crc16c_update(0, pData, nData);
             if (crc2 != crc1) {
-                throw BadCrc16cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
+                throw BadCrc16cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         } else {
             nData -= sizeof(uint32_t);
             uint32_t crc1 = unaligned_load<uint32_t>(pData + nData);
             uint32_t crc2 = Crc32c_update(0, pData, nData);
             if (crc2 != crc1) {
-                throw BadCrc32cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::getVarLenRecordAppend", crc1, crc2);
+                throw BadCrc32cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         }
     }
@@ -289,15 +285,13 @@ const {
             uint16_t crc1 = unaligned_load<uint16_t>(pData + fixLenWithoutCRC);
             uint16_t crc2 = Crc16c_update(0, pData, fixLenWithoutCRC);
             if (crc2 != crc1) {
-                throw BadCrc16cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_FixLenRecordAppend", crc1, crc2);
+                throw BadCrc16cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         } else {
             uint32_t crc1 = unaligned_load<uint32_t>(pData + fixLenWithoutCRC);
             uint32_t crc2 = Crc32c_update(0, pData, fixLenWithoutCRC);
             if (crc2 != crc1) {
-                throw BadCrc32cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_FixLenRecordAppend", crc1, crc2);
+                throw BadCrc32cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         }
     }
@@ -325,16 +319,14 @@ const {
             uint16_t crc1 = unaligned_load<uint16_t>(pData + varlen);
             uint16_t crc2 = Crc16c_update(0, pData, varlen);
             if (crc2 != crc1) {
-                throw BadCrc16cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_VarLenRecordAppend", crc1, crc2);
+                throw BadCrc16cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         } else {
             varlen -= sizeof(uint32_t);
             uint32_t crc1 = unaligned_load<uint32_t>(pData + varlen);
             uint32_t crc2 = Crc32c_update(0, pData, varlen);
             if (crc2 != crc1) {
-                throw BadCrc32cException(
-                        "MixedLenBlobStoreTpl<rank_select_t>::fspread_VarLenRecordAppend", crc1, crc2);
+                throw BadCrc32cException(BOOST_CURRENT_FUNCTION, crc1, crc2);
             }
         }
     }
@@ -354,7 +346,7 @@ void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dict
                                                                                            : sizeof(uint32_t))
                                                  : m_fixedLen);
 	m_fixedNum = mmapBase->fixedNum;
-	if (isChecksumVerifyEnabled()) {
+	if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
 		XXHash64 hash(g_dmbsnark_seed);
 		hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
 		const uint64_t hashVal = hash.digest();
@@ -481,7 +473,6 @@ const {
 	OutputBuffer buffer(&adaptBuffer);
 
 	size_t recNum = m_numRecords;
-    TERARK_UNUSED_VAR(recNum);
 	size_t fOffset = 0;
 	size_t vOffset = 0;
 	size_t vCount = 0;
@@ -580,11 +571,15 @@ const {
 		xxhash64.update(newVarLenOffsets.data(), newVarLenOffsets.mem_size());
 		buffer.ensureWrite(newVarLenOffsets.data(), newVarLenOffsets.mem_size());
 
-		newIsFixedLen.build_cache(false, false);
+        if (vCount < recNum) {
+            newIsFixedLen.build_cache(false, false);
 
-		xxhash64.update(newIsFixedLen.data(), newIsFixedLen.mem_size());
-		buffer.ensureWrite(newIsFixedLen.data(), newIsFixedLen.mem_size());
-		PadzeroForAlign<16>(buffer, xxhash64, newIsFixedLen.mem_size());
+            xxhash64.update(newIsFixedLen.data(), newIsFixedLen.mem_size());
+            buffer.ensureWrite(newIsFixedLen.data(), newIsFixedLen.mem_size());
+            PadzeroForAlign<16>(buffer, xxhash64, newIsFixedLen.mem_size());
+        } else {
+            newIsFixedLen.clear();
+        }
 	}
 	else {
 		newIsFixedLen.clear();
@@ -618,6 +613,8 @@ class MixedLenBlobStoreTpl<rank_select_t>::MyBuilder::Impl : boost::noncopyable 
     size_t m_num_records_var_len;
     int m_checksumLevel;
     int m_checksumType;
+    XXHash64 xxhash64;
+    XXHash64 xxhash64_var_len;
 
     static const size_t offset_flush_size = 128;
 public:
@@ -642,7 +639,9 @@ public:
         , m_num_records(0)
         , m_num_records_var_len(0)
         , m_checksumLevel(checksumLevel)
-        , m_checksumType(checksumType) {
+        , m_checksumType(checksumType)
+        , xxhash64(g_dmbsnark_seed)
+        , xxhash64_var_len(g_dmbsnark_seed) {
         assert(offset % 8 == 0);
         if (offset == 0) {
             m_file.open(fpath, "wb");
@@ -668,16 +667,19 @@ public:
     void add_record(fstring rec) {
         if (rec.size() == m_fixed_len_without_crc) {
             m_writer.ensureWrite(rec.data(), rec.size());
+            xxhash64.update(rec.data(), rec.size());
             m_is_fixed_len.push_back(true);
             m_content_size_fixed_len += rec.size();
             if (2 == m_checksumLevel) {
                 if (kCRC16C == m_checksumType) {
                     uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
                     m_writer.ensureWrite(&crc, sizeof(crc));
+                    xxhash64.update(&crc, sizeof(crc));
                     m_content_size_fixed_len += sizeof(crc);
                 } else {
                     uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
                     m_writer.ensureWrite(&crc, sizeof(crc));
+                    xxhash64.update(&crc, sizeof(crc));
                     m_content_size_fixed_len += sizeof(crc);
                 }
             }
@@ -685,16 +687,19 @@ public:
         else {
             m_var_len_offset_builder->push_back(m_content_size_var_len);
             m_writer_var_len.ensureWrite(rec.data(), rec.size());
+            xxhash64_var_len.update(rec.data(), rec.size());
             m_is_fixed_len.push_back(false);
             m_content_size_var_len += rec.size();
             if (2 == m_checksumLevel) {
                 if (kCRC16C == m_checksumType) {
                     uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
                     m_writer_var_len.ensureWrite(&crc, sizeof(crc));
+                    xxhash64_var_len.update(&crc, sizeof(crc));
                     m_content_size_var_len += sizeof(crc);
                 } else {
                     uint32_t crc = Crc32c_update(0, rec.data(), rec.size());
                     m_writer_var_len.ensureWrite(&crc, sizeof(crc));
+                    xxhash64_var_len.update(&crc, sizeof(crc));
                     m_content_size_var_len += sizeof(crc);
                 }
             }
@@ -765,10 +770,23 @@ public:
             + offsets_var_len_size
             + align_up(is_fixed_len_size, 16)
             + sizeof(BlobStoreFileFooter);
-        assert(FileStream(m_fpath, "rb+").fsize() == file_size - sizeof(BlobStoreFileFooter));
+        if (FileStream(m_fpath, "rb+").fsize() != file_size - sizeof(BlobStoreFileFooter)) {
+            throw std::logic_error("MixedLenBlobStore::Builder file size mismatch");
+        }
         FileStream(m_fpath, "rb+").chsize(file_size);
         MmapWholeFile mmap(m_fpath, true);
         fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
+
+        if (xxhash64.digest() !=
+            XXHash64(g_dmbsnark_seed).update(mem.substr(sizeof(FileHeader), m_content_size_fixed_len)).digest()) {
+            throw std::logic_error("MixedLenBlobStore::Builder fixed len checksum mismatch");
+        }
+        if (xxhash64_var_len.digest() !=
+            XXHash64(g_dmbsnark_seed).update(mem.substr(sizeof(FileHeader) + align_up(m_content_size_fixed_len, 16),
+                                                        m_content_size_var_len)).digest()) {
+            throw std::logic_error("MixedLenBlobStore::Builder var len checksum mismatch");
+        }
+
         FileHeader& header = *(FileHeader*)mem.data();
         header = FileHeader();
 
@@ -789,11 +807,9 @@ public:
         header.checksumLevel = static_cast<uint8_t>(m_checksumLevel);
         header.checksumType = static_cast<uint8_t>(m_checksumType);
 
-        XXHash64 xxhash64(g_dmbsnark_seed);
-        xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
-
         BlobStoreFileFooter footer;
-        footer.fileXXHash = xxhash64.digest();
+        footer.fileXXHash =
+            XXHash64(g_dmbsnark_seed).update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter)).digest();
         ((BlobStoreFileFooter*)(mem.data() + mem.size()))[-1] = footer;
     }
 };
