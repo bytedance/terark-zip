@@ -1,6 +1,9 @@
 //#ifndef INDEX_UT
 //#include "db/builder.h" // for cf_options.h
 //#endif
+#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+#endif
 
 #include "terark_zip_index.hpp"
 #include <typeindex>
