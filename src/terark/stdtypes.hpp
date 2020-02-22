@@ -175,6 +175,16 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #define CURRENT_SRC_CODE_POSTION  \
 	__FILE__ ":" BOOST_STRINGIZE(__LINE__) ", in function: " BOOST_CURRENT_FUNCTION
 
+/// VERIFY indicate runtime assert in release build
+#define TERARK_VERIFY_F_IMP(expr, fmt, ...) \
+    do { if (terark_unlikely(!(expr))) { \
+        fprintf(stderr, "%s:%d: %s: verify(%s) failed" fmt " !\n", \
+                __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #expr, ##__VA_ARGS__); \
+        abort(); }} while (0)
+
+#define TERARK_VERIFY_F(expr, fmt, ...) \
+        TERARK_VERIFY_F_IMP(expr, ": " fmt, ##__VA_ARGS__)
+
 #if defined(_DEBUG) || defined(DEBUG) || !defined(NDEBUG)
 #	define DEBUG_only(S) S
 #	define DEBUG_perror		perror
@@ -183,6 +193,8 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #	define DEBUG_fflush		fflush
 #	define TERARK_IF_DEBUG(Then, Else)  Then
 #	define TERARK_RT_assert(exp, ExceptionT)  assert(exp)
+#	define TERARK_ASSERT_F TERARK_VERIFY_F
+#	define TERARK_VERIFY assert
 #else
 #	define DEBUG_only(S)
 #	define DEBUG_perror(Msg)
@@ -198,6 +210,8 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 			<< BOOST_CURRENT_FUNCTION; \
 		throw ExceptionT(oss.str().c_str()); \
 	}
+#	define TERARK_ASSERT_F(...)
+#	define TERARK_VERIFY(expr) TERARK_VERIFY_F_IMP(expr, "")
 #endif
 
 } // namespace terark

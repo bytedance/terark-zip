@@ -54,25 +54,6 @@ inline void cas_unlock(bool& lock) {
     as_atomic(lock).store(false, std::memory_order_release);
 }
 
-#define RT_ASSERT_F(expr, fmt, ...) \
-    do { if (terark_unlikely(!(expr))) { \
-        fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed: " fmt " !\n", \
-                __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #expr, ##__VA_ARGS__); \
-        abort(); }} while (0)
-
-#if defined(NDEBUG)
-static void rt_assert_fail(const char* file, int line, const char* func, const char* expr) {
-    fprintf(stderr, "%s:%d: %s: RT_ASSERT(%s) failed.\n", file, line, func, expr);
-    abort();
-}
-  #define RT_ASSERT(...) terark_likely(__VA_ARGS__) ? (void)0 : \
-    rt_assert_fail(__FILE__, __LINE__, BOOST_CURRENT_FUNCTION, #__VA_ARGS__)
-  #define assertf(...)
-#else
-  #define RT_ASSERT assert
-  #define assertf RT_ASSERT_F
-#endif
-
 inline static uint64_t ThisThreadID() {
     BOOST_STATIC_ASSERT(sizeof(std::thread::id) == sizeof(uint64_t));
     auto id = std::this_thread::get_id();
@@ -245,10 +226,10 @@ template<size_t Align>
 void PatriciaMem<Align>::
 ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
     switch (token->m_flags.state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-    case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
+    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+    case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
     case ReleaseWait: break; // OK
     case ReleaseDone: break; // OK
     }
@@ -268,10 +249,10 @@ Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
             []{ return new ReaderTokenTLS_Object; });
     }
     switch (tok->m_flags.state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-    case AcquireDone: RT_ASSERT(ThisThreadID() == tok->m_thread_id); break;
+    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+    case AcquireDone: TERARK_VERIFY(ThisThreadID() == tok->m_thread_id); break;
     case ReleaseWait: // OK
     case ReleaseDone: // OK
         tok->acquire(this);
@@ -348,10 +329,10 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
     {
         TokenFlags flags = m_reader_token->m_flags;
         switch (flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
         case ReleaseDone: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -359,10 +340,10 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
     if (m_writer_token) {
         TokenFlags flags = m_writer_token->m_flags;
         switch (flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
         case ReleaseDone: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -453,7 +434,7 @@ void PatriciaMem<Align>::set_readonly() {
 
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
-default: RT_ASSERT(!"Unknown == conLevel"); break;
+default: TERARK_VERIFY(!"Unknown == conLevel"); break;
 case NoWriteReadOnly    : m_insert = (insert_func_t)&MainPatricia::insert_readonly_throw;                 break;
 case SingleThreadStrict : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadStrict>; break;
 case SingleThreadShared : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadShared>; break;
@@ -741,10 +722,10 @@ void PatriciaMem<Align>::destroy() {
     for(TokenBase* curr = m_dummy.m_link.next; curr; ) {
         TokenBase* next = curr->m_link.next;
         switch (curr->m_flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
         case DisposeWait: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -920,7 +901,7 @@ struct MainPatricia::NodeInfo {
         assert(skip <= 10);
         n_skip = skip;
         n_children = cnt_type <= 6 ? cnt_type : p->big.n_children;
-        RT_ASSERT(n_children <= 256);
+        assert(n_children <= 256);
         zp_offset = sizeof(PatriciaNode) * (skip + n_children);
         va_offset = zp_offset + pow2_align_up(zlen, AlignSize);
         node_size = va_offset + valsize;
@@ -1282,7 +1263,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: RT_ASSERT(!"Invalid == cnt_type"); break;
+    default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -1580,7 +1561,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     assert(token->m_min_age <= token->m_link.verseq);
     assert(token->m_min_age <= m_token_tail->m_link.verseq);
     assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
-    assertf(token->m_link.verseq >= m_dummy.m_min_age, "%lld %lld",
+    TERARK_ASSERT_F(token->m_link.verseq >= m_dummy.m_min_age, "%lld %lld",
             llong(token->m_link.verseq), llong(m_dummy.m_min_age));
     LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
@@ -1812,7 +1793,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: RT_ASSERT(!"Invalid == cnt_type"); break;
+    default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -1905,7 +1886,7 @@ assert(pos < key.size());
     }
     if (15 != a[curr].meta.n_cnt_type) {
         assert(ni.n_skip <= 10);
-        RT_ASSERT(ni.n_children <= 256);
+        assert(ni.n_children <= 256);
         cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
         size_t newCurr = add_state_move<MultiWriteMultiRead>(curr, ch, suffix_node, valsize, lzf);
         if (size_t(-1) == newCurr) {
@@ -1973,7 +1954,7 @@ ForkBranch: {
         return true;
     }
     assert(ni.n_skip <= 10);
-    RT_ASSERT(ni.n_children <= 256);
+    assert(ni.n_children <= 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     TERARK_IF_DEBUG(cpfore(bkskip, &a[curr], ni.n_skip),);
     size_t newCurr = fork<MultiWriteMultiRead>(curr, zidx, &ni, key[pos], newSuffixNode, lzf);
@@ -2016,7 +1997,7 @@ SplitZpath: {
     lzf->m_stat.n_split += 1;
     revoke_expired_nodes<MultiWriteMultiRead>(*lzf, token);
     assert(ni.n_skip <= 10);
-    RT_ASSERT(ni.n_children <= 256);
+    assert(ni.n_children <= 256);
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     size_t valpos = size_t(-1);
     size_t newCurr = split_zpath<MultiWriteMultiRead>(curr, zidx, &ni, &valpos, valsize, lzf);
@@ -2281,7 +2262,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             a[node].big.n_children = n_children + 1;
         break; }
     case 15: // direct update curr_slot later
-        RT_ASSERT(!"15 == cnt_type");
+        TERARK_VERIFY(!"15 == cnt_type");
         break;
     }
 #if !defined(NDEBUG)
@@ -2380,7 +2361,7 @@ static long g_lazy_free_debug_level =
             //         //// Expensive to read m_dummy.m_min_age
             //         uint64_t new_min_age = m_dummy.m_min_age;
             //         if (new_min_age != min_age) {
-            //             RT_ASSERT(min_age < new_min_age);
+            //             TERARK_VERIFY(min_age < new_min_age);
             //             token->m_min_age = new_min_age;
             //             min_age = new_min_age;
             //             goto RetryCurr;
@@ -2785,23 +2766,23 @@ Patricia::TokenBase::TokenBase() {
 //  m_min_age_updated = false;
 }
 Patricia::TokenBase::~TokenBase() {
-    RT_ASSERT(m_flags.state == DisposeDone);
+    TERARK_VERIFY(m_flags.state == DisposeDone);
 }
 
 void Patricia::TokenBase::dispose() {
   #if 0
     if (AcquireDone == m_flags.state) {
-        RT_ASSERT(ThisThreadID() == m_thread_id);
+        TERARK_VERIFY(ThisThreadID() == m_thread_id);
         release(); // auto release on dispose
     }
   #endif
     switch (m_flags.state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-    case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+    case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
     case ReleaseDone:
-        RT_ASSERT(NULL == m_trie || this != static_cast<MainPatricia*>(m_trie)->m_token_tail);
+        TERARK_VERIFY(NULL == m_trie || this != static_cast<MainPatricia*>(m_trie)->m_token_tail);
         m_flags.state = DisposeDone;
         delete this; // safe to delete
         break;
@@ -2828,7 +2809,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
           #if 0
             // ABA may happen between load.1 and load.2 (by context switch)
             // then t.verseq != verseq, thus this assert is false positive
-            assertf(t.verseq == verseq
+            TERARK_ASSERT_F(t.verseq == verseq
                  , "t.verseq = %llu, verseq = %llu"
                  , llong(t.verseq), llong(verseq));
           #endif
@@ -2853,7 +2834,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         }
         else {
             // bad assert, others may help me set tail as me
-            // RT_ASSERT(this != p->m_link.next);
+            // TERARK_VERIFY(this != p->m_link.next);
             //
             // at this time, other thread may modified p->m_link, then
             // suspended, thus m_tail is keep unchanged, so let us
@@ -2866,9 +2847,9 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             auto t2 = p->m_link.next;
             if (NULL == t2)
                 continue;
-            RT_ASSERT_F(verseq < t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
+            TERARK_VERIFY_F(verseq < t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
             if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq})) {
-                RT_ASSERT_F(verseq+1 == t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
+                TERARK_VERIFY_F(verseq+1 == t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
                 continue;
             }
             fprintf(stderr
@@ -2904,15 +2885,15 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         // this assert may be false positive
         // now we let is_head = true always in head lock
         // so restore the assert
-        RT_ASSERT(!flags.is_head);
+        TERARK_VERIFY(!flags.is_head);
 
         switch (flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
         case AcquireDone: {
             // if (terark_unlikely(flags.is_head)) {
-            //     RT_ASSERT(curr == trie->m_dummy.m_link.next);
+            //     TERARK_VERIFY(curr == trie->m_dummy.m_link.next);
             //     return true;
             // }
             uint64_t min_age = curr->m_link.verseq;
@@ -2935,7 +2916,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             }
             else {
                 // curr's thread call release/dispose
-                RT_ASSERT(ReleaseWait == flags.state ||
+                TERARK_VERIFY(ReleaseWait == flags.state ||
                           DisposeWait == flags.state);
                 continue; // try 'curr' in next iteration
             }
@@ -2953,8 +2934,8 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 else {
                     // curr is not changed, try loop again
                     // will transit to AcquireDone or DisposeWait
-                    RT_ASSERT(!curr->m_flags.is_head);
-                    RT_ASSERT(curr->m_flags.state == AcquireDone ||
+                    TERARK_VERIFY(!curr->m_flags.is_head);
+                    TERARK_VERIFY(curr->m_flags.state == AcquireDone ||
                               curr->m_flags.state == DisposeWait);
                 }
             }
@@ -2995,7 +2976,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     };
     valvec<Cpu> cpu_vec(256, valvec_reserve());
     TokenBase* oldtail = trie->m_token_tail;
-    RT_ASSERT(this != oldtail);
+    TERARK_VERIFY(this != oldtail);
     {
         TokenBase* curr = this;
         do {
@@ -3004,7 +2985,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             curr = curr->m_link.next;
         } while (curr != oldtail);
         cpu_vec.push_back({oldtail->m_cpu, oldtail->m_acqseq, oldtail});
-        RT_ASSERT(cpu_vec.size() >= 2);
+        TERARK_VERIFY(cpu_vec.size() >= 2);
 
         uint64_t min_max_age = m_link.next->m_link.verseq;
         uint64_t new_max_age = oldtail->m_link.verseq;
@@ -3051,7 +3032,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     }
     TokenBase* sorted_tail = cpu_vec.back().token;
     if (sorted_tail != oldtail) {
-        RT_ASSERT(NULL != oldtail_sorted_next);
+        TERARK_VERIFY(NULL != oldtail_sorted_next);
         while (true) {
             TokenBase* oldtail_next = oldtail->m_link.next;
             sorted_tail->m_link.next = oldtail_next; // may be not NULL
@@ -3073,7 +3054,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         }
     }
     else {
-        RT_ASSERT(NULL == oldtail_sorted_next);
+        TERARK_VERIFY(NULL == oldtail_sorted_next);
     }
     trie->m_num_cpu_migrated = 0;
 
@@ -3083,14 +3064,14 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
 
     TokenBase* curr = cpu_vec[0].token;
     while (this != curr) {
-        RT_ASSERT(curr != trie->m_token_tail);
+        TERARK_VERIFY(curr != trie->m_token_tail);
         TokenBase* next = curr->m_link.next;
         TokenFlags flags = curr->m_flags;
-        RT_ASSERT(!flags.is_head);
+        TERARK_VERIFY(!flags.is_head);
         switch (flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
         case AcquireDone:
             trie->m_dummy.m_link.next = curr;
             this->m_flags.is_head = false;
@@ -3099,7 +3080,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             }
             else {
                 this->m_flags.is_head = true; // restore
-                RT_ASSERT(ReleaseWait == flags.state ||
+                TERARK_VERIFY(ReleaseWait == flags.state ||
                           DisposeWait == flags.state);
                 continue; // still try curr in next iteration
             }
@@ -3121,7 +3102,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
                 break;
             }
             else {
-                RT_ASSERT(AcquireDone == flags.state ||
+                TERARK_VERIFY(AcquireDone == flags.state ||
                           DisposeWait == flags.state);
                 continue; // still try curr in next iteration
             }
@@ -3129,8 +3110,8 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
     }
     // 'this' is still head
     trie->m_dummy.m_link.next = this;
-    RT_ASSERT(this->m_flags.is_head);
-    RT_ASSERT(AcquireDone == this->m_flags.state);
+    TERARK_VERIFY(this->m_flags.is_head);
+    TERARK_VERIFY(AcquireDone == this->m_flags.state);
   #endif
 }
 
@@ -3139,10 +3120,10 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto flags = m_flags;
     switch (flags.state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-    case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-    case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-    case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+    case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
     case ReleaseDone:
         m_flags = {AcquireDone, false};
         //m_acqseq is for sort_cpu()
@@ -3173,8 +3154,8 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
                 // we are unlocked by other threads
                 // they can only make me ReleaseWait -> ReleaseDone
                 // should be very unlikely
-                RT_ASSERT(ReleaseDone == flags.state); // check compiler bug
-                RT_ASSERT(ReleaseDone == m_flags.state);
+                TERARK_VERIFY(ReleaseDone == flags.state); // check compiler bug
+                TERARK_VERIFY(ReleaseDone == m_flags.state);
             }
             goto Retry;
         }
@@ -3200,7 +3181,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
 void Patricia::TokenBase::mt_release(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto flags = m_flags;
-    RT_ASSERT_F(AcquireDone == flags.state, "(%d %d)", flags.state, flags.is_head);
+    TERARK_VERIFY_F(AcquireDone == flags.state, "(%d %d)", flags.state, flags.is_head);
     if (flags.is_head) {
     ThisIsQueueHead:
         //may be false positive, this assert should be moved to later
@@ -3253,9 +3234,9 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         else {
             // old head set me as new head
             flags = m_flags;
-            RT_ASSERT_F(AcquireDone == flags.state && flags.is_head,
+            TERARK_VERIFY_F(AcquireDone == flags.state && flags.is_head,
                         "(%d %d)", flags.state, flags.is_head);
-            //RT_ASSERT(this == trie->m_dummy.m_link.next); // false positive
+            //TERARK_VERIFY(this == trie->m_dummy.m_link.next); // false positive
             goto ThisIsQueueHead;
         }
     }
@@ -3304,7 +3285,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         m_flags.is_head = false;
         enqueue(trie);
         assert(this == trie->m_dummy.m_link.next);
-        RT_ASSERT(new_head->dequeue(trie)); // at least, I'm alive
+        TERARK_VERIFY(new_head->dequeue(trie)); // at least, I'm alive
         //m_min_age = trie->m_dummy.m_min_age; // do not update
         // unlock
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
@@ -3353,9 +3334,9 @@ void PatriciaMem<Align>::reclaim_head() {
         TokenBase* next = head->m_link.next;
         auto flags = head->m_flags;
         switch (flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
             if (NULL != next) { // head is not equal to tail
                 // when next is NULL, head is likely being m_token_tail
@@ -3408,21 +3389,21 @@ void Patricia::TokenBase::update() {
             mt_update(trie);
         }
         else if (terark_unlikely(trie->m_head_is_dead)) {
-            RT_ASSERT(AcquireDone == m_flags.state);
+            TERARK_VERIFY(AcquireDone == m_flags.state);
             trie->reclaim_head();
         }
-        else { // this is frequent branch, do not use RT_ASSERT
+        else { // this is frequent branch, do not use TERARK_VERIFY
             assert(AcquireDone == m_flags.state);
         }
     }
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: TERARK_VERIFY(!"ReleaseWait == m_flags.state"); break;
+        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_link = {NULL, 0};
             m_tls = NULL;
@@ -3450,11 +3431,11 @@ void Patricia::TokenBase::release() {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: RT_ASSERT(!"ReleaseDone == m_flags.state"); break;
-        case ReleaseWait: RT_ASSERT(!"ReleaseWait == m_flags.state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: TERARK_VERIFY(!"ReleaseWait == m_flags.state"); break;
+        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_flags.state = ReleaseDone;
             m_link = {NULL, 0};
@@ -3473,7 +3454,7 @@ void Patricia::TokenBase::release() {
 
 void Patricia::TokenBase::gc(Patricia* trie1) {
     switch (m_flags.state) {
-    default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
+    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
     case ReleaseDone: break;
     case ReleaseWait: break;
     case AcquireDone:
@@ -3506,10 +3487,10 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_flags.state) {
-        default:          RT_ASSERT(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: RT_ASSERT(!"AcquireDone == m_flags.state"); break;
-        case DisposeWait: RT_ASSERT(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: RT_ASSERT(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
+        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
         case ReleaseWait:
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
@@ -3529,7 +3510,7 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
 }
 
 Patricia::ReaderToken::~ReaderToken() {
-    RT_ASSERT(DisposeDone == m_flags.state);
+    TERARK_VERIFY(DisposeDone == m_flags.state);
 }
 
 ///////////////////////////////////////////////////////////////////////
@@ -3561,7 +3542,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     assert(NoWriteReadOnly != conLevel);
   #if !defined(NDEBUG)
     auto flags = m_flags; // must load
-    assertf(ReleaseDone == flags.state || ReleaseWait == flags.state,
+    TERARK_ASSERT_F(ReleaseDone == flags.state || ReleaseWait == flags.state,
             "m_flags.state = %d", flags.state);
   #endif
     m_thread_id = ThisThreadID();
@@ -3587,7 +3568,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
 }
 
 Patricia::WriterToken::~WriterToken() {
-    RT_ASSERT(DisposeDone == m_flags.state);
+    TERARK_VERIFY(DisposeDone == m_flags.state);
 }
 
 bool Patricia::ReaderToken::lookup(fstring key) {
@@ -3681,7 +3662,7 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
                 }
             }
         }
-        RT_ASSERT(!"cnt_type == 8, must found ch");
+        TERARK_VERIFY(!"cnt_type == 8, must found ch");
         break;
     case 15:
         assert(256 == p->big.n_children);
@@ -3916,7 +3897,7 @@ MainPatricia::IterImpl::IterImpl(const Patricia* sub)
 }
 
 MainPatricia::IterImpl::~IterImpl() {
-    RT_ASSERT(DisposeDone == m_flags.state);
+    TERARK_VERIFY(DisposeDone == m_flags.state);
 }
 
 // after calling this function, this->update() will not re-search iter
@@ -4094,7 +4075,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         assert(ch <= 255);
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
-        default: RT_ASSERT(!"Invalid == cnt_type"); break;
+        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
         case 0:
             assert(p->meta.b_is_final);
             assert(calc_word_len() == m_word.size());
@@ -4340,7 +4321,7 @@ seek_lower_bound_fast:
   #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
         switch (cnt_type) {
-        default: RT_ASSERT(!"Invalid == cnt_type"); break;
+        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
         case 0:
             assert(p->meta.b_is_final);
             goto RewindStackForNext;
@@ -4536,8 +4517,8 @@ rewind_stack_for_next:
             byte_t* pch = &m_word.back();
             assert (p->meta.n_zpath_len == top.zpath_len);
             switch (cnt_type) {
-            default: RT_ASSERT(!"Invalid == cnt_type"); break;
-            case 0:  RT_ASSERT(p->meta.b_is_final); break;
+            default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+            case 0:  TERARK_VERIFY(p->meta.b_is_final); break;
             case 1:
                 assert(0 == nth);
                 assert(1 == top.n_children);
@@ -4666,8 +4647,8 @@ bool MainPatricia::IterImpl::incr() {
         size_t  nth_child = m_iter[top].nth_child;
         assert (nth_child < m_iter[top].n_children);
         switch (cnt_type) {
-        default: RT_ASSERT(!"Invalid == cnt_type"); break;
-        case 0:  RT_ASSERT(!"0 == cnt_type"); break;
+        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+        case 0:  TERARK_VERIFY(!"0 == cnt_type"); break;
         case 1:
             assert(nth_child < 1);
             assert(m_iter[top].n_children == 1);
@@ -4784,12 +4765,12 @@ bool MainPatricia::IterImpl::decr() {
     size_t  cnt_type = p->meta.n_cnt_type;
     size_t  nth_child = m_iter[top].nth_child;
     switch (cnt_type) {
-    default: RT_ASSERT(!"Invalid == cnt_type"); break;
+    default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
     case 0:
     case 1:
         assert(nth_child < cnt_type);
         assert(m_iter[top].n_children == cnt_type);
-        RT_ASSERT(!"cnt_type must not be {0,1}"); break;
+        TERARK_VERIFY(!"cnt_type must not be {0,1}"); break;
         break;
     case 2:
         assert(nth_child < 2);
@@ -4912,8 +4893,8 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
       //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const auto ch = (byte_t)key[pos];
         switch (cnt_type) {
-        default: RT_ASSERT(!"Invalid == cnt_type"); break;
-        case 0:  RT_ASSERT(!"0 == cnt_type"); break;
+        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+        case 0:  TERARK_VERIFY(!"0 == cnt_type"); break;
         case 2: if (ch == p->meta.c_label[1]) { match_nth_char(1, 1); } no_break_fallthrough;
         case 1: if (ch == p->meta.c_label[0]) { match_nth_char(1, 0); }
                 goto RestoreLastMatch;
@@ -5020,7 +5001,7 @@ Patricia::Iterator::Iterator(Patricia* trie)
 }
 
 Patricia::Iterator::~Iterator() {
-    RT_ASSERT(DisposeDone == m_flags.state);
+    TERARK_VERIFY(DisposeDone == m_flags.state);
 }
 
 void Patricia::Iterator::dispose() {
