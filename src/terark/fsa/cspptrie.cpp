@@ -2115,7 +2115,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         a[node].meta.n_cnt_type = new_cnt_type;
         uint32_t* oldchilds = &a[curr + oldskip].child;
         uint32_t* newchilds = &a[node + newskip].child;
-#if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
+      #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
         size_t idx; // use linear search
         if (oldnum > 0 && ch < newlabels[oldnum-1]) {
             idx = size_t(-1);
@@ -2125,9 +2125,9 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             assert(0 == oldnum || ch > newlabels[oldnum-1]);
             idx = oldnum;
         }
-#else
+      #else
         size_t idx = lower_bound_0(newlabels, oldnum, ch);
-#endif
+      #endif
         cpfore(newchilds, oldchilds, idx);
         newchilds[idx] = suffix_node;
         cpfore(newchilds + idx + 1, oldchilds + idx, oldnum-idx);
@@ -2136,13 +2136,13 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         small_memcpy_align_4(newchilds + oldnum + 1,
                              oldchilds + oldnum, aligned_valzplen);
     };
-#define my_alloc_node(BaseUnits) \
+  #define my_alloc_node(BaseUnits) \
     node = alloc_node<ConLevel>(AlignSize*(BaseUnits) + aligned_valzplen, tls); \
     if (ConLevel >= OneWriteMultiRead && mem_alloc_fail == node)           \
         return size_t(-1);                                                 \
     if (ConLevel < OneWriteMultiRead)                                      \
         a = reinterpret_cast<PatriciaNode*>(m_mempool.data())
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     switch (cnt_type) {
     default:
         assert(false);
@@ -2271,35 +2271,35 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         TERARK_VERIFY(!"15 == cnt_type");
         break;
     }
-#if !defined(NDEBUG)
-if (ConLevel != MultiWriteMultiRead)
-{
-    size_t suf2 = state_move(node, ch);
-    assert(suf2 == suffix_node);
-    if (15 != a[node].meta.n_cnt_type) {
-        assert(num_children(node) == num_children(curr)+1);
+  #if !defined(NDEBUG)
+    if (ConLevel != MultiWriteMultiRead)
+    {
+        size_t suf2 = state_move(node, ch);
+        assert(suf2 == suffix_node);
+        if (15 != a[node].meta.n_cnt_type) {
+            assert(num_children(node) == num_children(curr)+1);
+        }
+        assert(a[node].meta.n_cnt_type  == a[node].meta.n_cnt_type );
+        assert(a[node].meta.b_is_final  == a[node].meta.b_is_final );
+        assert(a[node].meta.n_zpath_len == a[node].meta.n_zpath_len);
+        if (a[node].meta.n_zpath_len) {
+            assert(get_zpath_data(node) == get_zpath_data(curr));
+        }
+      #if 1 // deep debug
+        for(size_t cc = 0; cc < ch; ++cc) {
+            size_t t1 = state_move(curr, cc);
+            size_t t2 = state_move(node, cc);
+            assert(t1 == t2);
+        }
+        for(size_t cc = ch+1; cc < 256; ++cc) {
+            size_t t1 = state_move(curr, cc);
+            size_t t2 = state_move(node, cc);
+            assert(t1 == t2);
+        }
+        for_each_move(node, [](size_t child, size_t ch) {});
+      #endif
     }
-    assert(a[node].meta.n_cnt_type  == a[node].meta.n_cnt_type );
-    assert(a[node].meta.b_is_final  == a[node].meta.b_is_final );
-    assert(a[node].meta.n_zpath_len == a[node].meta.n_zpath_len);
-    if (a[node].meta.n_zpath_len) {
-        assert(get_zpath_data(node) == get_zpath_data(curr));
-    }
-  #if 1 // deep debug
-    for(size_t cc = 0; cc < ch; ++cc) {
-        size_t t1 = state_move(curr, cc);
-        size_t t2 = state_move(node, cc);
-        assert(t1 == t2);
-    }
-    for(size_t cc = ch+1; cc < 256; ++cc) {
-        size_t t1 = state_move(curr, cc);
-        size_t t2 = state_move(node, cc);
-        assert(t1 == t2);
-    }
-    for_each_move(node, [](size_t child, size_t ch) {});
   #endif
-}
-#endif
     return node;
 }
 
@@ -2342,9 +2342,9 @@ static long g_lazy_free_debug_level =
 
     if (g_lazy_free_debug_level > 1)
         print("A");
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     //auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
-#endif
+  #endif
     auto tls = static_cast<LazyFreeListTLS*>(&lazy_free_list);
     size_t n = std::min(lazy_free_list.size(), BULK_FREE_NUM);
     for (size_t i = 0; i < n; ++i) {
@@ -2382,7 +2382,7 @@ static long g_lazy_free_debug_level =
 }
 
 bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
-#if !defined(NDEBUG)
+  #if !defined(NDEBUG)
     if (m_writing_concurrent_level >= SingleThreadShared) {
         assert(NULL == mmap_base || -1 != m_fd);
         assert(NULL != m_dummy.m_link.next);
@@ -2390,18 +2390,18 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
         assert(token->m_link.verseq >= m_dummy.m_min_age);
     }
     assert(this == token->m_trie);
-#endif
+  #endif
 
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
     size_t curr = initial_state;
     size_t pos = 0;
 
-//#define PatriciaTrie_lookup_readable
-#if defined(PatriciaTrie_lookup_readable)
+  // #define PatriciaTrie_lookup_readable
+  #if defined(PatriciaTrie_lookup_readable)
     #define loop_condition nil_state != curr
-#else
+  #else
     #define loop_condition
-#endif
+  #endif
     for (; loop_condition; pos++) {
         auto p = a + curr;
         size_t zlen = p->meta.n_zpath_len;
@@ -2441,14 +2441,14 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
             }
         }
         byte_t ch = key.p[pos];
-#if defined(PatriciaTrie_lookup_readable)
+  #if defined(PatriciaTrie_lookup_readable)
         curr = state_move_fast(curr, ch, a);
-#else
+  #else
     // manually inline, faster
-//#define PatriciaTrie_lookup_speculative
-  #if defined(PatriciaTrie_lookup_speculative)
+  //#define PatriciaTrie_lookup_speculative
+   #if defined(PatriciaTrie_lookup_speculative)
      #define  maybe_prefetch  prefetch
-//   #define  maybe_prefetch(x)
+  // #define  maybe_prefetch(x)
         switch (cnt_type) {
         default: assert(false);              goto Fail;
         case 0:  assert(p->meta.b_is_final); goto Fail;
@@ -2515,7 +2515,7 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
             else
                 goto Fail;
         }
-  #else // !PatriciaTrie_lookup_speculative
+   #else // !PatriciaTrie_lookup_speculative
     #define fail_return  goto Fail
     #define move_to(next) { curr = next; break; }
     #define break_if_match_ch(skip, idx) \
@@ -2531,7 +2531,7 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
         case 2: break_if_match_ch(1, 1); no_break_fallthrough;
         case 1: break_if_match_ch(1, 0); fail_return;
 
-#if defined(__SSE4_2__) && !defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
+      #if defined(__SSE4_2__) && !defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
         case 6: case 5: case 4:
             {
                 auto label = p->meta.c_label;
@@ -2540,11 +2540,11 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
                     move_to(p[2 + idx].child);
             }
             fail_return;
-#else
+      #else
         case 6: break_if_match_ch(2, 5); no_break_fallthrough;
         case 5: break_if_match_ch(2, 4); no_break_fallthrough;
         case 4: break_if_match_ch(2, 3); no_break_fallthrough;
-#endif
+      #endif
         case 3: break_if_match_ch(2, 2);
                 break_if_match_ch(2, 1);
                 break_if_match_ch(2, 0);
@@ -2555,18 +2555,18 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
                 assert(n_children >=  7);
                 assert(n_children <= 16);
                 auto label = p->meta.c_label + 2; // do not use [0,1]
-#if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
+              #if defined(TERARK_PATRICIA_LINEAR_SEARCH_SMALL)
                 if (ch <= label[n_children-1]) {
                     size_t idx = size_t(-1);
                     do idx++; while (label[idx] < ch);
                     if (label[idx] == ch)
                         move_to(p[1 + 4 + idx].child);
                 }
-#else
+              #else
                 size_t idx = fast_search_byte_max_16(label, n_children, ch);
                 if (idx < n_children)
                     move_to(p[1 + 4 + idx].child);
-#endif
+              #endif
             }
             fail_return;
         case 8: // cnt >= 17
@@ -2585,10 +2585,10 @@ bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
             break;
         }
     #undef break_if_match_ch
-  #endif // PatriciaTrie_lookup_speculative
-#endif
+   #endif // PatriciaTrie_lookup_speculative
+  #endif
     }
-Fail:
+  Fail:
     assert(pos < key.size());
     token->m_value = NULL;
     return false;
