@@ -86,5 +86,6 @@ int main(int argc, char* argv[]) {
     }
     test_nlt(strVec);
     test_patricia(strVec);
+    printf("%s: all tests passed!\n\n", argv[0]);
     return 0;
 }
