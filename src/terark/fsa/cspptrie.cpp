@@ -54,10 +54,10 @@ inline void cas_unlock(bool& lock) {
     as_atomic(lock).store(false, std::memory_order_release);
 }
 
-inline static uint64_t ThisThreadID() {
-    BOOST_STATIC_ASSERT(sizeof(std::thread::id) == sizeof(uint64_t));
+inline static size_t ThisThreadID() {
+    BOOST_STATIC_ASSERT(sizeof(std::thread::id) == sizeof(size_t));
     auto id = std::this_thread::get_id();
-    return (uint64_t&)id;
+    return (size_t&)id;
 }
 
 inline static unsigned ThisCpuID() {
@@ -1551,14 +1551,6 @@ MarkFinalStateOmitSetNodeInfo:
 }
 }
 
-static std::string fuck_thread_id_func() {
-    using namespace std;
-    std::ostringstream oss;
-    oss << setfill('0') << setw(8) << std::this_thread::get_id();
-    return oss.str();
-}
-#define thread_id_str fuck_thread_id_func().c_str()
-
 bool
 MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) {
     constexpr auto ConLevel = MultiWriteMultiRead;
@@ -1670,30 +1662,30 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         if (debugConcurrent >= 3) {
             if (a[parent].meta.b_lazy_free) {
                 fprintf(stderr,
-                        "thread-%s: line: %d, age = %zd, min_age = %zd, retry%5zd, "
+                        "thread-%08zX: line: %d, age = %zd, min_age = %zd, retry%5zd, "
                         "a[parent = %zd].b_lazy_free == true: key: %.*s\n",
-                        thread_id_str, lineno, age, min_age, n_retry,
+                        ThisThreadID(), lineno, age, min_age, n_retry,
                         parent, key.ilen(), key.data());
             }
             if (a[curr].meta.b_lock) {
                 fprintf(stderr,
-                        "thread-%s: line: %d, age = %zd, min_age = %zd, retry%5zd, "
+                        "thread-%08zX: line: %d, age = %zd, min_age = %zd, retry%5zd, "
                         "a[curr = %zd].b_lock == true: key: %.*s\n",
-                        thread_id_str, lineno, age, min_age, n_retry,
+                        ThisThreadID(), lineno, age, min_age, n_retry,
                         curr, key.ilen(), key.data());
             }
             if (a[curr_slot].child != curr) {
                 fprintf(stderr,
-                        "thread-%s: line: %d, age = %zd, min_age = %zd, retry%5zd, "
+                        "thread-%08zX: line: %d, age = %zd, min_age = %zd, retry%5zd, "
                         "(a[curr_slot = %zd] = %zd) != (curr = %zd): key: %.*s\n",
-                        thread_id_str, lineno, age, min_age, n_retry,
+                        ThisThreadID(), lineno, age, min_age, n_retry,
                         curr_slot, size_t(a[curr_slot].child), curr, key.ilen(), key.data());
             }
             if (!array_eq(backup, &a[curr + ni.n_skip].child, ni.n_children)) {
                 fprintf(stderr,
-                        "thread-%s: line: %d, age = %zd, min_age = %zd, retry%5zd, "
+                        "thread-%08zX: line: %d, age = %zd, min_age = %zd, retry%5zd, "
                         "curr confilict(curr = %zd, size = %zd) != 0: key: %.*s\n",
-                        thread_id_str, lineno, age, min_age, n_retry,
+                        ThisThreadID(), lineno, age, min_age, n_retry,
                         curr, size_t(ni.node_size), key.ilen(), key.data());
             }
         }
@@ -1905,8 +1897,8 @@ assert(pos < key.size());
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
             if (debugConcurrent >= 3)
                 fprintf(stderr,
-                    "thread-%s: retry %zd, add_state_move confict(curr = %zd)\n",
-                    thread_id_str, n_retry, curr);
+                    "thread-%08zX: retry %zd, add_state_move confict(curr = %zd)\n",
+                    ThisThreadID(), n_retry, curr);
             goto retry;
         }
         init_token_value(newCurr, suffix_node, lzf);
@@ -1940,8 +1932,8 @@ assert(pos < key.size());
         free_node<MultiWriteMultiRead>(suffix_node, node_size(a + suffix_node, valsize), lzf);
         if (debugConcurrent >= 3)
             fprintf(stderr,
-                "thread-%s: retry %zd, set root child confict(root(=curr) = %zd)\n",
-                thread_id_str, n_retry, curr);
+                "thread-%08zX: retry %zd, set root child confict(root(=curr) = %zd)\n",
+                ThisThreadID(), n_retry, curr);
         goto retry;
     }
 }
@@ -1976,8 +1968,8 @@ ForkBranch: {
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
         if (debugConcurrent >= 3)
             fprintf(stderr,
-                "thread-%s: retry %zd, fork confict(curr = %zd)\n",
-                thread_id_str, n_retry, curr);
+                "thread-%08zX: retry %zd, fork confict(curr = %zd)\n",
+                ThisThreadID(), n_retry, curr);
         goto retry;
     }
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
@@ -2016,8 +2008,8 @@ SplitZpath: {
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         if (debugConcurrent >= 3)
             fprintf(stderr,
-                "thread-%s: retry %zd, split confict(curr = %zd)\n",
-                thread_id_str, n_retry, curr);
+                "thread-%08zX: retry %zd, split confict(curr = %zd)\n",
+                ThisThreadID(), n_retry, curr);
         goto retry;
     }
     init_token_value(newCurr, -1, lzf);
@@ -2074,8 +2066,8 @@ MarkFinalStateOmitSetNodeInfo:
         free_node<MultiWriteMultiRead>(newcur, node_size(a+newcur, valsize), lzf);
         if (debugConcurrent >= 3)
             fprintf(stderr,
-                "thread-%s: retry %zd, mark final confict(curr = %zd)\n",
-                thread_id_str, n_retry, curr);
+                "thread-%08zX: retry %zd, mark final confict(curr = %zd)\n",
+                ThisThreadID(), n_retry, curr);
         goto retry;
     }
     init_token_value(newcur, -1, lzf);
@@ -2930,7 +2922,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         case ReleaseWait:
             if (NULL != next) { // is not tail
                 if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
-                    //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone token of thread-%llX\n", ThisThreadID(), curr->m_thread_id);
+                    //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone token of thread-%08zX\n", ThisThreadID(), curr->m_thread_id);
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
@@ -3100,7 +3092,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
             break;
         case ReleaseWait:
             if (cax_strong(curr->m_flags, flags, {ReleaseDone, false})) {
-                //fprintf(stderr, "DEBUG: sort_cpu: thread-%llX ReleaseDone token of thread-%llX\n", m_thread_id, curr->m_thread_id);
+                //fprintf(stderr, "DEBUG: sort_cpu: thread-%08zX ReleaseDone token of thread-%08zX\n", m_thread_id, curr->m_thread_id);
                 as_atomic(trie->m_token_qlen)
                          .fetch_sub(1, std::memory_order_relaxed);
                 trie->m_dummy.m_link.next = next; // delete curr from list
@@ -3203,7 +3195,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
             trie->m_head_is_dead = true;
             return;
         }
-        if (!cas_weak(trie->m_head_lock, false, true)) {
+        if (trie->m_head_lock || !cas_weak(trie->m_head_lock, false, true)) {
             // be wait free
             m_flags = {ReleaseWait, false};
             trie->m_head_is_dead = true;
@@ -3214,13 +3206,13 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
         if (curr->dequeue(trie)) {
             //assert(this != trie->m_token_tail); // may be false positive
             assert(this != trie->m_dummy.m_link.next);
-            //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue ok\n", m_thread_id);
+            //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone self token - dequeue ok\n", m_thread_id);
             //m_link.verseq = 0; // DO NOT change m_link.verseq
             //m_link.next = NULL; // safe, because this != trie->m_token_tail
             m_min_age = m_link.verseq; // for later re-acquire
         }
         else {
-            //fprintf(stderr, "DEBUG: thread-%llX ReleaseDone self token - dequeue fail\n", m_thread_id);
+            //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone self token - dequeue fail\n", m_thread_id);
             assert(this != trie->m_token_tail);
             assert(this != trie->m_dummy.m_link.next);
             assert(NULL != m_link.next);
@@ -3234,7 +3226,7 @@ void Patricia::TokenBase::mt_release(Patricia* trie1) {
     }
     else {
         if (cas_strong(m_flags, {AcquireDone, false}, {ReleaseWait, false})) {
-            //fprintf(stderr, "DEBUG: thread-%llX ReleaseWait self token\n", m_thread_id);
+            //fprintf(stderr, "DEBUG: thread-%08zX ReleaseWait self token\n", m_thread_id);
             m_value = NULL;
         }
         else {
@@ -3262,7 +3254,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         //     //fprintf(stderr, "DEBUG: very rare: wait for other thread set queue head as me(this = %p)\n", this);
         //     return;
         // }
-        if (!cas_weak(trie->m_head_lock, false, true)) {
+        if (trie->m_head_lock || !cas_weak(trie->m_head_lock, false, true)) {
             // be wait free, do nothing
             return;
         }
@@ -3325,6 +3317,9 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
 template<size_t Align>
 terark_no_inline
 void PatriciaMem<Align>::reclaim_head() {
+    if (m_head_lock) {
+        return;
+    }
     if (terark_unlikely(!cas_weak(m_head_lock, false, true))) {
         return;
     }
@@ -3349,7 +3344,7 @@ void PatriciaMem<Align>::reclaim_head() {
                 if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
                     head = next;
                     as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                    //fprintf(stderr, "DEBUG: reclaim: thread-%llX ReleaseDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
+                    //fprintf(stderr, "DEBUG: reclaim: thread-%08zX ReleaseDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
                 } else {
                     // retry loop
                 }
@@ -3359,7 +3354,7 @@ void PatriciaMem<Align>::reclaim_head() {
             break;
         case DisposeWait:
             if (NULL != next) { // head is not equal to tail
-                //fprintf(stderr, "DEBUG: reclaim: thread-%llX DisposeDone token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
+                //fprintf(stderr, "DEBUG: reclaim: thread-%08zX DisposeDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
                 head->m_flags.state = DisposeDone;
                 delete head;
                 head = next;
@@ -3371,7 +3366,7 @@ void PatriciaMem<Align>::reclaim_head() {
         case AcquireDone:
             if (cas_weak(head->m_flags, flags, {AcquireDone, true})) {
                 m_head_is_dead = false;
-                //fprintf(stderr, "DEBUG: reclaim: thread-%llX {AcquireDone,true} token of thread-%llX\n", ThisThreadID(), head->m_thread_id);
+                //fprintf(stderr, "DEBUG: reclaim: thread-%08zX {AcquireDone,true} token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
                 goto Done;
             } else {
                 // retry loop
