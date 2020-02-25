@@ -107,7 +107,9 @@ protected:
     };
     WriterTokenPtr m_writer_token_sgl;
     struct ReaderTokenTLS_Holder;
-    struct ReaderTokenTLS_Object : ReaderToken {
+    struct ReaderTokenTLS_Object {
+        ReaderTokenTLS_Object() { m_token.reset(new ReaderToken()); }
+        ReaderTokenPtr m_token;
         ReaderTokenTLS_Object* m_next_free = nullptr;
         ReaderTokenTLS_Holder* tls_owner() const;
     };
@@ -696,7 +698,7 @@ inline
 typename
 PatriciaMem<Align>::ReaderTokenTLS_Holder*
 PatriciaMem<Align>::ReaderTokenTLS_Object::tls_owner() const {
-    auto trie = static_cast<PatriciaMem<Align>*>(m_trie);
+    auto trie = static_cast<PatriciaMem<Align>*>(m_token->trie());
     return &trie->m_reader_token_sgl_tls;
 }
 

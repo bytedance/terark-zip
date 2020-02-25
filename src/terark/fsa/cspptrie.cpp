@@ -225,7 +225,8 @@ PatriciaMem<Align>::tls_writer_token() {
 template<size_t Align>
 void PatriciaMem<Align>::
 ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
-    switch (token->m_flags.state) {
+    assert(NULL != token->m_token.get());
+    switch (token->m_token->m_flags.state) {
     default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
     case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
     case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
@@ -246,7 +247,7 @@ Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() {
     }
     else {
         tok = m_reader_token_sgl_tls.get_tls(
-            []{ return new ReaderTokenTLS_Object; });
+            []{ return new ReaderTokenTLS_Object; })->m_token.get();
     }
     return tok;
 }
@@ -2691,7 +2692,7 @@ void PatriciaMem<Align>::SingleThreadShared_sync_token_list(byte_t* oldmembase) 
     byte_t   * newmembase = m_mempool.data();
     for(auto curr = m_dummy.m_link.next; curr != NULL; curr = curr->m_link.next) {
         TokenBase* token = static_cast<TokenBase*>(curr);
-        assert(dynamic_cast<ReaderToken*>(token) != nullptr);
+        //assert(dynamic_cast<ReaderToken*>(token) != nullptr);
         if (byte_t* pvalue = (byte_t*)(token->m_value)) {
             size_t  offset = pvalue - oldmembase;
             token->m_value = newmembase + offset;
