@@ -236,7 +236,7 @@ ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
 }
 
 template<size_t Align>
-Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
+Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() {
     ReaderToken* tok = NULL;
     if (MultiWriteMultiRead == m_mempool_concurrent_level) {
         auto tc = m_mempool_lock_free.tls();
@@ -248,6 +248,12 @@ Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
         tok = m_reader_token_tls.get_tls(
             []{ return new ReaderTokenTLS_Object; });
     }
+    return tok;
+}
+
+template<size_t Align>
+Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
+    ReaderToken* tok = tls_reader_token();
     switch (tok->m_flags.state) {
     default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
     case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;

@@ -198,6 +198,7 @@ public:
     virtual void set_readonly() = 0;
     virtual bool  is_readonly() const = 0;
     virtual WriterTokenPtr& tls_writer_token() = 0;
+    virtual ReaderToken* tls_reader_token() = 0;
     virtual ReaderToken* acquire_tls_reader_token() = 0;
 
     WriterToken* tls_writer_token_nn() {

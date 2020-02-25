@@ -87,6 +87,7 @@ public:
     void mem_lazy_free(size_t loc, size_t size);
 
     WriterTokenPtr& tls_writer_token() final;
+    ReaderToken* tls_reader_token() final;
     ReaderToken* acquire_tls_reader_token() final;
 
 protected:
