@@ -116,7 +116,7 @@ protected:
         void reuse(ReaderTokenTLS_Object* token);
     };
     union {
-        ReaderTokenTLS_Holder m_reader_token_tls;
+        ReaderTokenTLS_Holder m_reader_token_sgl_tls;
     };
     LazyFreeList& lazy_free_list(ConcurrentLevel conLevel);
 
@@ -697,7 +697,7 @@ typename
 PatriciaMem<Align>::ReaderTokenTLS_Holder*
 PatriciaMem<Align>::ReaderTokenTLS_Object::tls_owner() const {
     auto trie = static_cast<PatriciaMem<Align>*>(m_trie);
-    return &trie->m_reader_token_tls;
+    return &trie->m_reader_token_sgl_tls;
 }
 
 } // namespace terark

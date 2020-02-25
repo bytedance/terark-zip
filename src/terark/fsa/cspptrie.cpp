@@ -173,7 +173,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     }
     else {
         new(&m_lazy_free_list_sgl)LazyFreeList();
-        new(&m_reader_token_tls)ReaderTokenTLS_Holder();
+        new(&m_reader_token_sgl_tls)ReaderTokenTLS_Holder();
     }
     m_n_nodes = 1; // root will be pre-created
     m_max_word_len = 0;
@@ -245,7 +245,7 @@ Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() {
         tok = lzf->m_reader_token.get();
     }
     else {
-        tok = m_reader_token_tls.get_tls(
+        tok = m_reader_token_sgl_tls.get_tls(
             []{ return new ReaderTokenTLS_Object; });
     }
     return tok;
@@ -680,7 +680,7 @@ void PatriciaMem<Align>::destroy() {
     else {
         m_writer_token_sgl.reset();
         m_lazy_free_list_sgl.~LazyFreeList();
-        m_reader_token_tls.~ReaderTokenTLS_Holder();
+        m_reader_token_sgl_tls.~ReaderTokenTLS_Holder();
     }
     if (this->mmap_base && !m_is_virtual_alloc) {
         assert(-1 == m_fd);
@@ -2312,23 +2312,38 @@ static long g_lazy_free_debug_level =
     if (ConLevel == SingleThreadStrict) {
         return;
     }
-    uint64_t min_age = token->m_min_age; // Cheap to read token->m_min_age
+    uint64_t min_age = ConLevel >= MultiWriteMultiRead
+                     ? token->m_min_age // Cheap to read token->m_min_age
+                     : this->m_dummy.m_min_age;
 
     auto print = [&](const char* sig) {
         if (!lazy_free_list.empty()) {
             const LazyFreeItem& head = lazy_free_list.front();
-            fprintf(stderr
-                , "%s:%llX: is_head=%d, LazyFreeList.size = %zd, mem_size = %zd, min_age = %llu, trie.age = %llu, "
+            if (ConLevel >= MultiWriteMultiRead)
+              fprintf(stderr
+                , "%s:%08zX: is_head=%d, LazyFreeList.size = %zd, mem_size = %zd, min_age = %llu, trie.age = %llu, "
                   "head = { age = %llu, node = %llu, size = %llu }\n"
                 , sig
-                , (long long)token->m_thread_id
+                , token->m_thread_id
                 , token->m_flags.is_head
                 , lazy_free_list.size()
                 , lazy_free_list.m_mem_size
                 , (long long)min_age
                 , (long long)token->m_link.verseq
                 , (long long)head.age, (long long)head.node, (long long)head.size
-            );
+              );
+            else
+              fprintf(stderr
+                , "%s:%08zX: LazyFreeList.size = %zd, mem_size = %zd, min_age = %llu, trie.age = %llu, "
+                  "head = { age = %llu, node = %llu, size = %llu }\n"
+                , sig
+                , ThisThreadID()
+                , lazy_free_list.size()
+                , lazy_free_list.m_mem_size
+                , (long long)min_age
+                , (long long)m_dummy.m_link.verseq
+                , (long long)head.age, (long long)head.node, (long long)head.size
+              );
         }
     };
 
@@ -5006,6 +5021,10 @@ Patricia::Iterator::~Iterator() {
 }
 
 void Patricia::Iterator::dispose() {
+    if (AcquireDone == m_flags.state) {
+        TERARK_VERIFY(ThisThreadID() == m_thread_id);
+        release(); // auto release on dispose iterator
+    }
     ReaderToken::dispose();
 }
 
