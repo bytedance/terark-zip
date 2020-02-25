@@ -25,7 +25,7 @@ namespace terark {
 			MainPatricia::WriterToken token(&trie);
 			for (size_t i = 0, n = strVec.end_i(); i < n; i++) {
 					fstring key = strVec.key(i);
-					token.update_lazy();
+					token.update();
           uint32_t v = 123;
 					trie.insert(key, &v, &token);
 			}
@@ -98,7 +98,7 @@ namespace terark {
    */
   TEST(CSPPTRIE_TEST, SECONDARY_ACCESS_TRIE) {
     MainPatricia patricia(sizeof(uint32_t), 10*1024*1024, Patricia::SingleThreadShared);
-    
+
     // allocate actual value space and store val_loc as trie's value
 		auto insert = [&](fstring& key, fstring& value) {
 			// can also create a new token like this:

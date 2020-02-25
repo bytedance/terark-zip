@@ -132,7 +132,7 @@ void run_benchmark() {
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = strVec.key(i);
         auto  & val = strVec.val(i);
-        wtoken.update_lazy();
+        wtoken.update();
         bool ok = wtoken.insert(key, &val);
         assert(ok);
         Unused(ok);
@@ -387,7 +387,7 @@ void unit_test() {
             MainPatricia::WriterToken token(&trie);
             for (size_t i = 0, n = strVec.end_i(); i < n; i++) {
                 fstring key = strVec.key(i);
-                token.update_lazy();
+                token.update();
                 trie.insert(key, NULL, &token);
             }
         };

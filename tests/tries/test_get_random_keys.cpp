@@ -30,7 +30,8 @@ void test_patricia(SortableStrVec strVec) {
     printf("test_patricia...\n");
     MainPatricia trie(sizeof(size_t));
     {
-        Patricia::WriterTokenPtr token(new Patricia::WriterToken(&trie));
+        Patricia::WriterTokenPtr token(new Patricia::WriterToken());
+        token->acquire(&trie);
         for (size_t i = 0; i < strVec.size(); ++i) {
             fstring key = strVec[i];
             size_t seq_id = strVec.m_index[i].seq_id;

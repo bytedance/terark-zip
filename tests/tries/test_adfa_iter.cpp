@@ -127,7 +127,8 @@ void run_benchmark() {
         bytes += strVec.key_len(i);
     }
 
-    Patricia::WriterTokenPtr wtoken(new Patricia::WriterToken(&trie));
+    Patricia::WriterTokenPtr wtoken(new Patricia::WriterToken);
+    wtoken->acquire(&trie);
     t0 = pf.now();
     for (size_t i = 0; i < strVec.end_i(); ++i) {
         fstring key = strVec.key(i);
@@ -137,6 +138,7 @@ void run_benchmark() {
         Unused(ok);
         assert(wtoken->value_of<uint32_t>() == val);
     }
+    wtoken->release();
     trie.set_readonly();
     t1 = pf.now();
     printf("trie insert: time = %10.3f, QPS = %10.3f M, TP = %10.3f MB/sec\n"
@@ -310,12 +312,14 @@ void unit_test() {
         test_run_impl(*dfa, strVec);
         if (auto pt = dynamic_cast<const MainPatricia*>(dfa.get())) {
             MainPatricia dyna(pt->get_valsize(), pt->mem_size() * 9/8);
-            MainPatricia::WriterTokenPtr token(new Patricia::WriterToken(&dyna));
+            MainPatricia::WriterTokenPtr token(new Patricia::WriterToken());
+            token->acquire(&dyna);
             for (size_t i = 0; i < strVec.end_i(); ++i) {
                 fstring key = strVec.key(i);
                 size_t v = i;
                 dyna.insert(key, &v, &*token);
             }
+            token->release();
             printf("inserted to MainPatricia, keys = %zd\n", strVec.size());
             test_run_impl(dyna, strVec);
         }
@@ -329,7 +333,8 @@ void unit_test() {
         printf("unit_test_run: MainPatricia\n\n");
         {
             MainPatricia trie(sizeof(uint32_t));
-            MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken(&trie));
+            MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken());
+            token->acquire(&trie);
             for (uint32_t i = 0; i < 256; ++i) {
                 char strkey[2] = { char(i), '\0' };
                 token->insert(fstring(strkey, 2), &i);
@@ -338,6 +343,7 @@ void unit_test() {
                 uint32_t val = UINT32_MAX;
                 token->insert(fstring(""), &val);
             }
+            token->release();
             Patricia::IteratorPtr iterp(trie.new_iter());
             Patricia::Iterator& iter = *iterp;
             printf("MainPatricia iter incr basic...\n");
@@ -373,12 +379,14 @@ void unit_test() {
             printf("MainPatricia iter decr basic... passed\n");
         }
         auto insert = [](MainPatricia& trie, const hash_strmap<>& strVec) {
-            MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken(&trie));
+            MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken());
+            token->acquire(&trie);
             for (size_t i = 0, n = strVec.end_i(); i < n; i++) {
                 fstring key = strVec.key(i);
                 token->update();
                 trie.insert(key, NULL, &*token);
             }
+            token->release();
         };
         unit_test_run<MainPatricia>(insert);
     }
