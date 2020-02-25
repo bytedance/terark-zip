@@ -95,8 +95,6 @@ protected:
 
     // state and is_head must be set simultaneously as atomic
         TokenFlags    m_flags;
-    //  TokenState    m_state;
-    //  bool          m_is_head;
 //      bool          m_min_age_updated; // update by other threads
 
         void enqueue(Patricia*);
@@ -246,9 +244,6 @@ public:
     ~Patricia();
 protected:
     Patricia();
-    // void* alloc_token_imp(size_t);
-    // void free_token_imp(TokenBase*);
-    // void update_min_age_inlock(TokenBase* token);
     bool insert_readonly_throw(fstring key, void* value, WriterToken*);
     typedef bool (Patricia::*insert_func_t)(fstring, void*, WriterToken*);
     insert_func_t    m_insert;
