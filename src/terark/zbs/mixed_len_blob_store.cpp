@@ -773,6 +773,7 @@ public:
             + sizeof(BlobStoreFileFooter);
         size_t current_file_size = FileStream(m_fpath, "rb+").fsize();
         if (current_file_size != file_size - sizeof(BlobStoreFileFooter)) {
+            assert(!"MixedLenBlobStore::Builder file size mismatch");
             TERARK_THROW(std::length_error
                 , "MixedLenBlobStore::Builder file size mismatch. size = %zd, should be %zd"
                 , current_file_size, file_size - sizeof(BlobStoreFileFooter)
@@ -784,11 +785,13 @@ public:
 
         if (xxhash64.digest() !=
             XXHash64(g_dmbsnark_seed).update(mem.substr(sizeof(FileHeader), m_content_size_fixed_len)).digest()) {
+            assert(!"MixedLenBlobStore::Builder fixed len checksum mismatch");
             throw std::logic_error("MixedLenBlobStore::Builder fixed len checksum mismatch");
         }
         if (xxhash64_var_len.digest() !=
             XXHash64(g_dmbsnark_seed).update(mem.substr(sizeof(FileHeader) + align_up(m_content_size_fixed_len, 16),
                                                         m_content_size_var_len)).digest()) {
+            assert(!"MixedLenBlobStore::Builder var len checksum mismatch");
             throw std::logic_error("MixedLenBlobStore::Builder var len checksum mismatch");
         }
 
