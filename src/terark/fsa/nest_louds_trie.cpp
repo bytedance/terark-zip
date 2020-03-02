@@ -1249,10 +1249,7 @@ build_patricia_tpl(StrVecType& strVec,
 					pc += fast_popcount64(bits[i]);
 				}
 				memcpy(mylabel + 04, bits, sizeof(bits));
-				memcpy(mylabel + 36,
-					"bitmap rank select block, this is terark confidential - "
-					"copyright terark inc."
-					, lcount - 36);
+				memset(mylabel + 36, 0, lcount - 36);
 			}
 			bitpos += lcount + 1;
 			child0 += lcount;
