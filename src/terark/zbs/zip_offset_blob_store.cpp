@@ -78,7 +78,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
 void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     auto mmapBase = (const FileHeader*)dataMem.p;
     m_mmapBase = mmapBase;
-    if (isChecksumVerifyEnabled()) {
+    if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
         XXHash64 hash(g_dpbsnark_seed);
         hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
         const uint64_t hashVal = hash.digest();
