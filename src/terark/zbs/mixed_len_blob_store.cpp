@@ -343,10 +343,12 @@ void MixedLenBlobStoreTpl<rank_select_t>::init_from_memory(fstring dataMem, Dict
 	m_checksumLevel = mmapBase->checksumLevel;
 	m_checksumType = mmapBase->checksumType;
 	m_fixedLen = int32_t(mmapBase->fixedLen); // signed extention
-    m_fixedLenWithoutCRC = (2 == m_checksumLevel ? m_fixedLen - (kCRC16C == m_checksumType ? sizeof(uint16_t)
-                                                                                           : sizeof(uint32_t))
-                                                 : m_fixedLen);
-	m_fixedNum = mmapBase->fixedNum;
+        m_fixedLenWithoutCRC =
+            (2 == m_checksumLevel
+                 ? m_fixedLen - (kCRC16C == m_checksumType ? sizeof(uint16_t)
+                                                           : sizeof(uint32_t))
+                 : m_fixedLen);
+        m_fixedNum = mmapBase->fixedNum;
 	if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
 		XXHash64 hash(g_dmbsnark_seed);
 		hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));

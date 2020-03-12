@@ -110,7 +110,11 @@ void EntropyZipBlobStore::init_get_calls(size_t order) {
 void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     auto mmapBase = (const FileHeader*)dataMem.p;
     m_mmapBase = mmapBase;
-    if (isChecksumVerifyEnabled()) {
+    m_numRecords = mmapBase->records;
+    m_unzipSize = mmapBase->unzipSize;
+    m_checksumLevel = mmapBase->checksumLevel;
+    m_checksumType = mmapBase->checksumType;
+    if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
         XXHash64 hash(g_debsnark_seed);
         hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
         const uint64_t hashVal = hash.digest();
@@ -120,10 +124,6 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
             throw BadChecksumException(msg, footer.fileXXHash, hashVal);
         }
     }
-    m_numRecords = mmapBase->records;
-    m_unzipSize = mmapBase->unzipSize;
-    m_checksumLevel = mmapBase->checksumLevel;
-    m_checksumType = mmapBase->checksumType;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), (mmapBase->contentBits + 7) / 8);
     m_table.risk_set_data(m_content.data() + m_content.size(), mmapBase->tableBytes);
     m_offsets.risk_set_data(m_content.data() +
