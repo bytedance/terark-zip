@@ -84,7 +84,11 @@ PlainBlobStore::FileHeader::FileHeader(const PlainBlobStore* store) {
 void PlainBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     auto mmapBase = (FileHeader*)dataMem.p;
     m_mmapBase = mmapBase;
-    if (isChecksumVerifyEnabled()) {
+    m_numRecords = mmapBase->records;
+    m_unzipSize = mmapBase->contentBytes;
+    m_checksumLevel = mmapBase->checksumLevel;
+    m_checksumType = mmapBase->checksumType;
+    if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
         XXHash64 hash(g_dpbsnark_seed);
         hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
         const uint64_t hashVal = hash.digest();
@@ -95,10 +99,6 @@ void PlainBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
         }
     }
     assert(mmapBase->offsetsUintBits == UintVecMin0::compute_uintbits(mmapBase->contentBytes));
-    m_numRecords = mmapBase->records;
-    m_unzipSize = mmapBase->contentBytes;
-    m_checksumLevel = mmapBase->checksumLevel;
-    m_checksumType = mmapBase->checksumType;
     m_content.risk_set_data((byte_t*)(mmapBase + 1), mmapBase->contentBytes);
     m_offsets.risk_set_data(m_content.data() + align_up(m_content.size(), 16),
         m_numRecords + 1, mmapBase->offsetsUintBits);
