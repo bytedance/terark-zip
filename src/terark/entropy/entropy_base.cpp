@@ -245,8 +245,9 @@ size_t freq_hist_o1::estimate_size_unfinish(const freq_hist_o1& freq) {
         }
         double pp = o1_size / o0_size;
         for (size_t j = 0; j < 256; ++j) {
-            if (hist.o1[i][j] > 0) {
-                double p = (hist.o1[i][j] + freq.o1_[i][j]) / o1_size;
+            size_t o1_ij = hist.o1[i][j] + freq.o1_[i][j];
+            if (o1_ij > 0) {
+                double p = o1_ij / o1_size;
                 entropy -= pp * p * log2(p);
             }
         }

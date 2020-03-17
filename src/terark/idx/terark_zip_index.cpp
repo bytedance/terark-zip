@@ -2887,7 +2887,7 @@ BuildFixedStringSuffix(
 }
 
 bool UseDictZipSuffix(size_t numKeys, size_t sumKeyLen, double zipRatio) {
-  return g_indexEnableDictZipSuffix && numKeys > 8192 && sumKeyLen > numKeys * 16 &&
+  return g_indexEnableDictZipSuffix && numKeys > 8192 && sumKeyLen > numKeys * 32 &&
          (sumKeyLen + numKeys * 4) * zipRatio + 1024 < sumKeyLen + numKeys;
 }
 
@@ -2935,7 +2935,7 @@ BuildEntropySuffix(
   }
   freq->finish();
   FileMemIO memory;
-  EntropyZipBlobStore::MyBuilder builder(*freq, 128, memory);
+  EntropyZipBlobStore::MyBuilder builder(*freq, 128, memory, 1);
   input.rewind();
   for (size_t i = 0; i < numKeys; ++i) {
     builder.addRecord(input.next());
@@ -2969,17 +2969,17 @@ BuildDictZipSuffix(
   size_t avgLen = sumKeyLen / numKeys;
   dzopt.checksumLevel = 1;
   dzopt.entropyAlgo = DictZipBlobStore::Options::kHuffmanO1;
-  dzopt.useSuffixArrayLocalMatch = false;
+  dzopt.useSuffixArrayLocalMatch = true;
   dzopt.compressGlobalDict = true;
   dzopt.entropyInterleaved = avgLen > 256 ? 8 : avgLen > 128 ? 4 : avgLen > 64 ? 2 : 1;
   dzopt.offsetArrayBlockUnits = 128;
   dzopt.entropyZipRatioRequire = 0.95f;
   dzopt.embeddedDict = true;
-  dzopt.enableLake = true;
+  dzopt.enableLake = false;
   zbuilder.reset(DictZipBlobStore::createZipBuilder(dzopt));
 
   std::mt19937_64 randomGenerator;
-  uint64_t upperBoundSample = uint64_t(randomGenerator.max() * 0.1);
+  uint64_t upperBoundSample = uint64_t(randomGenerator.max() * 0.01);
   uint64_t sampleLenSum = 0;
   for (size_t i = 0; i < numKeys; ++i) {
     auto str = input.next();
