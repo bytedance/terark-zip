@@ -416,8 +416,11 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 		#AVX2_CFLAGS=-mavx2 SSE41_CFLAGS=-msse4.1 SSE42_CFLAGS=-msse4.2 AVX_CFLAGS=-mavx
 
 boost-include/build-lib-for-terark.done:
+ifneq (Darwin, ${UNAME_System})
 	cd boost-include \
-		&& echo "using gcc : : ${CXX} ; " > tools/build/src/user-config.jam \
+		&& echo "using gcc : : ${CXX} ; " > tools/build/src/user-config.jam
+endif
+	cd boost-include \
 		&& CX=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
 		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
 		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
