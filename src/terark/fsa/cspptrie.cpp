@@ -698,13 +698,13 @@ void PatriciaMem<Align>::destroy() {
     else if (!this->mmap_base && m_is_virtual_alloc) {
         assert(-1 == m_fd);
         assert(NoWriteReadOnly != m_mempool_concurrent_level);
-#if defined(_MSC_VER)
+  #if defined(_MSC_VER)
         if (!VirtualFree(m_mempool.data(), 0, MEM_RELEASE)) {
             std::terminate();
         }
-#else
+  #else
         munmap(m_mempool.data(), m_mempool.capacity());
-#endif
+  #endif
         m_mempool.risk_release_ownership();
     }
     else if (-1 != m_fd) {
@@ -810,16 +810,16 @@ const {
     case 0:
         assert(p->meta.b_is_final);
         break;
-#define return_on_slot(slot) \
+  #define return_on_slot(slot) \
         auto x = slot; \
         *child_slot = x; \
         return a[x].child
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-#define return_if_match_ch(skip, idx) \
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  #define return_if_match_ch(skip, idx) \
     if (ch == p->meta.c_label[idx]) { \
         return_on_slot(curr + skip +idx); \
     }
-//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
     case 2: return_if_match_ch(1, 1); no_break_fallthrough;
     case 1: return_if_match_ch(1, 0);
             break;
