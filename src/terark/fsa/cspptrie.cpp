@@ -187,6 +187,7 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
 
     m_head_is_dead = false;
     m_head_lock = false;
+    m_enq_del = {0, 0};
     m_is_virtual_alloc = false;
     m_fd = -1;
     m_appdata_offset = size_t(-1);
@@ -737,7 +738,7 @@ void PatriciaMem<Align>::destroy() {
         case ReleaseWait: break; // OK
         }
         curr->m_flags.state = DisposeDone;
-        delete curr;
+        del_token(curr);
         curr = next;
     }
 }
@@ -2764,6 +2765,40 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 
 ///////////////////////////////////////////////////////////////////////
 
+template<size_t Align>
+inline void PatriciaMem<Align>::enq_lock() {
+    while (true) {
+        const uint32_t oldenq = m_enq_del.enq;
+        if (cas_weak(m_enq_del, {oldenq, 0}, {oldenq+1, 0})) {
+            break;
+        }
+        else {
+            if (oldenq == m_enq_del.enq) {
+                std::this_thread::yield();
+            }
+        }
+    }
+}
+template<size_t Align>
+inline void PatriciaMem<Align>::enq_unlock() {
+    assert(m_enq_del.enq > 0);
+    as_atomic(m_enq_del.enq).fetch_sub(1, std::memory_order_release);
+}
+
+template<size_t Align>
+void PatriciaMem<Align>::del_token(TokenBase* token) {
+    while (!cas_weak(m_enq_del, {0, 0}, {0, 1})) {
+        std::this_thread::yield();
+    }
+
+    TERARK_VERIFY(DisposeDone == token->m_flags.state);
+    delete token;
+
+    assert(1 == m_enq_del.del);
+    assert(0 == m_enq_del.enq);
+    as_atomic(m_enq_del.del).store(0, std::memory_order_release);
+}
+
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
     m_link.next  = NULL;
@@ -2798,7 +2833,7 @@ void Patricia::TokenBase::dispose() {
     case ReleaseDone:
         TERARK_VERIFY(NULL == m_trie || this != static_cast<MainPatricia*>(m_trie)->m_token_tail);
         m_flags.state = DisposeDone;
-        delete this; // safe to delete
+        static_cast<MainPatricia*>(m_trie)->del_token(this);
         break;
     case ReleaseWait:
         m_flags.state = DisposeWait;
@@ -2806,7 +2841,9 @@ void Patricia::TokenBase::dispose() {
     }
 }
 
-#if 0
+#define CSPP_WAIT_FREE 1
+
+#if CSPP_WAIT_FREE
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(AcquireDone == m_flags.state);
@@ -2815,18 +2852,20 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         const LinkType t = trie->m_tail; // load.1
         TokenBase* const p = t.next;
         const uint64_t verseq = p->m_link.verseq; // load.2
+        if (terark_unlikely(t.verseq != verseq)) {
+            // ABA happened between load.1 and load.2 (by context switch)
+            DEBUG_fprintf(stderr
+                , "%s:%d: ABA: t.verseq = %llu, verseq = %llu\n"
+                , __FILE__, __LINE__
+                , llong(t.verseq), llong(verseq));
+            continue;
+        }
         this->m_link = {NULL, verseq+1};
+
         if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq})) {
             /// if ABA problem happens, verseq will be greater
             /// so the later cas_strong will fail
             assert(this == p->m_link.next || p->m_link.verseq > verseq);
-          #if 0
-            // ABA may happen between load.1 and load.2 (by context switch)
-            // then t.verseq != verseq, thus this assert is false positive
-            TERARK_ASSERT_F(t.verseq == verseq
-                 , "t.verseq = %llu, verseq = %llu"
-                 , llong(t.verseq), llong(verseq));
-          #endif
           #if !defined(NDEBUG) // this is temporary debug
             //std::this_thread::yield();
             usleep(100000); // easy trigger ABA on DEBUG
@@ -2950,7 +2989,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                     // will transit to AcquireDone or DisposeWait
                     TERARK_VERIFY(!curr->m_flags.is_head);
                     TERARK_VERIFY(curr->m_flags.state == AcquireDone ||
-                              curr->m_flags.state == DisposeWait);
+                                  curr->m_flags.state == DisposeWait);
                 }
             }
             else {
@@ -2962,7 +3001,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 // now curr must before m_token_tail
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 curr->m_flags.state = DisposeDone;
-                delete curr; // we delete other token
+                trie->del_token(curr); // we delete other token
                 curr = next;
             }
             else {
@@ -3103,7 +3142,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
                      .fetch_sub(1, std::memory_order_relaxed);
             trie->m_dummy.m_link.next = next; // delete curr from list
             curr->m_flags.state = DisposeDone;
-            delete curr;
+            trie->del_token(curr);
             curr = next;
             break;
         case ReleaseWait:
@@ -3143,17 +3182,25 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         //m_acqseq is for sort_cpu()
         //m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
         //              .fetch_add(1, std::memory_order_relaxed);
+      #if CSPP_WAIT_FREE
+        trie->enq_lock();
+      #else
         while (!cas_weak(trie->m_head_lock, false, true)) {
             // this is not wait free
             std::this_thread::yield();
         }
+      #endif
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
         //if (m_min_age == 0) {
         //    m_min_age = trie->m_dummy.m_min_age;
         //}
+      #if CSPP_WAIT_FREE
+        trie->enq_unlock();
+      #else
         cas_unlock(trie->m_head_lock);
+      #endif
         break;
     case ReleaseWait:
         if (cax_weak(m_flags, flags, {AcquireDone, false})) {
@@ -3297,7 +3344,9 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
+        trie->enq_lock();
         enqueue(trie);
+        trie->enq_unlock();
         assert(this == trie->m_dummy.m_link.next);
         TERARK_VERIFY(new_head->dequeue(trie)); // at least, I'm alive
         //m_min_age = trie->m_dummy.m_min_age; // do not update
@@ -3305,27 +3354,19 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
     }
     else {
-      #if 0
-        //assert(this == trie->m_dummy.m_link.next); // false positive
-        uint64_t verseq = m_link.verseq;
-        if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
-            cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1});
-            trie->m_dummy.m_min_age = verseq+1;
-            this->m_min_age = verseq+1;
-        }
-      #else
         if (cas_weak(trie->m_head_lock, false, true)) {
-            if (NULL == m_link.next) {
-                uint64_t verseq = ++m_link.verseq;
-                trie->m_dummy.m_min_age = verseq;
-                this->m_min_age = verseq;
+            //assert(this == trie->m_dummy.m_link.next); // false positive
+            uint64_t verseq = m_link.verseq;
+            if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
+                cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1});
+                trie->m_dummy.m_min_age = verseq+1;
+                this->m_min_age = verseq+1;
             }
             cas_unlock(trie->m_head_lock);
         }
         else {
             // do nothing, ignore this update
         }
-      #endif
     }
 }
 
@@ -3372,7 +3413,7 @@ void PatriciaMem<Align>::reclaim_head() {
             if (NULL != next) { // head is not equal to tail
                 //fprintf(stderr, "DEBUG: reclaim: thread-%08zX DisposeDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
                 head->m_flags.state = DisposeDone;
-                delete head;
+                del_token(head);
                 head = next;
                 as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             } else {

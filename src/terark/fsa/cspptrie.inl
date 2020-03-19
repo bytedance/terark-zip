@@ -152,6 +152,15 @@ protected:
     uint64_t   m_sorted_acqseq;
     bool       m_head_lock;
 
+    struct alignas(8) EnqDelMutex {
+        uint32_t   enq;
+        uint32_t   del;
+    };
+    EnqDelMutex m_enq_del;
+    void enq_lock();
+    void enq_unlock();
+    void del_token(TokenBase*);
+
 //  std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
 
