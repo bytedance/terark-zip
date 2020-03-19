@@ -64,7 +64,6 @@ namespace terark {
             assert(NULL != m_sched);
             assert(boost::fibers::context::active_pp() == m_active_context_pp);
             assert((*m_active_context_pp)->get_scheduler() == m_sched);
-            assert((*wc)->get_scheduler() == m_sched);
             assert(wc != m_active_context_pp);
             *wc = *m_active_context_pp;
             m_sched->suspend(m_active_context_pp);
