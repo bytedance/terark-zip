@@ -56,6 +56,7 @@ Options:
   -L local_match_opt when using dictionary compression
      h: Local Match by hashing, this is the default
      s: Local Match by suffix array
+  -z ZipOffsetBlobStore ZSTD Compress level + 1, 0 to disable
   -U [optional(0 or 1)] use new Ultra ref encoding, default 1
   -Z compress global dictionary
   -E embedded global dictionary
@@ -177,6 +178,7 @@ TERARK_IF_DEBUG(,try) {
 	size_t benchmarkLoop = 0;
 	int  checksumLevel = 1;
 	int  checksumType = 0;
+	int  compressLevel = 0;
 	bool checkForCorrect = false;
 	bool b_write_dot_file = false;
 	bool isBson = false;
@@ -197,7 +199,7 @@ TERARK_IF_DEBUG(,try) {
 	conf.flags.set0(conf.optUseDawgStrPool);
 	conf.initFromEnv();
 	for (;;) {
-		int opt = getopt(argc, argv, "Bb:c:t:Ce:ghdn:o:M:F:S:L:rU::ZET:R:j::pV");
+		int opt = getopt(argc, argv, "Bb:c:t:Ce:ghdn:o:M:F:S:L:rU::ZET:R:j::pVz:");
 		switch (opt) {
 		case -1:
 			goto GetoptDone;
@@ -305,6 +307,9 @@ TERARK_IF_DEBUG(,try) {
 			break;
         case 'E':
             dzopt.embeddedDict = true;
+            break;
+        case 'z':
+            compressLevel = atoi(optarg);
             break;
         case 'T':
             select_store = optarg[0];
@@ -521,7 +526,12 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'o') {
-        ZipOffsetBlobStore::MyBuilder zobuilder(dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel, checksumType);
+        ZipOffsetBlobStore::Options options;
+        options.block_units = dzopt.offsetArrayBlockUnits;
+        options.compress_level = compressLevel;
+        options.checksum_level = checksumLevel;
+        options.checksum_type = checksumType;
+        ZipOffsetBlobStore::MyBuilder zobuilder(nlt_fname, 0, options);
         for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             zobuilder.addRecord(strVec[i]);
         }

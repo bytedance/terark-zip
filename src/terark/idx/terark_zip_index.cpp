@@ -2900,7 +2900,12 @@ BuildVerLenSuffix(
   assert(g_indexEnableDynamicSuffix);
   input.rewind();
   FileMemIO memory;
-  terark::ZipOffsetBlobStore::MyBuilder builder(128, memory);
+  terark::ZipOffsetBlobStore::Options options;
+  options.block_units = 128;
+  options.compress_level = 0;
+  options.checksum_level = 1;
+  options.checksum_type = 0;
+  terark::ZipOffsetBlobStore::MyBuilder builder(memory, options);
   for (size_t i = 0; i < numKeys; ++i) {
     auto str = input.next();
     builder.addRecord(str);

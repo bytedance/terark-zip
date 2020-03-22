@@ -17,6 +17,7 @@
 #include <terark/zbs/xxhash_helper.hpp>
 #include <terark/io/StreamBuffer.hpp>
 #include <terark/int_vector.hpp>
+#include <zstd/zstd.h>
 
 namespace terark {
 
@@ -29,7 +30,8 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
     uint64_t  offsetsBytes; // same as footer.indexBytes
     uint08_t  offsets_log2_blockUnits; // 6 or 7
     uint08_t  checksumLevel;
-    uint08_t  padding21[6];
+    uint08_t  compressLevel;
+    uint08_t  padding21[5];
     uint64_t  padding22[3];
 
     void init() {
@@ -39,7 +41,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         strcpy(magic, MagicString);
         strcpy(className, "ZipOffsetBlobStore");
     }
-    FileHeader(fstring mem, size_t content_size, size_t offsets_size, int _checksumLevel, int _checksumType) {
+    FileHeader(fstring mem, size_t content_size, size_t offsets_size, Options _options) {
         init();
         fileSize = mem.size();
         assert(fileSize == 0
@@ -55,8 +57,9 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         offsetsBytes = offsets_size;
         offsets_log2_blockUnits = offsets.log2_block_units();
         offsets.risk_release_ownership();
-        checksumLevel = static_cast<uint08_t>(_checksumLevel);
-        checksumType = static_cast<uint08_t>(_checksumType);
+        checksumLevel = static_cast<uint08_t>(_options.checksum_level);
+        checksumType = static_cast<uint08_t>(_options.checksum_type);
+        compressLevel = static_cast<uint08_t>(_options.compress_level);
     }
     FileHeader(const ZipOffsetBlobStore* store, const SortedUintVec& offsets) {
         init();
@@ -72,6 +75,7 @@ struct ZipOffsetBlobStore::FileHeader : public FileHeaderBase {
         offsets_log2_blockUnits = offsets.log2_block_units();
         checksumLevel = static_cast<uint08_t>(store->m_checksumLevel);
         checksumType = static_cast<uint08_t>(store->m_checksumType);
+        compressLevel = static_cast<uint08_t>(store->m_compressLevel);
     }
 };
 
@@ -82,6 +86,7 @@ void ZipOffsetBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) {
     m_unzipSize = mmapBase->contentBytes;
     m_checksumLevel = mmapBase->checksumLevel;
     m_checksumType = mmapBase->checksumType;
+    m_compressLevel = mmapBase->compressLevel;
     if (m_checksumLevel == 3 && isChecksumVerifyEnabled()) {
         XXHash64 hash(g_dpbsnark_seed);
         hash.update(mmapBase, mmapBase->fileSize - sizeof(BlobStoreFileFooter));
@@ -201,6 +206,19 @@ size_t ZipOffsetBlobStore::mem_size() const {
     return m_content.size() + m_offsets.mem_size();
 }
 
+static void ZipOffsetBlobStore_AppendDecompress(size_t id, const byte_t* data, size_t size, valvec<byte_t>* output) {
+    unsigned long long raw_size = ZSTD_getDecompressedSize(data, size);
+    size_t curr_size = output->size();
+    output->resize_no_init(curr_size + raw_size);
+    size = ZSTD_decompress(output->data() + curr_size, raw_size, data, size);
+    if (ZSTD_isError(size)) {
+      TERARK_THROW(std::logic_error
+          , "ZipOffsetBlobStore_AppendDecompress: rec_id = %zd, error %s"
+          , id, ZSTD_getErrorName(size));
+    }
+  output->risk_set_size(curr_size + size);
+}
+
 void
 ZipOffsetBlobStore::get_record_append_imp(size_t recID, valvec<byte_t>* recData)
 const {
@@ -211,6 +229,10 @@ const {
     assert(BegEnd[1] <= m_content.size());
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
+    if (m_compressLevel > 0) {
+        ZipOffsetBlobStore_AppendDecompress(recID, pData, len, recData);
+        return;
+    }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
             len -= sizeof(uint16_t);
@@ -250,6 +272,10 @@ const {
     size_t BegEnd[2] = { co->offsets[inBlockID], co->offsets[inBlockID+1] };
     size_t len = BegEnd[1] - BegEnd[0];
     const byte_t* pData = m_content.data() + BegEnd[0];
+    if (m_compressLevel > 0) {
+        ZipOffsetBlobStore_AppendDecompress(recID, pData, len, &co->recData);
+        return;
+    }
      if (2 == m_checksumLevel) {
          if (kCRC16C == m_checksumType) {
              len -= sizeof(uint16_t);
@@ -288,6 +314,10 @@ const {
     size_t offset = sizeof(FileHeader) + BegEnd[0];
     auto pData = fspread(lambda, baseOffset + offset, len, rdbuf);
     assert(NULL != pData);
+    if (m_compressLevel > 0) {
+        ZipOffsetBlobStore_AppendDecompress(recID, pData, len, recData);
+        return;
+    }
     if (2 == m_checksumLevel) {
         if (kCRC16C == m_checksumType) {
             len -= sizeof(uint16_t);
@@ -377,22 +407,21 @@ class ZipOffsetBlobStore::MyBuilder::Impl : boost::noncopyable {
     FileStream m_file;
     SeekableOutputStreamWrapper<FileMemIO*> m_memStream;
     NativeDataOutput<OutputBuffer> m_writer;
+    valvec<byte_t> m_compressBuffer;
     size_t m_offset;
     size_t m_content_size;
-    int m_checksumLevel;
-    int m_checksumType;
+    Options m_options;
 public:
-    Impl(size_t blockUnits, fstring fpath, size_t offset, int checksumLevel, int checksumType)
+    Impl(fstring fpath, size_t offset, Options options)
         : m_fpath(fpath.begin(), fpath.end())
         , m_fpath_offset(fpath + ".offset")
-        , m_builder(SortedUintVec::createBuilder(blockUnits, m_fpath_offset.c_str()))
+        , m_builder(SortedUintVec::createBuilder(options.block_units, m_fpath_offset.c_str()))
         , m_file()
         , m_memStream(nullptr)
         , m_writer(&m_file)
         , m_offset(offset)
         , m_content_size(0)
-        , m_checksumLevel(checksumLevel)
-        , m_checksumType(checksumType) {
+        , m_options(options) {
         assert(offset % 8 == 0);
         if (offset == 0) {
           m_file.open(fpath, "wb");
@@ -406,27 +435,37 @@ public:
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
     }
-    Impl(size_t blockUnits, FileMemIO& mem, int checksumLevel, int checksumType)
+    Impl(FileMemIO& mem, Options options)
         : m_fpath()
         , m_fpath_offset()
-        , m_builder(SortedUintVec::createBuilder(blockUnits))
+        , m_builder(SortedUintVec::createBuilder(options.block_units))
         , m_file()
         , m_memStream(&mem)
         , m_writer(&m_memStream)
         , m_offset(0)
         , m_content_size(0)
-        , m_checksumLevel(checksumLevel)
-        , m_checksumType(checksumType) {
+        , m_options(options) {
         std::aligned_storage<sizeof(FileHeader)>::type header;
         memset(&header, 0, sizeof header);
         m_writer.ensureWrite(&header, sizeof header);
     }
     void add_record(fstring rec) {
+        if (m_options.compress_level > 0) {
+            m_compressBuffer.resize_no_init(ZSTD_compressBound(rec.size()));
+            size_t zstd_size = ZSTD_compress(m_compressBuffer.data(), m_compressBuffer.size(), rec.data(), rec.size(),
+                                             m_options.compress_level - 1);
+            if (ZSTD_isError(zstd_size)) {
+                  TERARK_THROW(std::logic_error
+                      , "ZipOffsetBlobStore::MyBuilder::add_record: error %s"
+                      , ZSTD_getErrorName(zstd_size));
+            }
+            rec = fstring(m_compressBuffer.data(), zstd_size);
+        }
         m_builder->push_back(m_content_size);
         m_writer.ensureWrite(rec.data(), rec.size());
         m_content_size += rec.size();
-        if (2 == m_checksumLevel) {
-            if (kCRC16C == m_checksumType) {
+        if (2 == m_options.checksum_level) {
+            if (kCRC16C == m_options.checksum_type) {
                 uint16_t crc = Crc16c_update(0, rec.data(), rec.size());
                 m_writer.ensureWrite(&crc, sizeof(crc));
                 m_content_size += sizeof(crc);
@@ -459,7 +498,7 @@ public:
             m_memStream.stream()->resize(file_size);
             *(FileHeader*)m_memStream.stream()->begin() =
                 FileHeader(fstring(m_memStream.stream()->begin(), m_memStream.size()), m_content_size, offsets_size,
-                                   m_checksumLevel, m_checksumType);
+                                   m_options);
 
             XXHash64 xxhash64(g_dpbsnark_seed);
             xxhash64.update(m_memStream.stream()->begin(), m_memStream.size() - sizeof(BlobStoreFileFooter));
@@ -490,7 +529,7 @@ public:
             MmapWholeFile mmap(m_fpath, true);
             fstring mem((const char*)mmap.base + m_offset, (ptrdiff_t)(file_size - m_offset));
             *(FileHeader*)((byte_t*)mmap.base + m_offset) = FileHeader(mem, m_content_size, offsets_size, 
-                                                                       m_checksumLevel, m_checksumType);
+                                                                       m_options);
 
             XXHash64 xxhash64(g_dpbsnark_seed);
             xxhash64.update(mem.data(), mem.size() - sizeof(BlobStoreFileFooter));
@@ -505,13 +544,19 @@ public:
 ZipOffsetBlobStore::MyBuilder::~MyBuilder() {
     delete impl;
 }
-ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, fstring fpath, size_t offset,
-                                         int checksumLevel, int checksumType) {
-    impl = new Impl(blockUnits, fpath, offset, checksumLevel, checksumType);
+ZipOffsetBlobStore::MyBuilder::MyBuilder(fstring fpath, size_t offset, Options options) {
+    if (options.compress_level > 0) {
+        options.checksum_level = 1;
+        options.checksum_type = 0;
+    }
+    impl = new Impl(fpath, offset, options);
 }
-ZipOffsetBlobStore::MyBuilder::MyBuilder(size_t blockUnits, FileMemIO& mem,
-                                         int checksumLevel, int checksumType) {
-    impl = new Impl(blockUnits, mem, checksumLevel, checksumType);
+ZipOffsetBlobStore::MyBuilder::MyBuilder(FileMemIO& mem, Options options) {
+    if (options.compress_level > 0) {
+        options.checksum_level = 1;
+        options.checksum_type = 0;
+    }
+    impl = new Impl(mem, options);
 }
 void ZipOffsetBlobStore::MyBuilder::addRecord(fstring rec) {
     assert(NULL != impl);

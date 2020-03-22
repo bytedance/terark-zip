@@ -18,6 +18,7 @@ namespace terark {
 // Object layout is same to PlainBlobStore, but use SortedUintVec as offset
 class TERARK_DLL_EXPORT ZipOffsetBlobStore : public AbstractBlobStore {
     struct FileHeader; friend struct FileHeader;
+    int m_compressLevel;
     valvec<byte_t> m_content;
     SortedUintVec  m_offsets;
 
@@ -30,6 +31,14 @@ class TERARK_DLL_EXPORT ZipOffsetBlobStore : public AbstractBlobStore {
 public:
     ZipOffsetBlobStore();
     ~ZipOffsetBlobStore();
+
+    struct Options {
+      Options() : block_units(128), compress_level(0), checksum_level(3), checksum_type(0) {}
+      int block_units;
+      int compress_level;
+      int checksum_level;
+      int checksum_type;
+    };
 
     void swap(ZipOffsetBlobStore& other);
 
@@ -48,10 +57,8 @@ public:
     struct TERARK_DLL_EXPORT MyBuilder : public AbstractBlobStore::Builder {
         class TERARK_DLL_EXPORT Impl; Impl* impl;
     public:
-        MyBuilder(size_t blockUnits, fstring fpath, size_t offset = 0,
-                  int checksumLevel = 3, int checksumType = 0);
-        MyBuilder(size_t blockUnits, FileMemIO& mem,
-                  int checksumLevel = 3, int checksumType = 0);
+        MyBuilder(fstring fpath, size_t offset = 0, Options options = Options());
+        MyBuilder(FileMemIO& mem, Options options = Options());
         virtual ~MyBuilder();
         void addRecord(fstring rec) override;
         void finish() override;
