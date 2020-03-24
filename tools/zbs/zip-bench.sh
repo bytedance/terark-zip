@@ -19,7 +19,7 @@ for ifile in /data01/hdfs_data/raw.json.*; do
     time rls/zbs_build.exe -j128 -z 6 -T o -o ${ofile}.zstd.rec -B $ifile
     rls/zbs_unzip.exe    -t -b 1 -T 10 ${ofile}.zstd.rec
     rls/zbs_unzip.exe -r -t -b 1 -T 10 ${ofile}.zstd.rec
-    time zstd -o   ${ofile}.zstd.all $ifile
-    time zstd -d < ${ofile}.zstd.all > /dev/null
+    time zstd -f -o ${ofile}.zstd.all $ifile
+    time zstd -d  < ${ofile}.zstd.all > /dev/null
 done
 
