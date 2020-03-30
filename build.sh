@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # 
-# TODO:
-#   pass prebuild libraries so we don't have to re-build it in terark-core
-#   e.g. boost, zstd, snappy etc...
+# NO_ASAN=1 ./build.sh
 #
 set -e
 
@@ -50,8 +48,13 @@ fi
 
 rm -rf pkg
 
-# TODO add prebuild from params BOOST_LIB_DIR...
-make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
+if [ "$NO_ASAN" ];then
+  echo "build without ASAN"
+  make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1 DBG_ASAN='' AFR_ASAN=''
+else
+  echo "build with ASAN"
+  make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
+fi
 
 # move all binaries to output/ dir for next CICD steps
 WITH_BMI2=`./cpu_has_bmi2.sh`
