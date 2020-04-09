@@ -2848,6 +2848,7 @@ void Patricia::TokenBase::dispose() {
 #define CSPP_WAIT_FREE 1
 
 #if CSPP_WAIT_FREE
+template<bool IsInHeadLock>
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(AcquireDone == m_flags.state);
@@ -2891,7 +2892,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         else {
             // this is unlikely(cas.1 fail), and lock is required to make
             // access to t2 safe(t2 maybe accessed in dequeue)
-            if (!cas_weak(trie->m_head_lock, false, true)) {
+            if (!IsInHeadLock && !cas_weak(trie->m_head_lock, false, true)) {
                 // this is very unlikely(two cas failed both), use yield to
                 // keep it simple
                 std::this_thread::yield();
@@ -2910,14 +2911,14 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // but NULL == t2 may still happen by ABA problem
             auto t2 = p->m_link.next;
             if (NULL == t2) {
-                cas_unlock(trie->m_head_lock);
+                if (!IsInHeadLock) cas_unlock(trie->m_head_lock);
                 continue;
             }
             auto t2_verseq = t2->m_link.verseq;
             TERARK_VERIFY_F(verseq < t2_verseq, "%llu %llu", llong(verseq), llong(t2_verseq));
             // cas.3
             bool cas_ok = cas_weak(trie->m_tail, {p, verseq}, {t2, t2_verseq});
-            cas_unlock(trie->m_head_lock);
+            if (!IsInHeadLock) cas_unlock(trie->m_head_lock);
             if (cas_ok) {
                 TERARK_VERIFY_F(verseq+1 == t2_verseq, "%llu %llu", llong(verseq), llong(t2_verseq));
             } else {
@@ -2929,6 +2930,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     }
 }
 #else
+template<bool IsInHeadLock>
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(AcquireDone == m_flags.state);
@@ -3209,7 +3211,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         }
       #endif
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
-        TokenBase::enqueue(trie);
+        TokenBase::enqueue<false>(trie);
         assert(NULL != trie->m_dummy.m_link.next);
         //if (m_min_age == 0) {
         //    m_min_age = trie->m_dummy.m_min_age;
@@ -3363,7 +3365,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
         trie->enq_lock();
-        enqueue(trie);
+        enqueue<true>(trie);
         trie->enq_unlock();
         assert(this == trie->m_dummy.m_link.next);
         TERARK_VERIFY(new_head->dequeue(trie)); // at least, I'm alive
