@@ -175,6 +175,12 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #define CURRENT_SRC_CODE_POSTION  \
 	__FILE__ ":" BOOST_STRINGIZE(__LINE__) ", in function: " BOOST_CURRENT_FUNCTION
 
+#define TERARK_DIE(fmt, ...) \
+	do { \
+        fprintf(stderr, "%s:%d: %s: die: " fmt " !\n", \
+                __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
+        abort(); } while (0)
+
 /// VERIFY indicate runtime assert in release build
 #define TERARK_VERIFY_F_IMP(expr, fmt, ...) \
     do { if (terark_unlikely(!(expr))) { \

@@ -228,10 +228,10 @@ void PatriciaMem<Align>::
 ReaderTokenTLS_Holder::reuse(ReaderTokenTLS_Object* token) {
     assert(NULL != token->m_token.get());
     switch (token->m_token->m_flags.state) {
-    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-    case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
-    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+    case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+    case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+    case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
     case ReleaseWait: break; // OK
     case ReleaseDone: break; // OK
     }
@@ -257,9 +257,9 @@ template<size_t Align>
 Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
     ReaderToken* tok = tls_reader_token();
     switch (tok->m_flags.state) {
-    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
-    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
+    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+    case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+    case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
     case AcquireDone: TERARK_VERIFY(ThisThreadID() == tok->m_thread_id); break;
     case ReleaseWait: // OK
     case ReleaseDone: // OK
@@ -337,10 +337,10 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
     {
         TokenFlags flags = m_reader_token->m_flags;
         switch (flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+        case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case ReleaseDone: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -348,10 +348,10 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
     if (m_writer_token) {
         TokenFlags flags = m_writer_token->m_flags;
         switch (flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+        case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case ReleaseDone: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -442,7 +442,7 @@ void PatriciaMem<Align>::set_readonly() {
 
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {
     switch (conLevel) {
-default: TERARK_VERIFY(!"Unknown == conLevel"); break;
+default: TERARK_DIE("Unknown == conLevel"); break;
 case NoWriteReadOnly    : m_insert = (insert_func_t)&MainPatricia::insert_readonly_throw;                 break;
 case SingleThreadStrict : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadStrict>; break;
 case SingleThreadShared : m_insert = (insert_func_t)&MainPatricia::insert_one_writer<SingleThreadShared>; break;
@@ -730,10 +730,10 @@ void PatriciaMem<Align>::destroy() {
     for(TokenBase* curr = m_dummy.m_link.next; curr; ) {
         TokenBase* next = curr->m_link.next;
         switch (curr->m_flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
-        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
         case DisposeWait: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -1271,7 +1271,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+    default: TERARK_DIE("Invalid == cnt_type"); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -1793,7 +1793,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+    default: TERARK_DIE("Invalid == cnt_type"); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -2262,7 +2262,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             a[node].big.n_children = n_children + 1;
         break; }
     case 15: // direct update curr_slot later
-        TERARK_VERIFY(!"15 == cnt_type");
+        TERARK_DIE("15 == cnt_type");
         break;
     }
   #if !defined(NDEBUG)
@@ -2826,14 +2826,18 @@ void Patricia::TokenBase::dispose() {
     }
   #endif
     switch (m_flags.state) {
-    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-    case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+    case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+    case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+    case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
     case ReleaseDone:
         TERARK_VERIFY(NULL == m_trie || this != static_cast<MainPatricia*>(m_trie)->m_token_tail);
         m_flags.state = DisposeDone;
-        static_cast<MainPatricia*>(m_trie)->del_token(this);
+        if (auto trie = static_cast<MainPatricia*>(m_trie)) {
+            trie->del_token(this);
+        } else {
+            delete this;
+        }
         break;
     case ReleaseWait:
         m_flags.state = DisposeWait;
@@ -2862,6 +2866,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
         }
         this->m_link = {NULL, verseq+1};
 
+        // cas.1
         if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq})) {
             /// if ABA problem happens, verseq will be greater
             /// so the later cas_strong will fail
@@ -2886,14 +2891,14 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             return;
         }
         else {
-            // bad assert, others may help me set tail as me
-            // TERARK_VERIFY(this != p->m_link.next);
+            // cas.1 failed, this verify must be hold
+            TERARK_VERIFY(this != p->m_link.next);
             //
             // at this time, other thread may modified p->m_link, then
             // suspended, thus m_tail is keep unchanged, so let us
             // change m_tail to keep it updated
             //
-            // this check is required, because prev compare_exchange_weak
+            // this check is required, because cas.1
             // may spuriously fail(when p->m_link.next is really NULL).
             // --- spuriously fail will never happen on x86
             // but NULL == t2 may still happen by ABA problem
@@ -2901,6 +2906,8 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             if (NULL == t2)
                 continue;
             TERARK_VERIFY_F(verseq < t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
+
+            // cas.2
             if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq})) {
                 TERARK_VERIFY_F(verseq+1 == t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
                 continue;
@@ -2941,9 +2948,9 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         TERARK_VERIFY(!flags.is_head);
 
         switch (flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case AcquireDone: {
             // if (terark_unlikely(flags.is_head)) {
             //     TERARK_VERIFY(curr == trie->m_dummy.m_link.next);
@@ -3122,9 +3129,9 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
         TokenFlags flags = curr->m_flags;
         TERARK_VERIFY(!flags.is_head);
         switch (flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
-        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
         case AcquireDone:
             trie->m_dummy.m_link.next = curr;
             this->m_flags.is_head = false;
@@ -3173,10 +3180,10 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     auto flags = m_flags;
     switch (flags.state) {
-    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-    case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-    case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-    case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+    case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+    case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+    case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
     case ReleaseDone:
         m_flags = {AcquireDone, false};
         //m_acqseq is for sort_cpu()
@@ -3392,9 +3399,9 @@ void PatriciaMem<Align>::reclaim_head() {
         TokenBase* next = head->m_link.next;
         auto flags = head->m_flags;
         switch (flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
-        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
             if (NULL != next) { // head is not equal to tail
                 // when next is NULL, head is likely being m_token_tail
@@ -3457,11 +3464,11 @@ void Patricia::TokenBase::update() {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
-        case ReleaseWait: TERARK_VERIFY(!"ReleaseWait == m_flags.state"); break;
-        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: TERARK_DIE("ReleaseWait == m_flags.state"); break;
+        case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_link = {NULL, 0};
             m_tls = NULL;
@@ -3489,11 +3496,11 @@ void Patricia::TokenBase::release() {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case ReleaseDone: TERARK_VERIFY(!"ReleaseDone == m_flags.state"); break;
-        case ReleaseWait: TERARK_VERIFY(!"ReleaseWait == m_flags.state"); break;
-        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: TERARK_DIE("ReleaseWait == m_flags.state"); break;
+        case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case AcquireDone:
             m_flags.state = ReleaseDone;
             m_link = {NULL, 0};
@@ -3512,7 +3519,7 @@ void Patricia::TokenBase::release() {
 
 void Patricia::TokenBase::gc(Patricia* trie1) {
     switch (m_flags.state) {
-    default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
+    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
     case ReleaseDone: break;
     case ReleaseWait: break;
     case AcquireDone:
@@ -3545,10 +3552,10 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
     else {
         // may be MultiReadMultiWrite some milliseconds ago
         switch (m_flags.state) {
-        default:          TERARK_VERIFY(!"UnknownEnum == m_flags.state"); break;
-        case AcquireDone: TERARK_VERIFY(!"AcquireDone == m_flags.state"); break;
-        case DisposeWait: TERARK_VERIFY(!"DisposeWait == m_flags.state"); break;
-        case DisposeDone: TERARK_VERIFY(!"DisposeDone == m_flags.state"); break;
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+        case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case ReleaseWait:
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
@@ -3720,7 +3727,7 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
                 }
             }
         }
-        TERARK_VERIFY(!"cnt_type == 8, must found ch");
+        TERARK_DIE("cnt_type == 8, must found ch");
         break;
     case 15:
         assert(256 == p->big.n_children);
@@ -4133,7 +4140,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         assert(ch <= 255);
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
-        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+        default: TERARK_DIE("Invalid == cnt_type"); break;
         case 0:
             assert(p->meta.b_is_final);
             assert(calc_word_len() == m_word.size());
@@ -4379,7 +4386,7 @@ seek_lower_bound_fast:
   #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
         switch (cnt_type) {
-        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+        default: TERARK_DIE("Invalid == cnt_type"); break;
         case 0:
             assert(p->meta.b_is_final);
             goto RewindStackForNext;
@@ -4575,7 +4582,7 @@ rewind_stack_for_next:
             byte_t* pch = &m_word.back();
             assert (p->meta.n_zpath_len == top.zpath_len);
             switch (cnt_type) {
-            default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+            default: TERARK_DIE("Invalid == cnt_type"); break;
             case 0:  TERARK_VERIFY(p->meta.b_is_final); break;
             case 1:
                 assert(0 == nth);
@@ -4705,8 +4712,8 @@ bool MainPatricia::IterImpl::incr() {
         size_t  nth_child = m_iter[top].nth_child;
         assert (nth_child < m_iter[top].n_children);
         switch (cnt_type) {
-        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
-        case 0:  TERARK_VERIFY(!"0 == cnt_type"); break;
+        default: TERARK_DIE("Invalid == cnt_type"); break;
+        case 0:  TERARK_DIE("0 == cnt_type"); break;
         case 1:
             assert(nth_child < 1);
             assert(m_iter[top].n_children == 1);
@@ -4823,12 +4830,12 @@ bool MainPatricia::IterImpl::decr() {
     size_t  cnt_type = p->meta.n_cnt_type;
     size_t  nth_child = m_iter[top].nth_child;
     switch (cnt_type) {
-    default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
+    default: TERARK_DIE("Invalid == cnt_type"); break;
     case 0:
     case 1:
         assert(nth_child < cnt_type);
         assert(m_iter[top].n_children == cnt_type);
-        TERARK_VERIFY(!"cnt_type must not be {0,1}"); break;
+        TERARK_DIE("cnt_type must not be {0,1}"); break;
         break;
     case 2:
         assert(nth_child < 2);
@@ -4951,8 +4958,8 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
       //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const auto ch = (byte_t)key[pos];
         switch (cnt_type) {
-        default: TERARK_VERIFY(!"Invalid == cnt_type"); break;
-        case 0:  TERARK_VERIFY(!"0 == cnt_type"); break;
+        default: TERARK_DIE("Invalid == cnt_type"); break;
+        case 0:  TERARK_DIE("0 == cnt_type"); break;
         case 2: if (ch == p->meta.c_label[1]) { match_nth_char(1, 1); } no_break_fallthrough;
         case 1: if (ch == p->meta.c_label[0]) { match_nth_char(1, 0); }
                 goto RestoreLastMatch;
