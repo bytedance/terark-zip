@@ -5,6 +5,9 @@
 
 namespace terark {
 
+// 
+// 直方图的值表示长度，高表示条目数量
+// 
 template<class index_t>
 class TERARK_DLL_EXPORT Histogram {
     terark::valvec<index_t> m_small_cnt;
@@ -13,14 +16,23 @@ class TERARK_DLL_EXPORT Histogram {
     size_t m_max_small_value;
 
 public:
+    // 列数
     size_t m_distinct_key_cnt;
+    // 所有列高度之和
     size_t m_cnt_sum;
+    // 总面积
     size_t m_total_key_len;
-    size_t m_min_key_len;
-    size_t m_max_key_len;
+    // 最左列的值
+    index_t m_min_key_len;
+    // 最右列的值
+    index_t m_max_key_len;
+    // 最低列的值
     index_t m_min_cnt_key;
+    // 最高列的值
     index_t m_max_cnt_key;
+    // 最低列的高度
     size_t m_cnt_of_min_cnt_key;
+    // 最高列的高度
     size_t m_cnt_of_max_cnt_key;
 
     ~Histogram();
