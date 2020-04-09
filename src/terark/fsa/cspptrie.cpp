@@ -2845,7 +2845,7 @@ void Patricia::TokenBase::dispose() {
     }
 }
 
-#define CSPP_WAIT_FREE 1
+#define CSPP_WAIT_FREE 0
 
 #if CSPP_WAIT_FREE
 template<bool IsInHeadLock>
