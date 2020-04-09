@@ -2764,9 +2764,11 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 }
 
 ///////////////////////////////////////////////////////////////////////
+#define CSPP_WAIT_FREE 0
 
 template<size_t Align>
 inline void PatriciaMem<Align>::enq_lock() {
+  #if CSPP_WAIT_FREE
     while (true) {
         const uint32_t oldenq = m_enq_del.enq;
         if (cas_weak(m_enq_del, {oldenq, 0}, {oldenq+1, 0})) {
@@ -2778,25 +2780,31 @@ inline void PatriciaMem<Align>::enq_lock() {
             }
         }
     }
+  #endif
 }
 template<size_t Align>
 inline void PatriciaMem<Align>::enq_unlock() {
+  #if CSPP_WAIT_FREE
     assert(m_enq_del.enq > 0);
     as_atomic(m_enq_del.enq).fetch_sub(1, std::memory_order_release);
+  #endif
 }
 
 template<size_t Align>
 void PatriciaMem<Align>::del_token(TokenBase* token) {
+  #if CSPP_WAIT_FREE
     while (!cas_weak(m_enq_del, {0, 0}, {0, 1})) {
         std::this_thread::yield();
     }
-
+  #endif
     TERARK_VERIFY(DisposeDone == token->m_flags.state);
     delete token;
 
+  #if CSPP_WAIT_FREE
     assert(1 == m_enq_del.del);
     assert(0 == m_enq_del.enq);
     as_atomic(m_enq_del.del).store(0, std::memory_order_release);
+  #endif
 }
 
 Patricia::TokenBase::TokenBase() {
@@ -2844,8 +2852,6 @@ void Patricia::TokenBase::dispose() {
         break;
     }
 }
-
-#define CSPP_WAIT_FREE 0
 
 #if CSPP_WAIT_FREE
 template<bool IsInHeadLock>
