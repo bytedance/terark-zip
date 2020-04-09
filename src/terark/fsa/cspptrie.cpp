@@ -2860,8 +2860,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // ABA happened between load.1 and load.2 (by context switch)
             DEBUG_fprintf(stderr
                 , "%s:%d: ABA: t.verseq = %llu, verseq = %llu\n"
-                , __FILE__, __LINE__
-                , llong(t.verseq), llong(verseq));
+                , __FILE__, __LINE__, llong(t.verseq), llong(verseq));
             continue;
         }
         this->m_link = {NULL, verseq+1};
@@ -2883,14 +2882,21 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
                 //abort();
             }
           #endif
-            ///
             /// if here use compare_exchange_weak, m_token_tail
-            /// may not point to the real tail, so we use the strong
-            /// version
+            /// may not point to the real tail, so we use the strong version
+            /// cas.2
             cas_strong(trie->m_tail, {p, verseq}, {this, verseq+1});
             return;
         }
         else {
+            // this is unlikely(cas.1 fail), and lock is required to make
+            // access to t2 safe(t2 maybe accessed in dequeue)
+            if (!cas_weak(trie->m_head_lock, false, true)) {
+                // this is very unlikely(two cas failed both), use yield to
+                // keep it simple
+                std::this_thread::yield();
+                continue; // retry enqueue
+            }
             // cas.1 failed, this verify must be hold
             TERARK_VERIFY(this != p->m_link.next);
             //
@@ -2903,18 +2909,22 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
             // --- spuriously fail will never happen on x86
             // but NULL == t2 may still happen by ABA problem
             auto t2 = p->m_link.next;
-            if (NULL == t2)
-                continue;
-            TERARK_VERIFY_F(verseq < t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
-
-            // cas.2
-            if (cas_weak(trie->m_tail, {p, verseq}, {t2, t2->m_link.verseq})) {
-                TERARK_VERIFY_F(verseq+1 == t2->m_link.verseq, "%llu %llu", llong(verseq), llong(t2->m_link.verseq));
+            if (NULL == t2) {
+                cas_unlock(trie->m_head_lock);
                 continue;
             }
-            fprintf(stderr
-            , "DEBUG: failed help other thread updating m_tail (%p %llu) -> (%p %llu), this=%p\n"
-            , p, llong(verseq), t2, llong(t2->m_link.verseq), this);
+            auto t2_verseq = t2->m_link.verseq;
+            TERARK_VERIFY_F(verseq < t2_verseq, "%llu %llu", llong(verseq), llong(t2_verseq));
+            // cas.3
+            bool cas_ok = cas_weak(trie->m_tail, {p, verseq}, {t2, t2_verseq});
+            cas_unlock(trie->m_head_lock);
+            if (cas_ok) {
+                TERARK_VERIFY_F(verseq+1 == t2_verseq, "%llu %llu", llong(verseq), llong(t2_verseq));
+            } else {
+                fprintf(stderr
+                  , "DEBUG: failed help other thread updating m_tail (%p %llu) -> (%p %llu), this=%p\n"
+                  , p, llong(verseq), t2, llong(t2_verseq), this);
+            }
         }
     }
 }
@@ -2985,6 +2995,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             if (NULL != next) { // is not tail
                 if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
                     //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone token of thread-%08zX\n", ThisThreadID(), curr->m_thread_id);
+                    //curr->m_link = {UNLINKED_TOKEN, 0}; // curr is other thread's
                     curr = next;
                     as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 }
