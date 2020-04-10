@@ -198,6 +198,7 @@ ZipOffsetBlobStore::~ZipOffsetBlobStore() {
 
 void ZipOffsetBlobStore::swap(ZipOffsetBlobStore& other) {
   AbstractBlobStore::risk_swap(other);
+  std::swap(m_compressLevel, other.m_compressLevel);
   m_content.swap(other.m_content);
   m_offsets.swap(other.m_offsets);
 }
