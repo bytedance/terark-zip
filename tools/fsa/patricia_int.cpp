@@ -173,8 +173,9 @@ GetoptDone:
 		, pf.sf(t0,t1), keyvec.used_mem_size()/pf.uf(t0,t1)
 	);
     auto patricia_find = [&](size_t tid, size_t Beg, size_t End) {
-        Patricia::ReaderToken& token = *pt->acquire_tls_reader_token();
+        Patricia::ReaderToken& token = *pt->tls_reader_token();
         if (mark_readonly) {
+            token.acquire(pt);
             for (size_t i = Beg; i < End; ++i) {
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (!pt->lookup(s, &token))
@@ -185,12 +186,13 @@ GetoptDone:
         }
         else {
             for (size_t i = Beg; i < End; ++i) {
-                token.update();
+                token.acquire(pt);
                 fstring s((byte_t*)(keyvec.data() + i), sizeof(ullong));
                 if (!pt->lookup(s, &token))
                     fprintf(stderr, "pttrie lookup not found: %llu\n", cvtkey(keyvec[i]));
                 if (token.value_of<ullong>() != unaligned_load<ullong>(s.p))
                     fprintf(stderr, "pttrie lookup wrong value: %llu\n", cvtkey(keyvec[i]));
+                token.idle();
             }
         }
         token.release();

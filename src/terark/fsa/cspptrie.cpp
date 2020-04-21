@@ -254,22 +254,6 @@ Patricia::ReaderToken* PatriciaMem<Align>::tls_reader_token() {
 }
 
 template<size_t Align>
-Patricia::ReaderToken* PatriciaMem<Align>::acquire_tls_reader_token() {
-    ReaderToken* tok = tls_reader_token();
-    switch (tok->m_flags.state) {
-    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
-    case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
-    case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
-    case AcquireDone: TERARK_VERIFY(ThisThreadID() == tok->m_thread_id); break;
-    case ReleaseWait: // OK
-    case ReleaseDone: // OK
-        tok->acquire(this);
-        break;
-    }
-    return tok;
-}
-
-template<size_t Align>
 void PatriciaMem<Align>::LazyFreeListTLS::sync_atomic(PatriciaMem<Align>* trie) {
     atomic_maximize(trie->m_max_word_len, m_max_word_len, std::memory_order_relaxed);
     as_atomic(trie->m_n_words).fetch_add(m_n_words, std::memory_order_relaxed);
@@ -2809,6 +2793,7 @@ void PatriciaMem<Align>::del_token(TokenBase* token) {
 
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
+    m_ref_verseq = 0;
     m_link.next  = NULL;
     m_link.verseq   = 0;
     m_min_age = 0;
@@ -2836,6 +2821,8 @@ void Patricia::TokenBase::dispose() {
     switch (m_flags.state) {
     default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
     case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
+    case AcquireIdle: TERARK_DIE("AcquireIdle == m_flags.state"); break;
+    case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
     case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
     case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
     case ReleaseDone:
@@ -2857,7 +2844,7 @@ void Patricia::TokenBase::dispose() {
 template<bool IsInHeadLock>
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(AcquireDone == m_flags.state);
+    assert(AcquireDone == m_flags.state || AcquireLock == m_flags.state);
     assert(!m_flags.is_head);
     while (true) {
         const LinkType t = trie->m_tail; // load.1
@@ -2939,7 +2926,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
 template<bool IsInHeadLock>
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
-    assert(AcquireDone == m_flags.state);
+    assert(AcquireDone == m_flags.state || AcquireLock == m_flags.state);
     assert(!m_flags.is_head);
     assert(trie->m_head_lock); // locked
     TokenBase* const p = trie->m_token_tail;
@@ -2969,6 +2956,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
         case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
         case AcquireDone: {
             // if (terark_unlikely(flags.is_head)) {
             //     TERARK_VERIFY(curr == trie->m_dummy.m_link.next);
@@ -2995,10 +2983,24 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
             else {
                 // curr's thread call release/dispose
                 TERARK_VERIFY(ReleaseWait == flags.state ||
-                          DisposeWait == flags.state);
+                              DisposeWait == flags.state);
                 continue; // try 'curr' in next iteration
             }
             break; }
+        case AcquireIdle:
+            if (cas_weak(curr->m_flags, flags, {AcquireLock, false})) {
+                uint64_t min_age = curr->m_link.verseq;
+                trie->m_dummy.m_min_age = min_age;
+                trie->m_dummy.m_link.next = curr;
+                curr->m_min_age = min_age;
+                as_atomic(curr->m_flags).store({AcquireIdle, false},
+                          std::memory_order_release);
+                return true;
+            }
+            else {
+                continue; // try 'curr' in next iteration
+            }
+            break;
         case ReleaseWait:
             if (NULL != next) { // is not tail
                 if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
@@ -3203,6 +3205,18 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
     case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
     case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
     case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+    case AcquireLock:
+        do { // wait for other threads to finish AcquireLock
+            _mm_pause();
+            // other thread change state from AcquireLock to AcquireIdle
+            //  this thread change state from AcquireIdle to AcquireDone
+        } while (!cas_weak(m_flags.state, AcquireIdle, AcquireDone));
+        break;
+    case AcquireIdle:
+        while (!cas_weak(m_flags.state, AcquireIdle, AcquireDone)) {
+            _mm_pause();
+        }
+        break;
     case ReleaseDone:
         m_flags = {AcquireDone, false};
         //m_acqseq is for sort_cpu()
@@ -3213,7 +3227,8 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
       #else
         while (!cas_weak(trie->m_head_lock, false, true)) {
             // this is not wait free
-            std::this_thread::yield();
+            // std::this_thread::yield();
+            _mm_pause();
         }
       #endif
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
@@ -3244,6 +3259,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
                 TERARK_VERIFY(ReleaseDone == flags.state); // check compiler bug
                 TERARK_VERIFY(ReleaseDone == m_flags.state);
             }
+            _mm_pause();
             goto Retry;
         }
         break;
@@ -3376,15 +3392,14 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         assert(this == trie->m_dummy.m_link.next);
         TERARK_VERIFY(new_head->dequeue(trie)); // at least, I'm alive
         //m_min_age = trie->m_dummy.m_min_age; // do not update
-        // unlock
-        as_atomic(trie->m_head_lock).store(false, std::memory_order_release);
+        cas_unlock(trie->m_head_lock);
     }
     else {
         if (cas_weak(trie->m_head_lock, false, true)) {
             //assert(this == trie->m_dummy.m_link.next); // false positive
             uint64_t verseq = m_link.verseq;
             if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
-                cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1});
+                TERARK_VERIFY(cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1}));
                 trie->m_dummy.m_min_age = verseq+1;
                 this->m_min_age = verseq+1;
             }
@@ -3417,6 +3432,7 @@ void PatriciaMem<Align>::reclaim_head() {
     while (true) {
         TokenBase* next = head->m_link.next;
         auto flags = head->m_flags;
+        assert(!flags.is_head);
         switch (flags.state) {
         default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
@@ -3454,6 +3470,31 @@ void PatriciaMem<Align>::reclaim_head() {
             } else {
                 // retry loop
             }
+            break;
+        case AcquireIdle:
+            if (NULL != next) {
+                if (cas_weak(head->m_flags, flags, {AcquireLock, false})) {
+                    this->enq_lock();
+                    head->enqueue<true>(this);
+                    this->enq_unlock();
+                    as_atomic(head->m_flags).store({AcquireIdle, false},
+                              std::memory_order_release);
+                    m_head_is_dead = false;
+                    head = next;
+                    // 'next' may be still waiting, so may be not all waiting
+                    // tokens are reclaimed, but we just stop at this point,
+                    // let these un-reclaimed tokens get reclaimed next time
+                    goto Done;
+                } else {
+                    // std::this_thread::yield(); // yield may cause bad stall
+                    // retry loop
+                }
+            }
+            else {
+                goto Done;
+            }
+            break;
+        case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
         }
     }
   Done:
@@ -3464,7 +3505,7 @@ void PatriciaMem<Align>::reclaim_head() {
     as_atomic(m_head_lock).store(false, std::memory_order_release);
 }
 
-void Patricia::TokenBase::update() {
+void Patricia::TokenBase::idle() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(ThisThreadID() == m_thread_id);
@@ -3488,6 +3529,8 @@ void Patricia::TokenBase::update() {
         case ReleaseWait: TERARK_DIE("ReleaseWait == m_flags.state"); break;
         case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case AcquireIdle: TERARK_DIE("AcquireIdle == m_flags.state"); break;
+        case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
         case AcquireDone:
             m_link = {NULL, 0};
             m_tls = NULL;
@@ -3501,6 +3544,8 @@ void Patricia::TokenBase::update() {
         }
       #endif
     }
+    m_ref_verseq = m_link.verseq;
+    m_flags.state = AcquireIdle;
 }
 
 void Patricia::TokenBase::release() {
@@ -3520,12 +3565,18 @@ void Patricia::TokenBase::release() {
         case ReleaseWait: TERARK_DIE("ReleaseWait == m_flags.state"); break;
         case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case AcquireIdle:
+        case AcquireLock:
+            while (cas_weak(m_flags.state, AcquireIdle, ReleaseDone)) {
+                _mm_pause(); // spin
+            }
+            break;
         case AcquireDone:
             m_flags.state = ReleaseDone;
-            m_link = {NULL, 0};
-            m_tls = NULL;
             break;
         }
+        m_link = {NULL, 0};
+        m_tls = NULL;
       #if !defined(NDEBUG)
         if (SingleThreadStrict == conLevel) {
             assert(0 == m_link.verseq);
@@ -3534,19 +3585,7 @@ void Patricia::TokenBase::release() {
         }
       #endif
     }
-}
-
-void Patricia::TokenBase::gc(Patricia* trie1) {
-    switch (m_flags.state) {
-    default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
-    case ReleaseDone: break;
-    case ReleaseWait: break;
-    case AcquireDone:
-        fprintf(stderr, "WARN: Patricia::TokenBase::gc(): Token=%p is not released\n", this);
-        break;
-    case DisposeDone: break;
-    }
-    m_flags.state = DisposeDone;
+    m_ref_verseq = 0;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -3575,14 +3614,20 @@ void Patricia::ReaderToken::acquire(Patricia* trie) {
         case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
         case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case AcquireIdle:
+        case AcquireLock:
+            while (cas_weak(m_flags.state, AcquireIdle, AcquireDone)) {
+                _mm_pause(); // spin
+            }
+            break;
         case ReleaseWait:
             assert(trie->m_mempool_concurrent_level >= SingleThreadShared);
         case ReleaseDone:
             m_flags.state = AcquireDone;
-            m_link = {NULL, 0};
-            m_tls = NULL;
             break;
         }
+        m_link = {NULL, 0};
+        m_tls = NULL;
       #if !defined(NDEBUG)
         if (SingleThreadStrict == conLevel) {
             assert(0 == m_link.verseq);
@@ -3845,7 +3890,6 @@ public:
     explicit IterImpl(const Patricia*);
     ~IterImpl();
     void token_detach_iter() final;
-    void update() final;
     void reset(const BaseDFA*, size_t root = 0) override final;
     bool seek_begin() override final;
     bool seek_end() override final;
@@ -3950,6 +3994,18 @@ public:
         return m_word.size();
       #endif
     }
+    terark_forceinline void ensure_token_acquired() {
+        switch (m_flags.state) {
+        default:          TERARK_DIE("UnknownEnum == m_flags.state"); break;
+        case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
+        case ReleaseWait: TERARK_DIE("ReleaseWait == m_flags.state"); break;
+        case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
+        case AcquireIdle:
+        case AcquireLock: ReaderToken::acquire(m_trie); break;
+        case AcquireDone: break;
+        }
+    }
     bool seek_lower_bound_impl(fstring key);
 };
 
@@ -3991,34 +4047,30 @@ void MainPatricia::IterImpl::token_detach_iter() {
     this->reset1();
 }
 
-void MainPatricia::IterImpl::update() {
-    assert(NULL != m_trie);
-    auto trie = static_cast<MainPatricia*>(m_trie);
-    if (NoWriteReadOnly != trie->m_writing_concurrent_level) {
-        auto old_min_age = m_min_age;
-        ReaderToken::update();
-        if (old_min_age != m_min_age && m_iter.size()) {
-            seek_lower_bound_impl(m_word);
-        }
-    }
-}
-
 void MainPatricia::IterImpl::reset(const BaseDFA* dfa, size_t root) {
     // root is ignored
     m_dfa = dfa;
     if (NULL == dfa) {
-        release();
-        m_trie = NULL;
+        if (NULL != m_trie) {
+            THROW_STD(invalid_argument, "Can not reset non-null trie as null");
+        }
     }
     else {
         assert(dynamic_cast<const BaseDFA*>(dfa) != NULL);
         auto trie = static_cast<const MainPatricia*>(dfa);
         if (m_trie == trie) {
-            ReaderToken::update();
+            if (ReaderToken::m_flags.is_head) {
+                ReaderToken::release();
+                ReaderToken::acquire(const_cast<MainPatricia*>(trie));
+            }
+        }
+        else if (NULL == m_trie) {
+            ReaderToken::acquire(const_cast<MainPatricia*>(trie));
         }
         else {
-            release();
-            acquire(const_cast<MainPatricia*>(trie));
+            TERARK_THROW(std::invalid_argument
+                , "Can not reset for different trie: old = %p, new = %p"
+                , m_trie, trie);
         }
     }
     reset1();
@@ -4031,7 +4083,7 @@ bool MainPatricia::IterImpl::seek_begin() {
 
 bool MainPatricia::IterImpl::seek_end() {
     assert(NULL != m_trie);
-    ReaderToken::update();
+    ensure_token_acquired();
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     reset1();
@@ -4041,8 +4093,7 @@ bool MainPatricia::IterImpl::seek_end() {
 
 bool MainPatricia::IterImpl::seek_lower_bound(fstring key) {
     assert(NULL != m_trie);
-    if (!(m_flag & 1))
-        ReaderToken::update();
+    ensure_token_acquired();
     return seek_lower_bound_impl(key);
 }
 
@@ -4693,10 +4744,16 @@ rewind_stack_for_next:
 
 terark_flatten
 bool MainPatricia::IterImpl::incr() {
+    ensure_token_acquired();
     if (terark_unlikely(m_iter.empty())) {
         return false;
     }
-    ReaderToken::update();
+    if (m_ref_verseq < m_min_age) {
+        m_ref_verseq = m_link.verseq;
+        if (!seek_lower_bound_impl(m_word)) {
+            return false;
+        }
+    }
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     assert(calc_word_len() == m_word.size());
@@ -4801,10 +4858,18 @@ bool MainPatricia::IterImpl::incr() {
 
 terark_flatten
 bool MainPatricia::IterImpl::decr() {
+    ensure_token_acquired();
     if (m_iter.empty()) {
         return false;
     }
-    ReaderToken::update();
+    if (m_ref_verseq < m_min_age) {
+        m_ref_verseq = m_link.verseq;
+        //std::string curr_key((const char*)m_word.data(), m_word.size());
+        fstring curr_key((const char*)m_word.data(), m_word.size());
+        if (!seek_lower_bound_impl(curr_key)) {
+            return seek_end();
+        }
+    }
     assert(calc_word_len() == m_word.size());
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
@@ -4928,6 +4993,7 @@ bool MainPatricia::IterImpl::decr() {
 }
 
 size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
+    ensure_token_acquired();
     reset1();
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());

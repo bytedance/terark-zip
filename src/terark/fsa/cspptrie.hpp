@@ -60,13 +60,15 @@ protected:
      *
      */
 
-    enum TokenState : byte_t {
+    TERARK_ENUM_PLAIN_INCLASS(TokenState, byte_t,
         ReleaseDone,
         AcquireDone,
+        AcquireIdle, // only this  thread  can set to AcquireIdle
+        AcquireLock, // only other threads can set to AcquireLock
         ReleaseWait,
         DisposeWait,
-        DisposeDone,
-    };
+        DisposeDone
+    );
     struct TokenFlags {
         TokenState  state;
         byte_t      is_head;
@@ -84,6 +86,7 @@ protected:
         Patricia*     m_trie;
         void*         m_value;
         void*         m_tls; // unused for ReaderToken
+        uint64_t      m_ref_verseq;
         size_t        m_thread_id;
         uint64_t      m_acqseq;
     //-------------------------------------
@@ -104,13 +107,16 @@ protected:
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
         void mt_update(Patricia*);
-        void gc(Patricia*);
         TokenBase();
         virtual ~TokenBase();
     public:
-        virtual void update();
+        virtual void idle();
         void release();
         void dispose(); ///< delete lazy
+        bool is_valid() const {
+            assert(AcquireDone == m_flags.state);
+            return m_min_age < m_ref_verseq;
+        }
 
         Patricia* trie() const { return m_trie; }
         const void* value() const { return m_value; }
@@ -200,7 +206,6 @@ public:
     virtual bool  is_readonly() const = 0;
     virtual WriterTokenPtr& tls_writer_token() = 0;
     virtual ReaderToken* tls_reader_token() = 0;
-    virtual ReaderToken* acquire_tls_reader_token() = 0;
 
     WriterToken* tls_writer_token_nn() {
         return tls_writer_token_nn<WriterToken>();

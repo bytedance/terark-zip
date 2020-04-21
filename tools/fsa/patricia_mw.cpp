@@ -338,9 +338,10 @@ GetoptDone:
 	}
     auto patricia_find = [&](MainPatricia* pt, int tid, size_t Beg, size_t End) {
         thread_bind_cpu();
-        Patricia::ReaderToken& token = *pt->acquire_tls_reader_token();
+        Patricia::ReaderToken& token = *pt->tls_reader_token();
         long long tt0 = pf.now();
         if (mark_readonly) {
+            token.acquire(pt);
             for (size_t i = Beg; i < End; ++i) {
                 fstring s = fstrVec[i];
                 if (!pt->lookup(s, &token))
@@ -349,10 +350,11 @@ GetoptDone:
         }
         else {
             for (size_t i = Beg; i < End; ++i) {
-                token.update();
+                token.acquire(pt);
                 fstring s = fstrVec[i];
                 if (!pt->lookup(s, &token))
                     fprintf(stderr, "pttrie not found: %.*s\n", s.ilen(), s.data());
+                token.idle();
             }
         }
         long long tt1 = pf.now();

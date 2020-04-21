@@ -43,7 +43,8 @@ void test_patricia(SortableStrVec strVec) {
     SortableStrVec rkeys;
     trie.dfa_get_random_keys(&rkeys, trie.num_words());
 
-    Patricia::ReaderToken& token = *trie.acquire_tls_reader_token();
+    Patricia::ReaderToken& token = *trie.tls_reader_token();
+    token.acquire(&trie);
     for (size_t i = 0; i < rkeys.size(); ++i) {
         fstring key = rkeys[i];
         bool ret = trie.lookup(key, &token);

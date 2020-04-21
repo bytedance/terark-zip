@@ -340,8 +340,9 @@ GetoptDone:
     long long t_append_fstrVec = t1 - t0;
     std::map<std::string, size_t> stdmap;
     auto patricia_find = [&](int tid, size_t Beg, size_t End) {
-        Patricia::ReaderToken& token = *trie.acquire_tls_reader_token();
+        Patricia::ReaderToken& token = *trie.tls_reader_token();
         if (mark_readonly) {
+            token.acquire(&trie);
             for (size_t i = Beg; i < End; ++i) {
                 fstring s = fstrVec[i];
                 if (!trie.lookup(s, &token))
@@ -350,10 +351,11 @@ GetoptDone:
         }
         else {
             for (size_t i = Beg; i < End; ++i) {
-                token.update();
+                token.acquire(&trie);
                 fstring s = fstrVec[i];
                 if (!trie.lookup(s, &token))
                     fprintf(stderr, "pttrie not found: %.*s\n", s.ilen(), s.data());
+                token.idle();
             }
         }
         token.release();

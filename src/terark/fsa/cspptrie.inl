@@ -88,7 +88,6 @@ public:
 
     WriterTokenPtr& tls_writer_token() final;
     ReaderToken* tls_reader_token() final;
-    ReaderToken* acquire_tls_reader_token() final;
 
 protected:
     struct LazyFreeItem {
