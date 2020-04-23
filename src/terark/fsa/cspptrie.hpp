@@ -86,7 +86,7 @@ protected:
         Patricia*     m_trie;
         void*         m_value;
         void*         m_tls; // unused for ReaderToken
-        uint64_t      m_ref_verseq;
+        uint64_t      m_live_verseq;
         size_t        m_thread_id;
         uint64_t      m_acqseq;
     //-------------------------------------
@@ -115,7 +115,7 @@ protected:
         void dispose(); ///< delete lazy
         bool is_valid() const {
             assert(AcquireDone == m_flags.state);
-            return m_min_age < m_ref_verseq;
+            return m_min_age < m_live_verseq;
         }
 
         Patricia* trie() const { return m_trie; }

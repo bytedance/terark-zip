@@ -150,6 +150,7 @@ protected:
     uint32_t   m_num_cpu_migrated;
     uint64_t   m_sorted_acqseq;
     bool       m_head_lock;
+    bool       m_head_is_idle;
 
     struct alignas(8) EnqDelMutex {
         uint32_t   enq;

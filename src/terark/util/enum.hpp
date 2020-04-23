@@ -27,14 +27,25 @@ public:
 };
 
 template<class Enum>
-terark::fstring enum_name(Enum v) {
+terark::fstring enum_name(Enum v, const char* unkown = "") {
   auto names  = enum_all_names ((Enum*)0);
   auto values = enum_all_values((Enum*)0);
   for (size_t i = 0; i < names.second; ++i) {
     if (v == values[i])
       return names.first[i];
   }
-  return "";
+  return unkown;
+}
+
+template<class Enum>
+const char* enum_cstr(Enum v, const char* unkown = "") {
+  auto names  = enum_all_names ((Enum*)0);
+  auto values = enum_all_values((Enum*)0);
+  for (size_t i = 0; i < names.second; ++i) {
+    if (v == values[i])
+      return names.first[i].c_str();
+  }
+  return unkown;
 }
 
 template<class Enum>
