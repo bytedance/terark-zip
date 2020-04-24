@@ -187,7 +187,6 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
 
     m_head_is_dead = false;
     m_head_lock = false;
-    m_enq_del = {0, 0};
     m_is_virtual_alloc = false;
     m_fd = -1;
     m_appdata_offset = size_t(-1);
@@ -733,7 +732,7 @@ void PatriciaMem<Align>::destroy() {
         case AcquireLock: break; // OK
         }
         curr->m_flags.state = DisposeDone;
-        del_token(curr);
+        delete curr;
         curr = next;
     }
 }
@@ -2766,47 +2765,6 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
 ///////////////////////////////////////////////////////////////////////
 #define CSPP_WAIT_FREE 0
 
-template<size_t Align>
-inline void PatriciaMem<Align>::enq_lock() {
-  #if CSPP_WAIT_FREE
-    while (true) {
-        const uint32_t oldenq = m_enq_del.enq;
-        if (cas_weak(m_enq_del, {oldenq, 0}, {oldenq+1, 0})) {
-            break;
-        }
-        else {
-            if (oldenq == m_enq_del.enq) {
-                std::this_thread::yield();
-            }
-        }
-    }
-  #endif
-}
-template<size_t Align>
-inline void PatriciaMem<Align>::enq_unlock() {
-  #if CSPP_WAIT_FREE
-    assert(m_enq_del.enq > 0);
-    as_atomic(m_enq_del.enq).fetch_sub(1, std::memory_order_release);
-  #endif
-}
-
-template<size_t Align>
-void PatriciaMem<Align>::del_token(TokenBase* token) {
-  #if CSPP_WAIT_FREE
-    while (!cas_weak(m_enq_del, {0, 0}, {0, 1})) {
-        std::this_thread::yield();
-    }
-  #endif
-    TERARK_VERIFY(DisposeDone == token->m_flags.state);
-    delete token;
-
-  #if CSPP_WAIT_FREE
-    assert(1 == m_enq_del.del);
-    assert(0 == m_enq_del.enq);
-    as_atomic(m_enq_del.del).store(0, std::memory_order_release);
-  #endif
-}
-
 Patricia::TokenBase::TokenBase() {
     m_tls   = NULL;
     m_live_verseq = 0;
@@ -2841,11 +2799,7 @@ void Patricia::TokenBase::dispose() {
         case ReleaseDone:
             TERARK_VERIFY(NULL == trie || this != trie->m_token_tail);
             if (cas_weak(m_flags, flags, {DisposeDone, false})) {
-                if (trie) {
-                    trie->del_token(this);
-                } else {
-                    delete this;
-                }
+                delete this;
                 return;
             }
             break;
@@ -3084,7 +3038,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1) {
                 // now curr must before m_token_tail
                 as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
                 curr->m_flags.state = DisposeDone;
-                trie->del_token(curr); // we delete other token
+                delete curr; // we delete other token
                 curr = next;
             }
             else {
@@ -3225,7 +3179,7 @@ void Patricia::TokenBase::sort_cpu(Patricia* trie1) {
                      .fetch_sub(1, std::memory_order_relaxed);
             trie->m_dummy.m_link.next = next; // delete curr from list
             curr->m_flags.state = DisposeDone;
-            trie->del_token(curr);
+            delete curr;
             curr = next;
             break;
         case ReleaseWait:
@@ -3277,26 +3231,15 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         //m_acqseq is for sort_cpu()
         //m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
         //              .fetch_add(1, std::memory_order_relaxed);
-      #if CSPP_WAIT_FREE
-        trie->enq_lock();
-      #else
         while (!cas_weak(trie->m_head_lock, false, true)) {
             // this is not wait free
             // std::this_thread::yield();
             _mm_pause();
         }
-      #endif
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
         TokenBase::enqueue<false>(trie);
         assert(NULL != trie->m_dummy.m_link.next);
-        //if (m_min_age == 0) {
-        //    m_min_age = trie->m_dummy.m_min_age;
-        //}
-      #if CSPP_WAIT_FREE
-        trie->enq_unlock();
-      #else
         cas_unlock(trie->m_head_lock);
-      #endif
         break;
     case ReleaseWait:
         if (cax_weak(m_flags, flags, {AcquireDone, false})) {
@@ -3529,9 +3472,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
-        trie->enq_lock();
         enqueue<true>(trie);
-        trie->enq_unlock();
         assert(this == trie->m_dummy.m_link.next);
         TERARK_VERIFY(new_head->dequeue(trie)); // at least, I'm alive
         //m_min_age = trie->m_dummy.m_min_age; // do not update
@@ -3554,6 +3495,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     }
 }
 
+// it is a AcquireDone token calling this function
 template<size_t Align>
 terark_no_inline
 void PatriciaMem<Align>::reclaim_head() {
@@ -3569,8 +3511,10 @@ void PatriciaMem<Align>::reclaim_head() {
         as_atomic(m_head_lock).store(false, std::memory_order_release);
         return;
     }
+    constexpr size_t MAX_DEL_PTRS = 32;
+    TokenBase* delptrs[MAX_DEL_PTRS];
+    size_t     delnum = 0;
     TokenBase* head = m_dummy.m_link.next;
-    bool met_idle = false;
     assert(NULL != head);
     while (true) {
         TokenBase* next = head->m_link.next;
@@ -3581,30 +3525,28 @@ void PatriciaMem<Align>::reclaim_head() {
         case ReleaseDone: TERARK_DIE("ReleaseDone == m_flags.state"); break;
         case ReleaseWait:
             assert(false == flags.is_head);
-            if (NULL != next) { // head is not equal to tail
-                // when next is NULL, head is likely being m_token_tail
-                if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
-                    head = next;
-                    as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-                    //fprintf(stderr, "DEBUG: reclaim: thread-%08zX ReleaseDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
-                } else {
-                    _mm_pause(); // retry loop
-                }
+            TERARK_VERIFY(NULL != next); // must have stopped at AcquireDone
+            if (cas_weak(head->m_flags, flags, {ReleaseDone, false})) {
+                head->m_link = {NULL, 0};
+                as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
+                //fprintf(stderr, "DEBUG: reclaim: thread-%08zX ReleaseDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
+                head = next;
             } else {
-                goto Done;
+                _mm_pause(); // retry loop
             }
             break;
         case DisposeWait:
             assert(false == flags.is_head);
-            if (NULL != next) { // head is not equal to tail
-                //fprintf(stderr, "DEBUG: reclaim: thread-%08zX DisposeDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
-                head->m_flags.state = DisposeDone;
-                del_token(head);
-                head = next;
-                as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
-            } else {
-                goto Done;
+            TERARK_VERIFY(NULL != next); // must have stopped at AcquireDone
+            //fprintf(stderr, "DEBUG: reclaim: thread-%08zX DisposeDone token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
+            head->m_flags.state = DisposeDone;
+            if (delnum < MAX_DEL_PTRS) {
+                delptrs[delnum++] = head;
+            } else { // this is very unlikely, just let it works
+                delete head;
             }
+            head = next;
+            as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             break;
         case AcquireDone:
             assert(false == flags.is_head);
@@ -3617,42 +3559,21 @@ void PatriciaMem<Align>::reclaim_head() {
                 _mm_pause(); // retry loop
             }
             break;
-        case AcquireIdle: {
-            assert(false == flags.is_head);
-            uint64_t min_age = head->m_link.verseq;
-            if (NULL == next || met_idle) {
-                if (cas_weak(head->m_flags, flags, {AcquireLock, false})) {
-                    this->m_dummy.m_link.next = head;
-                    this->m_dummy.m_min_age = min_age;
-                    this->m_head_is_idle = true;
-                    this->m_head_is_dead = false;
-                    head->m_min_age = min_age;
-                    as_atomic(head->m_flags).store({AcquireIdle, true},
+        case AcquireIdle:
+            TERARK_VERIFY(NULL != next); // must have stopped at AcquireDone
+            if (cas_weak(head->m_flags, flags, {AcquireLock, false})) {
+                uint64_t min_age = head->m_link.verseq;
+                head->enqueue<true>(this);
+                head->m_min_age = min_age;
+                as_atomic(head->m_flags).store({AcquireIdle, false},
                             std::memory_order_release);
-                    cas_unlock(m_head_lock);
-                    return;
-                }
-                else {
-                    _mm_pause(); // retry loop
-                }
+                head = next;
             }
             else {
-                if (cas_weak(head->m_flags, flags, {AcquireLock, false})) {
-                    this->enq_lock();
-                    head->enqueue<true>(this);
-                    this->enq_unlock();
-                    head->m_min_age = min_age;
-                    as_atomic(head->m_flags).store({AcquireIdle, false},
-                                std::memory_order_release);
-                    met_idle = true;
-                    head = next;
-                }
-                else {
-                // std::this_thread::yield(); // yield may cause bad stall
-                    _mm_pause(); // retry loop
-                }
+            // std::this_thread::yield(); // yield may cause bad stall
+                _mm_pause(); // retry loop
             }
-            break; }
+            break;
         case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
         }
     }
@@ -3662,6 +3583,11 @@ void PatriciaMem<Align>::reclaim_head() {
     m_dummy.m_min_age = min_age;
     head->m_min_age = min_age;
     as_atomic(m_head_lock).store(false, std::memory_order_release);
+
+    // do delete outside of lock
+    for (size_t i = 0; i < delnum; ++i) {
+        delete delptrs[i];
+    }
 }
 
 void Patricia::TokenBase::idle() {

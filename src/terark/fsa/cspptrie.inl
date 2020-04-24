@@ -152,15 +152,6 @@ protected:
     bool       m_head_lock;
     bool       m_head_is_idle;
 
-    struct alignas(8) EnqDelMutex {
-        uint32_t   enq;
-        uint32_t   del;
-    };
-    EnqDelMutex m_enq_del;
-    void enq_lock();
-    void enq_unlock();
-    void del_token(TokenBase*);
-
 //  std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
 
