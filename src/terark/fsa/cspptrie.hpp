@@ -100,7 +100,6 @@ protected:
         TokenFlags    m_flags;
 //      bool          m_min_age_updated; // update by other threads
 
-        template<bool IsInHeadLock>
         void enqueue(Patricia*);
         bool dequeue(Patricia*);
         void sort_cpu(Patricia*);

@@ -2848,90 +2848,6 @@ void Patricia::TokenBase::dispose() {
     }
 }
 
-#if CSPP_WAIT_FREE
-template<bool IsInHeadLock>
-void Patricia::TokenBase::enqueue(Patricia* trie1) {
-    auto trie = static_cast<MainPatricia*>(trie1);
-    assert(AcquireDone == m_flags.state || AcquireLock == m_flags.state);
-    assert(!m_flags.is_head);
-    while (true) {
-        const LinkType t = trie->m_tail; // load.1
-        TokenBase* const p = t.next;
-        const uint64_t verseq = p->m_link.verseq; // load.2
-        if (terark_unlikely(t.verseq != verseq)) {
-            // ABA happened between load.1 and load.2 (by context switch)
-            DEBUG_fprintf(stderr
-                , "%s:%d: ABA: t.verseq = %llu, verseq = %llu\n"
-                , __FILE__, __LINE__, llong(t.verseq), llong(verseq));
-            continue;
-        }
-        this->m_link = {NULL, verseq+1};
-
-        // cas.1
-        if (cas_weak(p->m_link, {NULL, verseq}, {this, verseq})) {
-            /// if ABA problem happens, verseq will be greater
-            /// so the later cas_strong will fail
-            assert(this == p->m_link.next || p->m_link.verseq > verseq);
-          #if !defined(NDEBUG) // this is temporary debug
-            //std::this_thread::yield();
-            usleep(100000); // easy trigger ABA on DEBUG
-            if (this != p->m_link.next) {
-                fprintf(stderr
-                  , "DEBUG: ABA problem detected: %p: (%p %llu) -> (%p %llu)\n"
-                  , p, this, llong(verseq+1)
-                  , p->m_link.next, llong(p->m_link.verseq));
-                assert(p->m_link.verseq > verseq+1);
-                //abort();
-            }
-          #endif
-            /// if here use compare_exchange_weak, m_token_tail
-            /// may not point to the real tail, so we use the strong version
-            /// cas.2
-            cas_strong(trie->m_tail, {p, verseq}, {this, verseq+1});
-            return;
-        }
-        else {
-            // this is unlikely(cas.1 fail), and lock is required to make
-            // access to t2 safe(t2 maybe accessed in dequeue)
-            if (!IsInHeadLock && !cas_weak(trie->m_head_lock, false, true)) {
-                // this is very unlikely(two cas failed both), use yield to
-                // keep it simple
-                std::this_thread::yield();
-                continue; // retry enqueue
-            }
-            // cas.1 failed, this verify must be hold
-            TERARK_VERIFY(this != p->m_link.next);
-            //
-            // at this time, other thread may modified p->m_link, then
-            // suspended, thus m_tail is keep unchanged, so let us
-            // change m_tail to keep it updated
-            //
-            // this check is required, because cas.1
-            // may spuriously fail(when p->m_link.next is really NULL).
-            // --- spuriously fail will never happen on x86
-            // but NULL == t2 may still happen by ABA problem
-            auto t2 = p->m_link.next;
-            if (NULL == t2) {
-                if (!IsInHeadLock) cas_unlock(trie->m_head_lock);
-                continue;
-            }
-            auto t2_verseq = t2->m_link.verseq;
-            TERARK_VERIFY_F(verseq < t2_verseq, "%llu %llu", llong(verseq), llong(t2_verseq));
-            // cas.3
-            bool cas_ok = cas_weak(trie->m_tail, {p, verseq}, {t2, t2_verseq});
-            if (!IsInHeadLock) cas_unlock(trie->m_head_lock);
-            if (cas_ok) {
-                TERARK_VERIFY_F(verseq+1 == t2_verseq, "%llu %llu", llong(verseq), llong(t2_verseq));
-            } else {
-                fprintf(stderr
-                  , "DEBUG: failed help other thread updating m_tail (%p %llu) -> (%p %llu), this=%p\n"
-                  , p, llong(verseq), t2, llong(t2_verseq), this);
-            }
-        }
-    }
-}
-#else
-template<bool IsInHeadLock>
 void Patricia::TokenBase::enqueue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
     assert(AcquireDone == m_flags.state || AcquireLock == m_flags.state);
@@ -2943,7 +2859,6 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     p->m_link.next = this;
     trie->m_token_tail = this;
 }
-#endif
 
 bool Patricia::TokenBase::dequeue(Patricia* trie1) {
     auto trie = static_cast<MainPatricia*>(trie1);
@@ -3237,7 +3152,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
             _mm_pause();
         }
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
-        TokenBase::enqueue<false>(trie);
+        enqueue(trie);
         assert(NULL != trie->m_dummy.m_link.next);
         cas_unlock(trie->m_head_lock);
         break;
@@ -3472,7 +3387,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
         assert(m_link.verseq < m_link.next->m_link.verseq); //for no sort_cpu
         auto new_head = this->m_link.next;
         m_flags.is_head = false;
-        enqueue<true>(trie);
+        enqueue(trie);
         assert(this == trie->m_dummy.m_link.next);
         TERARK_VERIFY(new_head->dequeue(trie)); // at least, I'm alive
         //m_min_age = trie->m_dummy.m_min_age; // do not update
@@ -3563,7 +3478,7 @@ void PatriciaMem<Align>::reclaim_head() {
             TERARK_VERIFY(NULL != next); // must have stopped at AcquireDone
             if (cas_weak(head->m_flags, flags, {AcquireLock, false})) {
                 uint64_t min_age = head->m_link.verseq;
-                head->enqueue<true>(this);
+                head->enqueue(this);
                 head->m_min_age = min_age;
                 as_atomic(head->m_flags).store({AcquireIdle, false},
                             std::memory_order_release);
