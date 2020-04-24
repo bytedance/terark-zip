@@ -101,11 +101,12 @@ protected:
 //      bool          m_min_age_updated; // update by other threads
 
         void enqueue(Patricia*);
-        bool dequeue(Patricia*);
+        bool dequeue(Patricia*, TokenBase* delptrs[], size_t* pDelnum);
         void sort_cpu(Patricia*);
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
         void mt_update(Patricia*);
+        static void del_tokens(TokenBase* ptrs[], size_t num);
         TokenBase();
         virtual ~TokenBase();
     public:
