@@ -3513,23 +3513,13 @@ void Patricia::TokenBase::idle() {
     TERARK_VERIFY_F(AcquireDone == flags.state,
                     "real state = %s", enum_cstr(flags.state));
     if (conLevel >= SingleThreadShared) {
-      #if 0 // old behavior, do update
-        if (flags.is_head) {
-            mt_update(trie);
-        }
-        else if (terark_unlikely(trie->m_head_is_dead)) {
-            trie->reclaim_head();
-        }
-        else {
-            // do nothing
-        }
-      #else // new behavior, keep simple fast
         do {
             if (flags.is_head) {
                 trie->m_head_is_idle = true;
                 TERARK_VERIFY_F(
                     cas_strong(m_flags, flags, {AcquireIdle, true}),
                     "this cas must success");
+                break;
             } else {
                 if (cas_weak(m_flags, flags, {AcquireIdle, false}))
                     break;
@@ -3537,7 +3527,6 @@ void Patricia::TokenBase::idle() {
                     TERARK_VERIFY(AcquireLock == m_flags.state);
             }
         } while (true);
-      #endif
         m_live_verseq = m_link.verseq;
     }
     else {
