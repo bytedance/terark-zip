@@ -139,13 +139,14 @@ protected:
         ThreadCacheMemPool<AlignSize> m_mempool_lock_free;
     };
 
-//-------------------------------------------------------------
-    // following fields are frequently updating
-    TokenBase  m_dummy; // m_dummy.m_next is real head
-    LinkType   m_tail;
-    uint32_t   m_token_qlen;
-    bool       m_head_lock;
-    bool       m_head_is_idle;
+    struct alignas(64) {
+        // following fields are frequently updating
+        TokenBase  m_dummy; // m_dummy.m_next is real head
+        LinkType   m_tail;
+        uint32_t   m_token_qlen;
+        bool       m_head_lock;
+        bool       m_head_is_idle;
+    };
 
 //  std::mutex m_token_mutex;
     std::mutex m_counter_mutex;
