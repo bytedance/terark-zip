@@ -3425,7 +3425,7 @@ void Patricia::TokenBase::idle() {
         } // switch
     } EndWhile:
     trie->m_dummy.m_link.next = curr;
-    TERARK_VERIFY(NULL == curr ^ 0 != trie->m_token_qlen);
+    TERARK_VERIFY((NULL == curr) ^ (0 != trie->m_token_qlen));
     cas_unlock(trie->m_head_lock);
     del_tokens(delptrs, delnum);
 }
