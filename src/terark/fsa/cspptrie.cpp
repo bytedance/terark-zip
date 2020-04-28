@@ -2866,7 +2866,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     const uint64_t verseq = p->m_link.verseq;
     this->m_link = {NULL, verseq+1};
     p->m_link.next = this;
-    trie->m_token_tail = this;
+    trie->m_tail = {this, verseq+1};
 }
 
 constexpr size_t MAX_DEL_PTRS = 32;
