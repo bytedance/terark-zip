@@ -60,6 +60,7 @@ inline static size_t ThisThreadID() {
     return (size_t&)id;
 }
 
+/*
 inline static unsigned ThisCpuID() {
   #if BOOST_OS_LINUX
     //return sched_getcpu();
@@ -92,6 +93,7 @@ inline static unsigned ThisCpuID() {
     #error ThisCpuID unsupported
   #endif
 }
+*/
 
 template<class T>
 void cpback(T* dst, const T* src, size_t num) {
@@ -2782,10 +2784,6 @@ Patricia::TokenBase::TokenBase() {
     m_flags.state = ReleaseDone;
     m_flags.is_head = false;
     m_thread_id = UINT64_MAX;
-    m_cpu = UINT32_MAX;
-    m_getcpu_cnt = 0;
-    m_acqseq = 0;
-//  m_min_age_updated = false;
 }
 Patricia::TokenBase::~TokenBase() {
     TERARK_VERIFY(m_flags.state == DisposeDone);
@@ -3010,12 +3008,7 @@ void Patricia::TokenBase::mt_acquire(Patricia* trie1) {
         break;
     case ReleaseDone:
         m_flags = {AcquireDone, false};
-        //m_acqseq is for sort_cpu()
-        //m_acqseq = 1 + as_atomic(trie->m_dummy.m_acqseq)
-        //              .fetch_add(1, std::memory_order_relaxed);
         while (!cas_weak(trie->m_head_lock, false, true)) {
-            // this is not wait free
-            // std::this_thread::yield();
             _mm_pause();
         }
         as_atomic(trie->m_token_qlen).fetch_add(1, std::memory_order_relaxed);
@@ -3493,7 +3486,6 @@ void Patricia::ReaderToken::acquire(Patricia* trie1) {
     m_value = NULL;
     m_trie = trie;
     m_thread_id = ThisThreadID();
-    m_cpu = ThisCpuID();
     auto conLevel = trie->m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared) {
         mt_acquire(trie);
@@ -3565,7 +3557,6 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
             "m_flags.state = %d", flags.state);
   #endif
     m_thread_id = ThisThreadID();
-    m_cpu = ThisCpuID();
     if (MultiWriteMultiRead == conLevel) {
         mt_acquire(trie);
         auto tc = trie->m_mempool_lock_free.tls();

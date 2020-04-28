@@ -71,6 +71,7 @@ protected:
         DisposeDone
     );
     struct TokenFlags {
+        // state and is_head must be set simultaneously as atomic
         TokenState  state;
         byte_t      is_head;
     };
@@ -89,15 +90,9 @@ protected:
         void*         m_tls; // unused for ReaderToken
         uint64_t      m_live_verseq;
         size_t        m_thread_id;
-        uint64_t      m_acqseq;
-        struct alignas(32) {
-          // will sync with other threads
+        struct alignas(16) { // will sync with other threads
             LinkType      m_link;
             uint64_t      m_min_age;
-            unsigned      m_cpu;
-            unsigned      m_getcpu_cnt;
-
-            // state and is_head must be set simultaneously as atomic
             TokenFlags    m_flags;
         };
         void enqueue(Patricia*);
