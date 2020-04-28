@@ -338,6 +338,8 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
         case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
         case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case AcquireIdle: break; // OK
+        case AcquireLock: break; // OK
         case ReleaseDone: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -349,6 +351,8 @@ void PatriciaMem<Align>::LazyFreeListTLS::reuse() {
         case AcquireDone: TERARK_DIE("AcquireDone == m_flags.state"); break;
         case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
+        case AcquireIdle: break; // OK
+        case AcquireLock: break; // OK
         case ReleaseDone: break; // OK
         case ReleaseWait: break; // OK
         }
@@ -718,6 +722,9 @@ void PatriciaMem<Align>::destroy() {
     }
     // delete waiting tokens, and check errors
     assert(m_token_tail->m_link.next == NULL);
+    while (!cas_weak(m_head_lock, false, true)) {
+        _mm_pause();
+    }
     for(TokenBase* curr = m_dummy.m_link.next; curr; ) {
         TokenBase* next = curr->m_link.next;
         auto flags = curr->m_flags;
@@ -735,6 +742,7 @@ void PatriciaMem<Align>::destroy() {
         delete curr;
         curr = next;
     }
+    cas_unlock(m_head_lock);
 }
 
 template<size_t Align>
@@ -2810,7 +2818,8 @@ void Patricia::TokenBase::dispose() {
             flags.state = AcquireIdle; // for next cas_weak
             no_break_fallthrough;
         case AcquireIdle:
-            if (trie->m_writing_concurrent_level >= SingleThreadShared) {
+            if (trie->m_writing_concurrent_level >= SingleThreadShared
+                    || trie->m_token_qlen) {
                 if (flags.is_head) {
                     mt_release(m_trie);
                 } else if (cas_weak(m_flags, flags, {DisposeWait, false})) {
@@ -3398,7 +3407,7 @@ void Patricia::TokenBase::idle() {
                 uint64_t min_age = curr->m_link.verseq;
                 trie->m_dummy.m_min_age = min_age;
                 curr->m_min_age = min_age;
-                goto EndWhile;
+                goto SetQueueHead;
             }
             break; // curr not updated, retry curr
         case AcquireIdle:
@@ -3423,7 +3432,9 @@ void Patricia::TokenBase::idle() {
             as_atomic(trie->m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             break;
         } // switch
-    } EndWhile:
+    }
+    trie->m_token_tail = NULL;
+  SetQueueHead:
     trie->m_dummy.m_link.next = curr;
     TERARK_VERIFY((NULL == curr) ^ (0 != trie->m_token_qlen));
     cas_unlock(trie->m_head_lock);
