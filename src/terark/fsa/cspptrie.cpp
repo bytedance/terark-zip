@@ -3292,7 +3292,12 @@ void PatriciaMem<Align>::reclaim_head() {
     TokenBase* delptrs[MAX_DEL_PTRS];
     size_t     delnum = 0;
     TokenBase* head = m_dummy.m_link.next;
-    assert(NULL != head);
+    if (terark_unlikely(NULL == head)) {
+        assert(NoWriteReadOnly == m_mempool_concurrent_level);
+        assert(0 == m_token_qlen);
+        cas_unlock(m_head_lock);
+        return;
+    }
     while (true) {
         TokenBase* next = head->m_link.next;
         auto flags = head->m_flags;
@@ -3326,7 +3331,7 @@ void PatriciaMem<Align>::reclaim_head() {
             as_atomic(m_token_qlen).fetch_sub(1, std::memory_order_relaxed);
             break;
         case AcquireDone:
-            assert(false == flags.is_head);
+            //assert(false == flags.is_head); // unlikely but possiblely fail
             if (cas_weak(head->m_flags, flags, {AcquireDone, true})) {
                 //fprintf(stderr, "DEBUG: reclaim: thread-%08zX {AcquireDone,true} token of thread-%08zX\n", ThisThreadID(), head->m_thread_id);
                 goto Done;
