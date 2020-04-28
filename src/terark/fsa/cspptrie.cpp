@@ -180,8 +180,6 @@ void PatriciaMem<Align>::init(ConcurrentLevel conLevel) {
     m_dummy.m_flags.state = DisposeDone;
     m_tail = {&m_dummy, 0};
     m_token_qlen = 0;
-    m_num_cpu_migrated = 0;
-    m_sorted_acqseq = 0;
     m_n_words = 0;
     memset(&m_stat, 0, sizeof(Stat));
 

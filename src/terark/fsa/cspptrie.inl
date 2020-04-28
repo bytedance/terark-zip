@@ -140,15 +140,10 @@ protected:
     };
 
 //-------------------------------------------------------------
-//  byte_t     m_padding2[64-sizeof(size_t)];
-    byte_t     m_padding2[64-32]; // m_dummy's const part is 32 byte
-
     // following fields are frequently updating
     TokenBase  m_dummy; // m_dummy.m_next is real head
     LinkType   m_tail;
     uint32_t   m_token_qlen;
-    uint32_t   m_num_cpu_migrated;
-    uint64_t   m_sorted_acqseq;
     bool       m_head_lock;
     bool       m_head_is_idle;
 

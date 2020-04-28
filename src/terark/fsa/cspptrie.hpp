@@ -30,7 +30,8 @@ class MainPatricia;
  * About Deterministic finite automaton :
  *     https://en.wikipedia.org/wiki/Deterministic_finite_automaton
  */
-class TERARK_DLL_EXPORT Patricia : public MatchingDFA, public boost::noncopyable {
+class TERARK_DLL_EXPORT alignas(64) Patricia
+  : public MatchingDFA, public boost::noncopyable {
 public:
     TERARK_ENUM_PLAIN_INCLASS(ConcurrentLevel, byte_t,
         NoWriteReadOnly,     // 0
@@ -89,16 +90,16 @@ protected:
         uint64_t      m_live_verseq;
         size_t        m_thread_id;
         uint64_t      m_acqseq;
-    //-------------------------------------
-    // will sync with other threads
-        LinkType      m_link;
-        uint64_t      m_min_age;
-        unsigned      m_cpu;
-        unsigned      m_getcpu_cnt;
+        struct alignas(32) {
+          // will sync with other threads
+            LinkType      m_link;
+            uint64_t      m_min_age;
+            unsigned      m_cpu;
+            unsigned      m_getcpu_cnt;
 
-    // state and is_head must be set simultaneously as atomic
-        TokenFlags    m_flags;
-
+            // state and is_head must be set simultaneously as atomic
+            TokenFlags    m_flags;
+        };
         void enqueue(Patricia*);
         bool dequeue(Patricia*, TokenBase* delptrs[], size_t* pDelnum);
         void mt_acquire(Patricia*);
