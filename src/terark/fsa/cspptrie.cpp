@@ -3257,7 +3257,11 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
             //assert(this == trie->m_dummy.m_link.next); // false positive
             uint64_t verseq = m_link.verseq;
             if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
-                TERARK_VERIFY(cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1}));
+                TERARK_VERIFY_F(
+                    cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1}),
+                    "tail real = {%p, %llu}, expected = {%p, %llu}",
+                    trie->m_tail.next, (ullong)trie->m_tail.verseq,
+                    this, (ullong)verseq);
                 trie->m_dummy.m_min_age = verseq+1;
                 this->m_min_age = verseq+1;
             }
