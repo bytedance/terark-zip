@@ -98,11 +98,9 @@ protected:
 
     // state and is_head must be set simultaneously as atomic
         TokenFlags    m_flags;
-//      bool          m_min_age_updated; // update by other threads
 
         void enqueue(Patricia*);
         bool dequeue(Patricia*, TokenBase* delptrs[], size_t* pDelnum);
-        void sort_cpu(Patricia*);
         void mt_acquire(Patricia*);
         void mt_release(Patricia*);
         void mt_update(Patricia*);
