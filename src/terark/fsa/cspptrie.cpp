@@ -3568,7 +3568,7 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
         auto lzf = static_cast<MainPatricia::LazyFreeListTLS*>(tc);
         m_tls = lzf;
     }
-    if (conLevel >= SingleThreadShared) {
+    else if (conLevel >= SingleThreadShared) {
         mt_acquire(trie);
     }
     else {
