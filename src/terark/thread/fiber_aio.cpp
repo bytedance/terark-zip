@@ -52,6 +52,12 @@ static std::atomic<size_t> g_ft_num;
 #define aio_debug(...)
 //#define aio_debug(fmt, ...) fprintf(stderr, "DEBUG: %s:%d:%s: " fmt "\n", __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__)
 
+#define FIBER_AIO_VERIFY(expr) \
+  do { \
+    int ret = expr; \
+    if (ret) TERARK_DIE("%s = %s", #expr, strerror(-ret)); \
+  } while (0)
+
 struct io_return {
   boost::fibers::context* fctx;
   intptr_t len;
@@ -93,7 +99,10 @@ class io_fiber_context {
       int ret = io_getevents(io_ctx, 0, reap_batch, io_events, NULL);
       if (ret < 0) {
         int err = -ret;
-        fprintf(stderr, "ERROR: ft_num = %zd, io_getevents(nr=%d) = %s\n", ft_num, reap_batch, strerror(err));
+        if (EAGAIN == err)
+          yield();
+        else
+          fprintf(stderr, "ERROR: ft_num = %zd, io_getevents(nr=%d) = %s\n", ft_num, reap_batch, strerror(err));
       }
       else {
         for (int i = 0; i < ret; i++) {
@@ -179,7 +188,7 @@ public:
     ft_num = g_ft_num++;
     aio_debug("ft_num = %zd", ft_num);
     int maxevents = reap_batch*4 - 1;
-    TERARK_VERIFY_F(io_setup(maxevents, &io_ctx) == 0, "%m");
+    FIBER_AIO_VERIFY(io_setup(maxevents, &io_ctx));
     m_state = state::ready;
     counter = 0;
   }
@@ -199,7 +208,7 @@ public:
 
     assert(0 == io_reqnum);
 
-    TERARK_VERIFY_F(io_destroy(io_ctx) == 0, "%m");
+    FIBER_AIO_VERIFY(io_destroy(io_ctx));
   }
 };
 
@@ -220,7 +229,7 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
   p_tls->ptr = &queue;
   io_context_t io_ctx;
   constexpr int batch = 64;
-  TERARK_VERIFY_F(io_setup(batch*4 - 1, &io_ctx) == 0, "%m");
+  FIBER_AIO_VERIFY(io_setup(batch*4 - 1, &io_ctx));
   struct iocb*    io_batch[batch];
   struct io_event io_events[batch];
   intptr_t req = 0, submits = 0, reaps = 0;
@@ -260,11 +269,10 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
         works += ret;
       }
     }
-    if (0 == works) {
+    if (0 == works)
       std::this_thread::yield();
-    }
   }
-  TERARK_VERIFY_F(io_destroy(io_ctx) == 0, "%m");
+  FIBER_AIO_VERIFY(io_destroy(io_ctx));
 }
 DT_ResetOnExitPtr::DT_ResetOnExitPtr() {
   ptr = nullptr;
