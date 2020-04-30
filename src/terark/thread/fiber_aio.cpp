@@ -297,7 +297,7 @@ ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
   }
 #endif
 #if BOOST_OS_WINDOWS
-  THROW_STD(invalid_argument, "Not Supported for Windows");
+  TERARK_DIE("Not Supported for Windows");
 #else
   struct aiocb acb = {0};
   acb.aio_fildes = fd;
@@ -357,7 +357,7 @@ ssize_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
   }
 #endif
 #if BOOST_OS_WINDOWS
-  THROW_STD(invalid_argument, "Not Supported for Windows");
+  TERARK_DIE("Not Supported for Windows");
 #else
   struct aiocb acb = {0};
   acb.aio_fildes = fd;
@@ -386,8 +386,9 @@ ssize_t fiber_put_write(int fd, const void* buf, size_t len, off_t offset) {
   if (1 == g_aio_method) {
     return tls_io_fiber().dt_exec_io(fd, (void*)buf, len, offset, IO_CMD_PWRITE);
   }
+  TERARK_DIE("Not Supported aio_method = %d", g_aio_method);
 #else
-  THROW_STD(invalid_argument, "Not Supported platform");
+  TERARK_DIE("Not Supported platform");
 #endif
 }
 
