@@ -232,33 +232,30 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
   intptr_t req = 0;
   while (p_tls->ptr.load(std::memory_order_relaxed)) {
     while (req < batch && queue.pop(io_batch[req])) req++;
-    if (req) { RetrySubmit:
+    int works = 0;
+    if (req) {
       int ret = io_submit(io_ctx, req, io_batch);
       if (ret < 0) {
         int err = -ret;
-        if (EAGAIN == err) {
-          std::this_thread::yield();
-          goto RetrySubmit;
-        }
-        TERARK_DIE("io_submit(nr=%zd) = %s\n", req, strerror(err));
+        if (EAGAIN != err)
+          TERARK_DIE("io_submit(nr=%zd) = %s\n", req, strerror(err));
       }
-      if (ret > 0) {
-        if (ret < req) {
-          std::copy_n(io_batch + ret, req - ret, io_batch + ret);
-          req -= ret;
-        }
+      else if (ret > 0) {
         submits += ret;
+        works += ret;
+        req -= ret;
+        if (req)
+          std::copy_n(io_batch + ret, req, io_batch);
       }
     }
     if (reaps < submits) { RetryReap:
       int ret = io_getevents(io_ctx, 1, batch, io_events, NULL);
       if (ret < 0) {
         int err = -ret;
-        if (EAGAIN == err) {
-          goto RetryReap;
-        }
-        fprintf(stderr, "ERROR: %s:%d: io_getevents(nr=%d) = %s\n", __FILE__, __LINE__, batch, strerror(err));
-      } else {
+        if (EAGAIN != err)
+          fprintf(stderr, "ERROR: %s:%d: io_getevents(nr=%d) = %s\n", __FILE__, __LINE__, batch, strerror(err));
+      }
+      else {
         for (int i = 0; i < ret; i++) {
           io_return* ior = (io_return*)(io_events[i].data);
           ior->len = io_events[i].res;
@@ -266,9 +263,10 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
           as_atomic(ior->done).store(true, std::memory_order_release);
         }
         reaps += ret;
+        works += ret;
       }
     }
-    if (0 == req && reaps == submits) {
+    if (0 == works) {
       std::this_thread::yield();
     }
   }
