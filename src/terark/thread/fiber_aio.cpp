@@ -15,7 +15,10 @@
 #endif
 
 #if BOOST_OS_WINDOWS
-  // not supported now
+	#define NOMINMAX
+	#define WIN32_LEAN_AND_MEAN
+	#include <io.h>
+	#include <Windows.h>
 #else
   #include <aio.h> // posix aio
   #include <sys/types.h>
@@ -314,6 +317,10 @@ static const size_t PAGE_SIZE = 4096;
 TERARK_DLL_EXPORT
 void fiber_aio_need(const void* buf, size_t len) {
 #if BOOST_OS_WINDOWS
+		WIN32_MEMORY_RANGE_ENTRY vm;
+		vm.VirtualAddress = buf;
+		vm.NumberOfBytes  = len;
+		PrefetchVirtualMemory(GetCurrentProcess(), 1, &vm, 0);
 #else
     len += size_t(buf) & (PAGE_SIZE-1);
     buf  = (const void*)(size_t(buf) & ~(PAGE_SIZE-1));
