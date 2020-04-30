@@ -213,7 +213,7 @@ static io_fiber_context& tls_io_fiber() {
 // dt_ means 'dedicated thread'
 struct DT_ResetOnExitPtr {
   std::atomic<boost::lockfree::queue<struct iocb*>*> ptr = nullptr;
-  ~ResetOnExitPtr() { ptr = nullptr; }
+  ~DT_ResetOnExitPtr() { ptr = nullptr; }
 };
 static void dt_func(DT_ResetOnExitPtr* p_tls) {
   constexpr size_t qsize = 1023;
