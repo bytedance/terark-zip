@@ -383,8 +383,8 @@ void unit_test() {
             token->acquire(&trie);
             for (size_t i = 0, n = strVec.end_i(); i < n; i++) {
                 fstring key = strVec.key(i);
-                token->update();
                 trie.insert(key, NULL, &*token);
+                token->idle();
             }
             token->release();
         };

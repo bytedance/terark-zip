@@ -235,13 +235,13 @@ unsigned long long ParseSizeXiB(fstring str) {
 }
 
 unsigned long long ParseSizeXiB(const char* str, const char* Default) {
-	if (NULL == str || '\0' == *str)
+	if (str && '\0' != *str)
 		return ParseSizeXiB(str);
 	else
 		return ParseSizeXiB(Default);
 }
 unsigned long long ParseSizeXiB(const char* str, unsigned long long Default) {
-	if (NULL == str || '\0' == *str)
+	if (str && '\0' != *str)
 		return ParseSizeXiB(str);
 	else
 		return Default;
