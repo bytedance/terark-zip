@@ -65,7 +65,7 @@ struct io_return {
   bool done;
 };
 
-typedef boost::lockfree::queue<struct iocb*, boost::lockfree::fixed_sized>
+typedef boost::lockfree::queue<struct iocb*, boost::lockfree::fixed_sized<true>>
         io_queue_t;
 io_queue_t* dt_io_queue();
 
