@@ -54,7 +54,7 @@ struct io_return {
   int err;
   bool done;
 };
-boost::lockfree::queue<struct iocb*>& dt_io_queue();
+boost::lockfree::queue<struct iocb*>* dt_io_queue();
 
 class io_fiber_context {
   static const int reap_batch = 32;
@@ -151,8 +151,8 @@ public:
     io.u.c.buf = buf;
     io.u.c.nbytes = len;
     io.u.c.offset = offset;
-    auto& queue = dt_io_queue();
-    while (!queue.bounded_push(&io)) yield();
+    auto queue = dt_io_queue();
+    while (!queue->bounded_push(&io)) yield();
     size_t loop = 0;
     do {
       if (++loop % 256)
@@ -211,76 +211,77 @@ static io_fiber_context& tls_io_fiber() {
 }
 
 // dt_ means 'dedicated thread'
-void dt_submit_io(io_context_t io_ctx, size_t* fail_cnt, struct iocb* io) {
-  while (true) {
-    int ret = io_submit(io_ctx, 1, &io);
-    if (ret < 0) {
-      int err = -ret;
-      if (EAGAIN == err) {
-        std::this_thread::yield();
-        continue;
-      }
-      fprintf(stderr, "ERROR: %s:%d: io_submit(nr=1) = %s\n", __FILE__, __LINE__, strerror(err));
-      auto io_ret = (io_return*)io->data;
-      io_ret->err = err;
-      as_atomic(io_ret->done).store(true, std::memory_order_release);
-      (*fail_cnt)++;
-      return;
-    }
-    break;
-  }
-}
 struct DT_ResetOnExitPtr {
   std::atomic<boost::lockfree::queue<struct iocb*>*> ptr = nullptr;
   ~ResetOnExitPtr() { ptr = nullptr; }
 };
-boost::lockfree::queue<struct iocb*>& dt_io_queue() {
-  static DT_ResetOnExitPtr p_tls;
-  std::thread([&]() {
-    using std::placeholders;
-    constexpr size_t qsize = 1023;
-    boost::lockfree::queue<struct iocb*> queue(qsize);
-    p_tls.ptr = &queue;
-    io_context_t io_ctx;
-    constexpr int reap_batch = 32;
-    constexpr int maxevents = reap_batch*4 - 1;
-    if (int err = io_setup(maxevents, &io_ctx)) {
-      perror("io_setup"); exit(3);
-    }
-    while (p_tls.ptr.load(std::memory_order_relaxed)) {
-      size_t nFail = 0;
-      size_t nTotal = queue.consume_all(
-        std::bind(&dt_submit_io, io_ctx, &nFail, _1));
-      assert(nFail <= nTotal);
-      size_t nSucc = nTotal - nFail;
-      if (nSucc) {
-        int ret = io_getevents(io_ctx, 1, reap_batch, io_events, NULL);
-        if (ret < 0) {
-          int err = -ret;
-          fprintf(stderr, "ERROR: %s:%d: io_getevents(nr=%d) = %s\n", __FILE__, __LINE__, reap_batch, strerror(err));
-        } else {
-          for (int i = 0; i < ret; i++) {
-            io_return* ior = (io_return*)(io_events[i].data);
-            ior->len = io_events[i].res;
-            ior->err = io_events[i].res2;
-            as_atomic(io_ret->done).store(true, std::memory_order_release);
-          }
+static void dt_func(DT_ResetOnExitPtr* p_tls) {
+  constexpr size_t qsize = 1023;
+  boost::lockfree::queue<struct iocb*> queue(qsize);
+  p_tls->ptr = &queue;
+  io_context_t io_ctx;
+  constexpr int batch = 64;
+  if (int err = io_setup(batch*4 - 1, &io_ctx)) {
+    perror("io_setup"); exit(3);
+  }
+  struct iocb*   io_batch[batch];
+  struct ioevent io_events[batch];
+  intptr_t submits = 0, reaps = 0;
+  intptr_t req = 0;
+  while (p_tls->ptr.load(std::memory_order_relaxed)) {
+    while (req < batch && queue.pop(io_batch[req])) req++;
+    if (req) { RetrySubmit:
+      int ret = io_submit(io_ctx, req, io_batch);
+      if (ret < 0) {
+        int err = -ret;
+        if (EAGAIN == err) {
+          std::this_thread::yield();
+          goto RetrySubmit;
         }
-      } else {
-        std::this_thread::yield();
+        TERARK_DIE("io_submit(nr=%zd) = %s\n", req, strerror(err));
+      }
+      if (ret > 0) {
+        if (ret < req) {
+          std::copy_n(io_batch + ret, req - ret, io_batch + ret);
+          req -= ret;
+        }
+        submits += ret;
       }
     }
-    if (int err = io_destroy(io_ctx)) {
-      perror("io_destroy"); exit(3);
+    if (reaps < submits) { RetryReap:
+      int ret = io_getevents(io_ctx, 1, batch, io_events, NULL);
+      if (ret < 0) {
+        int err = -ret;
+        if (EAGAIN == err) {
+          goto RetryReap;
+        }
+        fprintf(stderr, "ERROR: %s:%d: io_getevents(nr=%d) = %s\n", __FILE__, __LINE__, batch, strerror(err));
+      } else {
+        for (int i = 0; i < ret; i++) {
+          io_return* ior = (io_return*)(io_events[i].data);
+          ior->len = io_events[i].res;
+          ior->err = io_events[i].res2;
+          as_atomic(io_ret->done).store(true, std::memory_order_release);
+        }
+        reaps += ret;
+      }
     }
-  }).dettach();
-  while (true) {
-    auto tls = p_tls.load();
-    if (NULL != tls) {
-      return tls;
+    if (0 == req && reaps == submits) {
+      std::this_thread::yield();
     }
+  }
+  if (int err = io_destroy(io_ctx)) {
+    perror("io_destroy"); exit(3);
+  }
+}
+boost::lockfree::queue<struct iocb*>* dt_io_queue() {
+  static DT_ResetOnExitPtr p_tls;
+  std::thread(std::bind(&dt_func, &p_tls)).dettach();
+  boost::lockfree::queue<struct iocb*>* q;
+  while (nullptr == (q = p_tls.load())) {
     std::this_thread::yield();
   }
+  return q;
 }
 
 #endif
