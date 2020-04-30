@@ -174,11 +174,7 @@ public:
     ft_num = g_ft_num++;
     aio_debug("ft_num = %zd", ft_num);
     int maxevents = reap_batch*4 - 1;
-    int err = io_setup(maxevents, &io_ctx);
-    if (err) {
-      perror("io_setup");
-      exit(3);
-    }
+    TERARK_VERIFY_F(io_setup(maxevents, &io_ctx) == 0, "%m");
     m_state = state::ready;
     counter = 0;
   }
@@ -198,10 +194,7 @@ public:
 
     assert(0 == io_reqnum);
 
-    int err = io_destroy(io_ctx);
-    if (err) {
-      perror("io_destroy");
-    }
+    TERARK_VERIFY_F(io_destroy(io_ctx) == 0, "%m");
   }
 };
 
@@ -218,18 +211,14 @@ struct DT_ResetOnExitPtr {
   ~DT_ResetOnExitPtr() { ptr = nullptr; }
 };
 static void dt_func(DT_ResetOnExitPtr* p_tls) {
-  constexpr size_t qsize = 1023;
-  boost::lockfree::queue<struct iocb*> queue(qsize);
+  boost::lockfree::queue<struct iocb*> queue(1023);
   p_tls->ptr = &queue;
   io_context_t io_ctx;
   constexpr int batch = 64;
-  if (int err = io_setup(batch*4 - 1, &io_ctx)) {
-    TERARK_DIE("io_setup() = %s", strerror(err));
-  }
-  struct iocb*   io_batch[batch];
+  TERARK_VERIFY_F(io_setup(batch*4 - 1, &io_ctx) == 0, "%m");
+  struct iocb*    io_batch[batch];
   struct io_event io_events[batch];
-  intptr_t submits = 0, reaps = 0;
-  intptr_t req = 0;
+  intptr_t req = 0, submits = 0, reaps = 0;
   while (p_tls->ptr.load(std::memory_order_relaxed)) {
     while (req < batch && queue.pop(io_batch[req])) req++;
     int works = 0;
@@ -270,9 +259,7 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
       std::this_thread::yield();
     }
   }
-  if (int err = io_destroy(io_ctx)) {
-    TERARK_DIE("io_destroy() = %s", strerror(err));
-  }
+  TERARK_VERIFY_F(io_destroy(io_ctx) == 0, "%m");
 }
 DT_ResetOnExitPtr::DT_ResetOnExitPtr() {
   ptr = nullptr;
