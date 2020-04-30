@@ -248,7 +248,7 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
           std::copy_n(io_batch + ret, req, io_batch);
       }
     }
-    if (reaps < submits) { RetryReap:
+    if (reaps < submits) {
       int ret = io_getevents(io_ctx, 1, batch, io_events, NULL);
       if (ret < 0) {
         int err = -ret;
