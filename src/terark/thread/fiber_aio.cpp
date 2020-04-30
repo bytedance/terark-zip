@@ -156,6 +156,8 @@ public:
     while (!queue->bounded_push(&io)) yield();
     size_t loop = 0;
     do {
+      // io is performed in another thread, we don't know when it's finished,
+      // so we poll the flag by yield fiber or yield thread
       if (++loop % 256)
         yield();
       else
