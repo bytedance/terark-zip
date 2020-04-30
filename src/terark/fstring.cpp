@@ -211,6 +211,9 @@ double getEnvDouble(const char* envName, double Default) {
 }
 
 unsigned long long ParseSizeXiB(const char* str) {
+	if (NULL == str || '\0' == *str) {
+		return 0;
+	}
     char* endp = NULL;
     double val = strtod(str, &endp);
     char scale = *endp;
@@ -227,8 +230,21 @@ unsigned long long ParseSizeXiB(const char* str) {
     else
         return uint64_t(val);
 }
-unsigned long long ParseSizeXiB(terark::fstring str) {
+unsigned long long ParseSizeXiB(fstring str) {
   return ParseSizeXiB(str.c_str());
+}
+
+unsigned long long ParseSizeXiB(const char* str, const char* Default) {
+	if (NULL == str || '\0' == *str)
+		return ParseSizeXiB(str);
+	else
+		return ParseSizeXiB(Default);
+}
+unsigned long long ParseSizeXiB(const char* str, unsigned long long Default) {
+	if (NULL == str || '\0' == *str)
+		return ParseSizeXiB(str);
+	else
+		return Default;
 }
 
 // if quote == ("), escape (") as (\")

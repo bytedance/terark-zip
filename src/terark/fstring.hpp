@@ -682,7 +682,9 @@ TERARK_DLL_EXPORT long getEnvLong(const char* envName, long Default = false);
 TERARK_DLL_EXPORT double getEnvDouble(const char* envName, double Default);
 
 TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str);
-TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(terark::fstring str);
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(fstring str);
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, const char* Default);
+TERARK_DLL_EXPORT unsigned long long ParseSizeXiB(const char* str, unsigned long long);
 
 /// default quote = '\0' indicate do not escape quote
 TERARK_DLL_EXPORT void escape_append(fstring, std::string*, char quote = '\0');
