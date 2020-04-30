@@ -213,6 +213,9 @@ static io_fiber_context& tls_io_fiber() {
 // dt_ means 'dedicated thread'
 struct DT_ResetOnExitPtr {
   std::atomic<boost::lockfree::queue<struct iocb*>*> ptr = nullptr;
+  DT_ResetOnExitPtr() {
+    std::thread(std::bind(&dt_func, this)).detach();
+  }
   ~DT_ResetOnExitPtr() { ptr = nullptr; }
 };
 static void dt_func(DT_ResetOnExitPtr* p_tls) {
@@ -276,7 +279,6 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
 }
 boost::lockfree::queue<struct iocb*>* dt_io_queue() {
   static DT_ResetOnExitPtr p_tls;
-  std::thread(std::bind(&dt_func, &p_tls)).dettach();
   boost::lockfree::queue<struct iocb*>* q;
   while (nullptr == (q = p_tls.load())) {
     std::this_thread::yield();
