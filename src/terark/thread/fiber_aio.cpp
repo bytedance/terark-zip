@@ -4,6 +4,7 @@
 
 #include "fiber_aio.hpp"
 #include "fiber_yield.hpp"
+#include <terark/stdtypes.hpp>
 #include <terark/util/atomic.hpp>
 #include <terark/util/throw.hpp>
 #include <boost/fiber/all.hpp>
@@ -212,10 +213,8 @@ static io_fiber_context& tls_io_fiber() {
 
 // dt_ means 'dedicated thread'
 struct DT_ResetOnExitPtr {
-  std::atomic<boost::lockfree::queue<struct iocb*>*> ptr = nullptr;
-  DT_ResetOnExitPtr() {
-    std::thread(std::bind(&dt_func, this)).detach();
-  }
+  std::atomic<boost::lockfree::queue<struct iocb*>*> ptr;
+  DT_ResetOnExitPtr();
   ~DT_ResetOnExitPtr() { ptr = nullptr; }
 };
 static void dt_func(DT_ResetOnExitPtr* p_tls) {
@@ -225,10 +224,10 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
   io_context_t io_ctx;
   constexpr int batch = 64;
   if (int err = io_setup(batch*4 - 1, &io_ctx)) {
-    perror("io_setup"); exit(3);
+    TERARK_DIE("io_setup() = %s", strerror(err));
   }
   struct iocb*   io_batch[batch];
-  struct ioevent io_events[batch];
+  struct io_event io_events[batch];
   intptr_t submits = 0, reaps = 0;
   intptr_t req = 0;
   while (p_tls->ptr.load(std::memory_order_relaxed)) {
@@ -264,7 +263,7 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
           io_return* ior = (io_return*)(io_events[i].data);
           ior->len = io_events[i].res;
           ior->err = io_events[i].res2;
-          as_atomic(io_ret->done).store(true, std::memory_order_release);
+          as_atomic(ior->done).store(true, std::memory_order_release);
         }
         reaps += ret;
       }
@@ -274,13 +273,17 @@ static void dt_func(DT_ResetOnExitPtr* p_tls) {
     }
   }
   if (int err = io_destroy(io_ctx)) {
-    perror("io_destroy"); exit(3);
+    TERARK_DIE("io_destroy() = %s", strerror(err));
   }
+}
+DT_ResetOnExitPtr::DT_ResetOnExitPtr() {
+  ptr = nullptr;
+  std::thread(std::bind(&dt_func, this)).detach();
 }
 boost::lockfree::queue<struct iocb*>* dt_io_queue() {
   static DT_ResetOnExitPtr p_tls;
   boost::lockfree::queue<struct iocb*>* q;
-  while (nullptr == (q = p_tls.load())) {
+  while (nullptr == (q = p_tls.ptr.load())) {
     std::this_thread::yield();
   }
   return q;
