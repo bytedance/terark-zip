@@ -31,7 +31,7 @@ int main() {
     }
   #endif
     using namespace terark;
-    const intptr_t FileSize = getEnvLong("FileSize", 2L << 20); // default 2M
+    const intptr_t FileSize = ParseSizeXiB(getenv("FileSize"), 2L << 20); // default 2M
     const intptr_t WriteSize = ParseSizeXiB(getenv("WriteSize"), FileSize*10);
     const intptr_t ReadSize = ParseSizeXiB(getenv("ReadSize"), FileSize*10);
     const intptr_t Threads = getEnvLong("Threads", 4);
@@ -44,6 +44,8 @@ int main() {
         fprintf(stderr, "Invalid Threads = %zd\n", Threads);
         return 1;
     }
+    fprintf(stderr, "Threads=%zd, BlockSize=%zd, FileSize=%zd, ReadSize=%zd, WriteSize=%zd\n",
+        Threads, BlockSize, FileSize, ReadSize, WriteSize);
     ftruncate(fd, FileSize);
     intptr_t allsum = 0;
     auto thr_fun = [&](intptr_t tno) {
@@ -86,6 +88,6 @@ int main() {
 
     fprintf(stderr, "wr time = %8.3f sec\n", pf.sf(t0,t1));
     fprintf(stderr, "wr iops = %8.3f K\n", WriteSize/BlockSize/pf.mf(t0,t1));
-    fprintf(stderr, "wr iobw = %8.3f K\n", WriteSize/pf.mf(t0,t1));
+    fprintf(stderr, "wr iobw = %8.3f GiB\n", WriteSize/pf.sf(t0,t1)/(1L<<30));
     return 0;
 }
