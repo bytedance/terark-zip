@@ -195,19 +195,15 @@ public:
 
   ~io_fiber_context() {
     aio_debug("ft_num = %zd, counter = %llu ...", ft_num, counter);
-
     m_state = state::stopping;
     while (state::stopping == m_state) {
       aio_debug("ft_num = %zd, counter = %llu, yield ...", ft_num, counter);
       yield();
     }
-    assert(state::stopped == m_state);
+    TERARK_VERIFY(state::stopped == m_state);
     io_fiber.join();
-
     aio_debug("ft_num = %zd, counter = %llu, done", ft_num, counter);
-
-    assert(0 == io_reqnum);
-
+    TERARK_VERIFY(0 == io_reqnum);
     FIBER_AIO_VERIFY(io_destroy(io_ctx));
   }
 };
