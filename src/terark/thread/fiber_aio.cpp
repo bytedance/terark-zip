@@ -64,7 +64,10 @@ struct io_return {
   int err;
   bool done;
 };
-boost::lockfree::queue<struct iocb*>* dt_io_queue();
+
+typedef boost::lockfree::queue<struct iocb*, boost::lockfree::fixed_sized>
+        io_queue_t;
+io_queue_t* dt_io_queue();
 
 class io_fiber_context {
   static const int reap_batch = 32;
@@ -216,12 +219,12 @@ static io_fiber_context& tls_io_fiber() {
 
 // dt_ means 'dedicated thread'
 struct DT_ResetOnExitPtr {
-  std::atomic<boost::lockfree::queue<struct iocb*>*> ptr;
+  std::atomic<io_queue_t*> ptr;
   DT_ResetOnExitPtr();
   ~DT_ResetOnExitPtr() { ptr = nullptr; }
 };
 static void dt_func(DT_ResetOnExitPtr* p_tls) {
-  boost::lockfree::queue<struct iocb*> queue(1023);
+  io_queue_t queue(1023);
   p_tls->ptr = &queue;
   io_context_t io_ctx;
   constexpr int batch = 64;
@@ -274,9 +277,9 @@ DT_ResetOnExitPtr::DT_ResetOnExitPtr() {
   ptr = nullptr;
   std::thread(std::bind(&dt_func, this)).detach();
 }
-boost::lockfree::queue<struct iocb*>* dt_io_queue() {
+io_queue_t* dt_io_queue() {
   static DT_ResetOnExitPtr p_tls;
-  boost::lockfree::queue<struct iocb*>* q;
+  io_queue_t* q;
   while (nullptr == (q = p_tls.ptr.load())) {
     std::this_thread::yield();
   }
