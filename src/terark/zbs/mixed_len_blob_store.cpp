@@ -581,6 +581,7 @@ const {
             buffer.ensureWrite(newIsFixedLen.data(), newIsFixedLen.mem_size());
             PadzeroForAlign<16>(buffer, xxhash64, newIsFixedLen.mem_size());
         } else {
+            assert(vCount == recNum);
             newIsFixedLen.clear();
         }
 	}
