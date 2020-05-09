@@ -52,7 +52,7 @@ make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
 WITH_BMI2=`./cpu_has_bmi2.sh`
 SYSTEM=`uname -m -s | sed 's:[ /]:-:g'`
 tmpfile=`mktemp compiler-XXXXXX`
-COMPILER=`gcc tools/configure/compiler.cpp -o $tmpfile.exe && ./$tmpfile.exe && rm -f $tmpfile*`
+COMPILER=`${CXX:-gcc} tools/configure/compiler.cpp -o $tmpfile.exe && ./$tmpfile.exe && rm -f $tmpfile*`
 PLATFORM_DIR=$SYSTEM-$COMPILER-bmi2-$WITH_BMI2
 
 echo $PLATFORM_DIR && rm -rf output && mkdir output
