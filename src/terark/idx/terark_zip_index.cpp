@@ -44,6 +44,7 @@ static const uint64_t g_terark_index_prefix_seed = 0x505f6b7261726554ull; // ech
 static const uint64_t g_terark_index_suffix_seed = 0x535f6b7261726554ull; // echo Terark_S | od -t x8
 
 using terark::getEnvBool;
+using terark::getEnvLong;
 static bool g_indexEnableCompositeIndex = getEnvBool("TerarkZipTable_enableCompositeIndex", true);
 static bool g_indexEnableUintIndex = getEnvBool("TerarkZipTable_enableUintIndex", true);
 static bool g_indexEnableFewZero = getEnvBool("TerarkZipTable_enableFewZero", true);
@@ -51,6 +52,7 @@ static bool g_indexEnableNonDescUint = getEnvBool("TerarkZipTable_enableNonDescU
 static bool g_indexEnableDynamicSuffix = getEnvBool("TerarkZipTable_enableDynamicSuffix", true);
 static bool g_indexEnableEntropySuffix = getEnvBool("TerarkZipTable_enableEntropySuffix", true);
 static bool g_indexEnableDictZipSuffix = getEnvBool("TerarkZipTable_enableDictZipSuffix", true);
+static long g_indexSuffixThreshold = getEnvLong("TerarkZipTable_suffixThreshold", 0);
 
 using std::unique_ptr;
 
@@ -3180,7 +3182,9 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
       continue;
     }
     size_t suffixCost = totalKeySize - i * keyCount;
-    if (index_detail::UseDictZipSuffix(keyCount, suffixCost, info.zip_ratio)) {
+    if (suffixCost / ks.keyCount < g_indexSuffixThreshold) {
+      continue;
+    } else if (index_detail::UseDictZipSuffix(keyCount, suffixCost, info.zip_ratio)) {
       suffixCost = (suffixCost + 8 * keyCount) * info.zip_ratio + 1024;
     } else if (index_detail::UseEntropySuffix(keyCount, suffixCost, info.zip_ratio)) {
       suffixCost = suffixCost * info.zip_ratio + keyCount + 1024;
