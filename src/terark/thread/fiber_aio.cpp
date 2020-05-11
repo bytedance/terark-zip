@@ -5,6 +5,7 @@
 #include "fiber_aio.hpp"
 #include "fiber_yield.hpp"
 #include <terark/stdtypes.hpp>
+#include <terark/fstring.hpp>
 #include <terark/util/atomic.hpp>
 #include <terark/util/throw.hpp>
 #include <boost/fiber/all.hpp>
@@ -37,15 +38,7 @@ namespace terark {
 //  0: posix aio
 //  1: linux aio(default)
 //  2: io uring (not supported now)
-static int get_aio_method() {
-  const char* env = getenv("aio_method");
-  if (env) {
-    int val = atoi(env);
-    return val;
-  }
-  return 1; // default
-}
-static int g_aio_method = get_aio_method();
+static int g_aio_method = (int)getEnvLong("aio_method", 1);
 
 static std::atomic<size_t> g_ft_num;
 
