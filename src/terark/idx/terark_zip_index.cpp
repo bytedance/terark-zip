@@ -48,6 +48,7 @@ static bool g_indexEnableNonDescUint = getEnvBool("TerarkZipTable_enableNonDescU
 static bool g_indexEnableDynamicSuffix = getEnvBool("TerarkZipTable_enableDynamicSuffix", true);
 static bool g_indexEnableEntropySuffix = getEnvBool("TerarkZipTable_enableEntropySuffix", true);
 static bool g_indexEnableDictZipSuffix = getEnvBool("TerarkZipTable_enableDictZipSuffix", true);
+static bool g_indexEnableCompressGlobalDict = getEnvBool("TerarkZipTable_enableCompressGlobalDict", true);
 
 using std::unique_ptr;
 
@@ -2975,7 +2976,7 @@ BuildDictZipSuffix(
   dzopt.checksumLevel = 1;
   dzopt.entropyAlgo = DictZipBlobStore::Options::kHuffmanO1;
   dzopt.useSuffixArrayLocalMatch = true;
-  dzopt.compressGlobalDict = true;
+  dzopt.compressGlobalDict = g_indexEnableCompressGlobalDict;
   dzopt.entropyInterleaved = avgLen > 256 ? 8 : avgLen > 128 ? 4 : avgLen > 64 ? 2 : 1;
   dzopt.offsetArrayBlockUnits = 128;
   dzopt.entropyZipRatioRequire = 0.95f;
