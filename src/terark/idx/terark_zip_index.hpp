@@ -15,6 +15,7 @@ class ZReorderMap;
 struct FilePair;
 
 struct TERARK_DLL_EXPORT TerarkIndexOptions{
+  bool compressGlobalDict = false;
   uint64_t smallTaskMemory = 1200 << 20;
   int32_t indexNestLevel = 3;
   uint8_t debugLevel = 0;
