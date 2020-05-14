@@ -82,7 +82,7 @@ private:
 	};
     size_t        m_reserveOutputMultiplier;
 	void*         m_globalEntropyTableObject;
-    Huffman::decoder_o1* m_huffman_decoder;
+    const Huffman::decoder_o1* m_huffman_decoder;
 	Options::EntropyAlgo m_entropyAlgo;
 	bool          m_isNewRefEncoding; // now unused
     byte_t        m_entropyInterleaved;
@@ -143,6 +143,8 @@ public:
         virtual void freeDict() = 0;
 		virtual void dictSwapOut(fstring fname) = 0;
 		virtual void dictSwapIn(fstring fname) = 0;
+
+		bool compressGlobalDict;
 	};
 	friend class DictZipBlobStoreBuilder;
 	static ZipBuilder* createZipBuilder(const Options&);

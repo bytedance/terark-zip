@@ -230,7 +230,7 @@ void DictZipBlobStore::destroyMe() {
         FSE_freeDTable((FSE_DTable*)m_globalEntropyTableObject);
         m_globalEntropyTableObject = nullptr;
     }
-    if (m_huffman_decoder) {
+    if (m_huffman_decoder && !m_huffman_decoder->not_from_mem_) {
         delete m_huffman_decoder;
         m_huffman_decoder = nullptr;
     }
@@ -1345,7 +1345,7 @@ void DictZipBlobStore::MyBuilder::finish() {
 }
 
 // |--------------------------------------|
-// | herder                               |
+// | header                               |
 // |--------------------------------------|
 // | data                                 |
 // |--------------------------------------|
@@ -1560,7 +1560,7 @@ WriteDict(fstring filename, size_t offset, fstring data, bool compress) {
     return { false, data.size() };
 }
 
-static 
+static
 AbstractBlobStore::MemoryCloseType
 ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
     auto MmapColdizeBytes = [](const void* addr, size_t len) {
@@ -1740,6 +1740,18 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             m_freq_hist->normalise(Huffman::NORMALISE);
             m_huffman_encoder = new Huffman::encoder_o1(m_freq_hist->histogram());
             m_huffman_encoder->take_table(&m_entropyTableData);
+
+            if (!m_opt.compressGlobalDict) {
+                // reset entropyTableData to Dtable
+                auto huffman_decoder = new Huffman::decoder_o1(fstring(m_entropyTableData.data(), m_entropyTableData.size()), true);
+                auto p_dtable = (byte_t*)huffman_decoder;
+
+                m_entropyTableData.erase_all();
+                for (size_t i = 0; i < sizeof(terark::Huffman::decoder_o1); ++i) {
+                    m_entropyTableData.push_back(p_dtable[i]);
+                }
+            }
+
             switch (m_opt.entropyInterleaved) {
             case 1 : case 2: case 4: case 8:
                 store->m_entropyInterleaved = m_opt.entropyInterleaved;
@@ -1751,7 +1763,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             m_entropyTableData.push_back(store->m_entropyInterleaved);
         }
     }
-    delete m_freq_hist;
+    ;
     m_freq_hist = nullptr;
     if (unnecessary) {
         store->destroyMe();
@@ -1911,6 +1923,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     hp->fileSize = storeSize;
     hp->offsetsUintBits = zoffsets.uintbits();
     hp->entropyAlgo = byte(m_opt.entropyAlgo);
+    hp->compressGlobalDictReserved = m_opt.compressGlobalDict ? 1 : 0;
     // febitvec
     //
     hp->entropyTableSize = m_entropyTableData.size();
@@ -2277,7 +2290,13 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
                 THROW_STD(logic_error, "bad m_entropyInterleaved = %d"
                     , m_entropyInterleaved);
             }
-            m_huffman_decoder = new Huffman::decoder_o1(fstring(mem, len));
+            if (mmapBase->compressGlobalDictReserved) {
+                m_huffman_decoder = new Huffman::decoder_o1(fstring(mem, len));
+            }
+            else {
+                assert(len == sizeof(Huffman::decoder_o1));
+                m_huffman_decoder = reinterpret_cast<const Huffman::decoder_o1*>(mem);
+            }
         }
 	}
 

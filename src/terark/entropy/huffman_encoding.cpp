@@ -850,6 +850,11 @@ decoder_o1::decoder_o1(fstring table, size_t* psize) {
     init(table, psize);
 }
 
+decoder_o1::decoder_o1(fstring table, bool not_from_mem, size_t* psize) {
+    not_from_mem_ = not_from_mem;
+    init(table, psize);
+}
+
 void decoder_o1::init(fstring table, size_t* psize) {
     size_t i, rle_i;
     const byte_t *cp = table.udata();
