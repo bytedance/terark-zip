@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-
+#
+# NO_ASAN=1 ./build.sh
+#
 set -e
 
 BASE_DIR=$PWD
@@ -46,7 +48,13 @@ fi
 
 rm -rf pkg
 
-make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
+if [ "$NO_ASAN" ];then
+  echo "build without ASAN"
+  make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1 DBG_ASAN='' AFR_ASAN=''
+else
+  echo "build with ASAN"
+  make pkg -j $cpuNum PKG_WITH_STATIC=1 PKG_WITH_DBG=1
+fi
 
 # move all binaries to output/ dir for next CICD steps
 WITH_BMI2=`./cpu_has_bmi2.sh`
