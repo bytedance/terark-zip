@@ -48,7 +48,6 @@ static bool g_indexEnableNonDescUint = getEnvBool("TerarkZipTable_enableNonDescU
 static bool g_indexEnableDynamicSuffix = getEnvBool("TerarkZipTable_enableDynamicSuffix", true);
 static bool g_indexEnableEntropySuffix = getEnvBool("TerarkZipTable_enableEntropySuffix", true);
 static bool g_indexEnableDictZipSuffix = getEnvBool("TerarkZipTable_enableDictZipSuffix", true);
-static bool g_indexEnableCompressGlobalDict = getEnvBool("TerarkZipTable_enableCompressGlobalDict", true);
 
 using std::unique_ptr;
 
@@ -2961,12 +2960,10 @@ BuildEntropySuffix(
   return new IndexEntropySuffix(static_cast<EntropyZipBlobStore*>(store), memory, isReverse);
 }
 
-template<class InputBufferType>
-SuffixBase*
-BuildDictZipSuffix(
-    InputBufferType& input,
-    size_t numKeys, size_t sumKeyLen, bool isReverse,
-    const TerarkIndexOptions& tiopt) {
+template <class InputBufferType>
+SuffixBase *BuildDictZipSuffix(InputBufferType &input, size_t numKeys,
+                               size_t sumKeyLen, bool isReverse,
+                               const TerarkIndexOptions &tiopt) {
   assert(g_indexEnableCompositeIndex);
   assert(g_indexEnableDynamicSuffix);
   input.rewind();
@@ -3026,11 +3023,11 @@ bool UseRawSuffix(size_t numKeys, size_t sumKeyLen, double zipRatio) {
   return !UseEntropySuffix(numKeys, sumKeyLen, zipRatio) && !UseEntropySuffix(numKeys, sumKeyLen, zipRatio);
 }
 
-template<class InputBufferType>
-SuffixBase*
-BuildSuffixAutoSelect(
-    InputBufferType& input, size_t numKeys, size_t sumKeyLen, bool isFixedLen, bool isReverse, double zipRatio,
-    const TerarkIndexOptions& tiopt) {
+template <class InputBufferType>
+SuffixBase *BuildSuffixAutoSelect(InputBufferType &input, size_t numKeys,
+                                  size_t sumKeyLen, bool isFixedLen,
+                                  bool isReverse, double zipRatio,
+                                  const TerarkIndexOptions &tiopt) {
   if (sumKeyLen == 0) {
     return BuildEmptySuffix();
   } else if (UseDictZipSuffix(numKeys, sumKeyLen, zipRatio)) {
@@ -3434,10 +3431,11 @@ TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIn
       FixPrefixInputBuffer prefix_input_reader{reader, cplen, uint_prefix_info.key_length, ks.maxKeyLen};
       prefix = BuildUintPrefix(prefix_input_reader, ks, uint_prefix_info);
       FixPrefixRemainingInputBuffer suffix_input_reader{reader, cplen, uint_prefix_info.key_length, ks.maxKeyLen};
-      suffix = BuildSuffixAutoSelect(suffix_input_reader, ks.keyCount,
-                                     ks.sumKeyLen - ks.keyCount * prefix_input_reader.cplenPrefixSize,
-                                     ks.minKeyLen == ks.maxKeyLen, isReverse, uint_prefix_info.zip_ratio,
-                                     tiopt);
+      suffix = BuildSuffixAutoSelect(
+          suffix_input_reader, ks.keyCount,
+          ks.sumKeyLen - ks.keyCount * prefix_input_reader.cplenPrefixSize,
+          ks.minKeyLen == ks.maxKeyLen, isReverse, uint_prefix_info.zip_ratio,
+          tiopt);
     }
   } else if ((!g_indexEnableDynamicSuffix && ks.minSuffixLen != ks.maxSuffixLen) ||
              !g_indexEnableCompositeIndex || ks.sumPrefixLen >= ks.sumKeyLen * 31 / 32) {
@@ -3452,9 +3450,10 @@ TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIn
         prefix_input_reader, tiopt, ks.keyCount, ks.sumPrefixLen - ks.keyCount * cplen,
         isReverse, ks.minPrefixLen == ks.maxPrefixLen);
     MinimizePrefixRemainingInputBuffer suffix_input_reader{reader, cplen, ks.keyCount, ks.maxKeyLen};
-    suffix = BuildSuffixAutoSelect(suffix_input_reader, ks.keyCount, ks.sumKeyLen - ks.sumPrefixLen,
-                                   ks.minSuffixLen == ks.maxSuffixLen, isReverse, uint_prefix_info.zip_ratio,
-                                   tiopt);
+    suffix = BuildSuffixAutoSelect(
+        suffix_input_reader, ks.keyCount, ks.sumKeyLen - ks.sumPrefixLen,
+        ks.minSuffixLen == ks.maxSuffixLen, isReverse,
+        uint_prefix_info.zip_ratio, tiopt);
   }
   valvec<char> common(cplen, valvec_reserve());
   common.append(ks.minKey.data(), cplen);
