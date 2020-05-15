@@ -1788,7 +1788,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             m_entropyTableData.push_back(store->m_entropyInterleaved);
         }
     }
-    ;
+    delete m_freq_hist;;
     m_freq_hist = nullptr;
     if (unnecessary) {
         store->destroyMe();
