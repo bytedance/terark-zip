@@ -1417,6 +1417,31 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 		crc32cLevel = byte_t(store->m_checksumLevel);
 		entropyAlgo = byte_t(store->m_entropyAlgo);
 		isNewRefEncoding = 1; // now always 1
+	    compressGlobalDictReserved = 1; // default 1, compress entropy table
+		globalDictSize = dict.memory.size();
+		dictXXHash = dict.xxhash;
+		patchCRC(offsets, entropyBitmap, entropyTab, maxOffsetEnt);
+	}
+
+	FileHeader(const DictZipBlobStore* store, size_t zipDataSize1, Dictionary dict
+             , const UintVecMin0& offsets, fstring entropyBitmap, fstring entropyTab
+             , uint08_t entropyCompressGlobalDictReserved, size_t maxOffsetEnt) {
+		assert(dict.memory.size() > 0);
+		assert(dict.verified);
+		memset(this, 0, sizeof(*this));
+		magic_len = MagicStrLen;
+		strcpy(magic, MagicString);
+		strcpy(className, "DictZipBlobStore");
+		formatVersion = 1;
+		unzipSize  = store->m_unzipSize;
+		ptrListBytes = (zipDataSize1 + 15) & ~uint64_t(15);
+        embeddedDict = 0;
+        embeddedDictAligned = 0;
+        entropyTableSize = entropyTab.size();
+		crc32cLevel = byte_t(store->m_checksumLevel);
+		entropyAlgo = byte_t(store->m_entropyAlgo);
+		isNewRefEncoding = 1; // now always 1
+	    compressGlobalDictReserved = entropyCompressGlobalDictReserved;
 		globalDictSize = dict.memory.size();
 		dictXXHash = dict.xxhash;
 		patchCRC(offsets, entropyBitmap, entropyTab, maxOffsetEnt);
@@ -1923,7 +1948,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     hp->fileSize = storeSize;
     hp->offsetsUintBits = zoffsets.uintbits();
     hp->entropyAlgo = byte(m_opt.entropyAlgo);
-    hp->compressGlobalDictReserved = m_opt.compressGlobalDict ? 1 : 0;
+    hp->compressGlobalDictReserved = m_opt.compressGlobalDict?1:0;
     // febitvec
     //
     hp->entropyTableSize = m_entropyTableData.size();
@@ -3050,7 +3075,7 @@ const {
             // UintVecMin0 & SortedUintVec same layour ...
             isOffsetsZipped ? (UintVecMin0&)newZipOffsets : newOffsets,
             fstring((char*)newEntropyBitmap.data(), newEntropyBitmap.mem_size()),
-            fstring(entropyMem, entropyLen), maxOffsetEnt);
+            fstring(entropyMem, entropyLen), mmapBase->compressGlobalDictReserved, maxOffsetEnt);
         if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
