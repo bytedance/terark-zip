@@ -81,7 +81,6 @@ class TERARK_DLL_EXPORT decoder_o1 {
 public:
     decoder_o1();
     decoder_o1(fstring table, size_t* psize = nullptr);
-    decoder_o1(fstring table, bool nfm, size_t* psize = nullptr);
 
     void init(fstring table, size_t* psize);
 
@@ -95,7 +94,6 @@ public:
     bool bitwise_decode_x4(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
     bool bitwise_decode_x8(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;
 
-    bool not_from_mem_ = false;
 private:
     template<size_t N>
     bool bitwise_decode_xN(const EntropyBits& data, valvec<byte_t>* record, TerarkContext* context) const;

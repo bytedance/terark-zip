@@ -83,6 +83,7 @@ private:
     size_t        m_reserveOutputMultiplier;
 	void*         m_globalEntropyTableObject;
     const Huffman::decoder_o1* m_huffman_decoder;
+    bool          m_isMmapped_decoder; // for class destructor
 	Options::EntropyAlgo m_entropyAlgo;
 	bool          m_isNewRefEncoding; // now unused
     byte_t        m_entropyInterleaved;

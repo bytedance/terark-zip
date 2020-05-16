@@ -167,6 +167,7 @@ void DictZipBlobStore::init() {
     m_reserveOutputMultiplier = 5;
 	m_globalEntropyTableObject = NULL;
     m_huffman_decoder = NULL;
+    m_isMmapped_decoder = false;
 	m_isNewRefEncoding = true;
 	new(&m_offsets)UintVecMin0();
     m_gOffsetBits = 0;
@@ -230,8 +231,8 @@ void DictZipBlobStore::destroyMe() {
         FSE_freeDTable((FSE_DTable*)m_globalEntropyTableObject);
         m_globalEntropyTableObject = nullptr;
     }
-    if (m_huffman_decoder && !m_huffman_decoder->not_from_mem_) {
-        delete m_huffman_decoder;
+    if (m_huffman_decoder) {
+        if(!m_isMmapped_decoder) delete m_huffman_decoder;
         m_huffman_decoder = nullptr;
     }
 }
@@ -1767,8 +1768,10 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             m_huffman_encoder->take_table(&m_entropyTableData);
 
             if (!m_opt.compressGlobalDict) {
-                // reset entropyTableData to Dtable
-                auto huffman_decoder = new Huffman::decoder_o1(fstring(m_entropyTableData.data(), m_entropyTableData.size()), true);
+                // reset entropyTableData from Ctable to Dtable
+                auto huffman_decoder = new Huffman::decoder_o1(
+                                            fstring(m_entropyTableData.data(),
+                                                    m_entropyTableData.size()));
                 auto p_dtable = (byte_t*)huffman_decoder;
 
                 m_entropyTableData.erase_all();
@@ -1788,7 +1791,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             m_entropyTableData.push_back(store->m_entropyInterleaved);
         }
     }
-    delete m_freq_hist;;
+    delete m_freq_hist;
     m_freq_hist = nullptr;
     if (unnecessary) {
         store->destroyMe();
@@ -2321,6 +2324,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
             else {
                 assert(len == sizeof(Huffman::decoder_o1));
                 m_huffman_decoder = reinterpret_cast<const Huffman::decoder_o1*>(mem);
+                m_isMmapped_decoder = true;
             }
         }
 	}
