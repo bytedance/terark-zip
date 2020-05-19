@@ -1765,19 +1765,17 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
         else {
             m_freq_hist->normalise(Huffman::NORMALISE);
             m_huffman_encoder = new Huffman::encoder_o1(m_freq_hist->histogram());
-            m_huffman_encoder->take_table(&m_entropyTableData);
 
             if (!m_opt.compressGlobalDict) {
                 // reset entropyTableData from Ctable to Dtable
-                auto huffman_decoder = new Huffman::decoder_o1(
-                                            fstring(m_entropyTableData.data(),
-                                                    m_entropyTableData.size()));
-                auto p_dtable = (byte_t*)huffman_decoder;
-
-                m_entropyTableData.erase_all();
-                for (size_t i = 0; i < sizeof(terark::Huffman::decoder_o1); ++i) {
-                    m_entropyTableData.push_back(p_dtable[i]);
-                }
+                m_entropyTableData.ensure_capacity(m_entropyTableData.size() + sizeof(Huffman::decoder_o1));
+                auto huffman_decoder = new (m_entropyTableData.data()+m_entropyTableData.size())
+                                        Huffman::decoder_o1(
+                                                fstring(m_huffman_encoder->table().data(),
+                                                    m_huffman_encoder->table().size()));
+            }
+            else {
+                m_huffman_encoder->take_table(&m_entropyTableData);
             }
 
             switch (m_opt.entropyInterleaved) {
