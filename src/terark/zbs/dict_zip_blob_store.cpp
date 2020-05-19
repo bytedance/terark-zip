@@ -1773,6 +1773,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
                                         Huffman::decoder_o1(
                                                 fstring(m_huffman_encoder->table().data(),
                                                     m_huffman_encoder->table().size()));
+                m_entropyTableData.risk_set_size(m_entropyTableData.size() + sizeof(Huffman::decoder_o1));
             }
             else {
                 m_huffman_encoder->take_table(&m_entropyTableData);
