@@ -43,8 +43,6 @@ namespace terark {
 static const uint64_t g_terark_index_prefix_seed = 0x505f6b7261726554ull; // echo Terark_P | od -t x8
 static const uint64_t g_terark_index_suffix_seed = 0x535f6b7261726554ull; // echo Terark_S | od -t x8
 
-using terark::getEnvBool;
-using terark::getEnvLong;
 static bool g_indexEnableCompositeIndex = getEnvBool("TerarkZipTable_enableCompositeIndex", true);
 static bool g_indexEnableUintIndex = getEnvBool("TerarkZipTable_enableUintIndex", true);
 static bool g_indexEnableFewZero = getEnvBool("TerarkZipTable_enableFewZero", true);
