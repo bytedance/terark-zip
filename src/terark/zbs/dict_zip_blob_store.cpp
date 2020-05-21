@@ -1769,12 +1769,12 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             // assert(m_entropyTableData.size()==0);
             if (!m_opt.compressGlobalDict) {
                 // reset entropyTableData from Ctable to Dtable
-                m_entropyTableData.ensure_capacity(sizeof(Huffman::decoder_o1)); //m_entropyTableData.size() +
-                auto huffman_decoder = new (m_entropyTableData.data()) //+m_entropyTableData.size())
+                m_entropyTableData.ensure_capacity(sizeof(Huffman::decoder_o1));
+                auto huffman_decoder = new (m_entropyTableData.data())
                                         Huffman::decoder_o1(
                                                 fstring(m_huffman_encoder->table().data(),
                                                     m_huffman_encoder->table().size()));
-                m_entropyTableData.risk_set_size(sizeof(Huffman::decoder_o1)); //m_entropyTableData.size() +
+                m_entropyTableData.risk_set_size(sizeof(Huffman::decoder_o1));
             }
             else {
                 m_huffman_encoder->take_table(&m_entropyTableData);
