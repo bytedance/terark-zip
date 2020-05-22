@@ -1373,7 +1373,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 	uint08_t crc32cLevel;
 	uint08_t entropyAlgo;
 	uint08_t isNewRefEncoding : 1;
-	uint08_t compressGlobalDictReserved : 1;
+	uint08_t entropyTableCompress : 1;
 	uint08_t pad1 : 2;
 	uint08_t zipOffsets_log2_blockUnits : 4; // 6 or 7
 	uint32_t entropyTableCRC;
@@ -1418,7 +1418,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 		crc32cLevel = byte_t(store->m_checksumLevel);
 		entropyAlgo = byte_t(store->m_entropyAlgo);
 		isNewRefEncoding = 1; // now always 1
-	    compressGlobalDictReserved = 1; // default 1, compress entropy table
+	    entropyTableCompress = 1; // default 1, compress entropy table
 		globalDictSize = dict.memory.size();
 		dictXXHash = dict.xxhash;
 		patchCRC(offsets, entropyBitmap, entropyTab, maxOffsetEnt);
@@ -1442,7 +1442,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 		crc32cLevel = byte_t(store->m_checksumLevel);
 		entropyAlgo = byte_t(store->m_entropyAlgo);
 		isNewRefEncoding = 1; // now always 1
-	    compressGlobalDictReserved = entropyCompressGlobalDictReserved;
+	    entropyTableCompress = entropyCompressGlobalDictReserved;
 		globalDictSize = dict.memory.size();
 		dictXXHash = dict.xxhash;
 		patchCRC(offsets, entropyBitmap, entropyTab, maxOffsetEnt);
@@ -1770,10 +1770,9 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             if (!m_opt.compressGlobalDict) {
                 // reset entropyTableData from Ctable to Dtable
                 m_entropyTableData.ensure_capacity(sizeof(Huffman::decoder_o1));
-                auto huffman_decoder = new (m_entropyTableData.data())
-                                        Huffman::decoder_o1(
-                                                fstring(m_huffman_encoder->table().data(),
-                                                    m_huffman_encoder->table().size()));
+                new (m_entropyTableData.data()) Huffman::decoder_o1(
+                                                    fstring(m_huffman_encoder->table().data(),
+                                                        m_huffman_encoder->table().size()));
                 m_entropyTableData.risk_set_size(sizeof(Huffman::decoder_o1));
             }
             else {
@@ -1951,7 +1950,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     hp->fileSize = storeSize;
     hp->offsetsUintBits = zoffsets.uintbits();
     hp->entropyAlgo = byte(m_opt.entropyAlgo);
-    hp->compressGlobalDictReserved = m_opt.compressGlobalDict?1:0;
+    hp->entropyTableCompress = m_opt.compressGlobalDict?1:0;
     // febitvec
     //
     hp->entropyTableSize = m_entropyTableData.size();
@@ -2318,7 +2317,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
                 THROW_STD(logic_error, "bad m_entropyInterleaved = %d"
                     , m_entropyInterleaved);
             }
-            if (mmapBase->compressGlobalDictReserved) {
+            if (mmapBase->entropyTableCompress) {
                 m_huffman_decoder = new Huffman::decoder_o1(fstring(mem, len));
             }
             else {
@@ -3079,7 +3078,7 @@ const {
             // UintVecMin0 & SortedUintVec same layour ...
             isOffsetsZipped ? (UintVecMin0&)newZipOffsets : newOffsets,
             fstring((char*)newEntropyBitmap.data(), newEntropyBitmap.mem_size()),
-            fstring(entropyMem, entropyLen), mmapBase->compressGlobalDictReserved, maxOffsetEnt);
+            fstring(entropyMem, entropyLen), mmapBase->entropyTableCompress, maxOffsetEnt);
         if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
