@@ -8,12 +8,21 @@ namespace terark {
 
 template<class ProductPtr, class... CreatorArgs>
 struct Factoryable<ProductPtr, CreatorArgs...>::AutoReg::Impl {
+  #if 1
+    struct FakeMutex {
+        void lock() {}
+        void unlock() {}
+    };
+    using MaybeMutex = FakeMutex;
+  #else
+    using MaybeMutex = std::mutex;
+  #endif
     using NameToFuncMap = gold_hash_map_p<fstring, CreatorFunc>;
     using TypeToNameMap = gold_hash_map<std::type_index, fstring>;
 
     NameToFuncMap func_map;
     TypeToNameMap type_map;
-    std::mutex    mtx;
+    MaybeMutex    mtx;
 
     static Impl& s_singleton() { static Impl imp; return imp; }
 };
