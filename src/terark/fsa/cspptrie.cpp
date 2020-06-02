@@ -3444,7 +3444,7 @@ void Patricia::TokenBase::release() {
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     assert(ThisThreadID() == m_thread_id);
-    assert(AcquireDone == m_flags.state);
+    assert(AcquireDone == m_flags.state || AcquireIdle == m_flags.state);
     if (conLevel >= SingleThreadShared || trie->m_token_qlen) {
         assert(m_link.verseq <= trie->m_token_tail->m_link.verseq);
         mt_release(trie);
