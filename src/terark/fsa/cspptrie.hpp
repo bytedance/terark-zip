@@ -75,7 +75,7 @@ protected:
         TokenState  state;
         byte_t      is_head;
     };
-    static_assert(sizeof(TokenFlags) == 2, "sizeof(TokenFlags) == 1");
+    static_assert(sizeof(TokenFlags) == 2, "sizeof(TokenFlags) == 2");
     class TERARK_DLL_EXPORT TokenBase;
     struct alignas(16) LinkType {
         TokenBase* next;

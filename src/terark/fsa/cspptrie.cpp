@@ -3370,10 +3370,9 @@ void Patricia::TokenBase::idle() {
     if (conLevel >= SingleThreadShared) {
         if (flags.is_head) {
             mt_update(trie);
-        } else {
-            if (!cas_weak(m_flags, flags, {AcquireIdle, false}))
-                goto Retry;
         }
+        if (!cas_weak(m_flags, flags, {AcquireIdle, false}))
+            goto Retry;
         m_live_verseq = m_link.verseq;
     }
     else if (trie->m_token_qlen) {
