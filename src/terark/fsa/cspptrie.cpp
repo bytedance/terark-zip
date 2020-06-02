@@ -3552,7 +3552,8 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
     assert(NoWriteReadOnly != conLevel);
   #if !defined(NDEBUG)
     auto flags = m_flags; // must load
-    TERARK_ASSERT_F(ReleaseDone == flags.state || ReleaseWait == flags.state,
+    TERARK_ASSERT_F(ReleaseDone == flags.state || ReleaseWait == flags.state
+                 || AcquireIdle == flags.state,
             "m_flags.state = %d", flags.state);
   #endif
     m_thread_id = ThisThreadID();
