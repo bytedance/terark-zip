@@ -380,8 +380,8 @@ void unit_test() {
         }
         auto insert = [](MainPatricia& trie, const hash_strmap<>& strVec) {
             MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken());
-            token->acquire(&trie);
             for (size_t i = 0, n = strVec.end_i(); i < n; i++) {
+                token->acquire(&trie);
                 fstring key = strVec.key(i);
                 trie.insert(key, NULL, &*token);
                 token->idle();
