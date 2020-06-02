@@ -75,7 +75,7 @@ class io_fiber_context {
   size_t               ft_num;
   unsigned long long   counter;
   boost::fibers::fiber io_fiber;
-  io_context_t         io_ctx;
+  io_context_t         io_ctx = 0;
   volatile size_t      io_reqnum = 0;
   struct io_event      io_events[reap_batch];
 
@@ -219,7 +219,7 @@ struct DT_ResetOnExitPtr {
 static void dt_func(DT_ResetOnExitPtr* p_tls) {
   io_queue_t queue(1023);
   p_tls->ptr = &queue;
-  io_context_t io_ctx;
+  io_context_t io_ctx = 0;
   constexpr int batch = 64;
   FIBER_AIO_VERIFY(io_setup(batch*4 - 1, &io_ctx));
   struct iocb*    io_batch[batch];
