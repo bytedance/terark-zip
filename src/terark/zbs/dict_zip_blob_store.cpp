@@ -167,7 +167,6 @@ void DictZipBlobStore::init() {
     m_reserveOutputMultiplier = 5;
 	m_globalEntropyTableObject = NULL;
     m_huffman_decoder = NULL;
-    m_isMmapped_decoder = false;
 	m_isNewRefEncoding = true;
 	new(&m_offsets)UintVecMin0();
     m_gOffsetBits = 0;
@@ -232,7 +231,10 @@ void DictZipBlobStore::destroyMe() {
         m_globalEntropyTableObject = nullptr;
     }
     if (m_huffman_decoder) {
-        if(!m_isMmapped_decoder) delete m_huffman_decoder;
+        auto mmapBase = (const FileHeader*)base;
+        if(!mmapBase || !mmapBase->entropyTableNoCompress) {
+            delete m_huffman_decoder;
+        }
         m_huffman_decoder = nullptr;
     }
 }
@@ -1373,7 +1375,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 	uint08_t crc32cLevel;
 	uint08_t entropyAlgo;
 	uint08_t isNewRefEncoding : 1;
-	uint08_t entropyTableCompress : 1;
+	uint08_t entropyTableNoCompress : 1;
 	uint08_t pad1 : 2;
 	uint08_t zipOffsets_log2_blockUnits : 4; // 6 or 7
 	uint32_t entropyTableCRC;
@@ -1418,7 +1420,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 		crc32cLevel = byte_t(store->m_checksumLevel);
 		entropyAlgo = byte_t(store->m_entropyAlgo);
 		isNewRefEncoding = 1; // now always 1
-	    entropyTableCompress = 1; // default 1, compress entropy table
+        entropyTableNoCompress = 0; // default 0, compress entropy table
 		globalDictSize = dict.memory.size();
 		dictXXHash = dict.xxhash;
 		patchCRC(offsets, entropyBitmap, entropyTab, maxOffsetEnt);
@@ -1426,7 +1428,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 
 	FileHeader(const DictZipBlobStore* store, size_t zipDataSize1, Dictionary dict
              , const UintVecMin0& offsets, fstring entropyBitmap, fstring entropyTab
-             , uint08_t entropyCompressGlobalDictReserved, size_t maxOffsetEnt) {
+             , uint08_t _entropyTableNoCompress, size_t maxOffsetEnt) {
 		assert(dict.memory.size() > 0);
 		assert(dict.verified);
 		memset(this, 0, sizeof(*this));
@@ -1442,7 +1444,7 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 		crc32cLevel = byte_t(store->m_checksumLevel);
 		entropyAlgo = byte_t(store->m_entropyAlgo);
 		isNewRefEncoding = 1; // now always 1
-	    entropyTableCompress = entropyCompressGlobalDictReserved;
+        entropyTableNoCompress = _entropyTableNoCompress;
 		globalDictSize = dict.memory.size();
 		dictXXHash = dict.xxhash;
 		patchCRC(offsets, entropyBitmap, entropyTab, maxOffsetEnt);
@@ -1950,7 +1952,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     hp->fileSize = storeSize;
     hp->offsetsUintBits = zoffsets.uintbits();
     hp->entropyAlgo = byte(m_opt.entropyAlgo);
-    hp->entropyTableCompress = m_opt.compressGlobalDict?1:0;
+    hp->entropyTableNoCompress = !m_opt.compressGlobalDict;
     // febitvec
     //
     hp->entropyTableSize = m_entropyTableData.size();
@@ -2317,13 +2319,12 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
                 THROW_STD(logic_error, "bad m_entropyInterleaved = %d"
                     , m_entropyInterleaved);
             }
-            if (mmapBase->entropyTableCompress) {
+            if (!mmapBase->entropyTableNoCompress) {
                 m_huffman_decoder = new Huffman::decoder_o1(fstring(mem, len));
             }
             else {
                 assert(len == sizeof(Huffman::decoder_o1));
                 m_huffman_decoder = reinterpret_cast<const Huffman::decoder_o1*>(mem);
-                m_isMmapped_decoder = true;
             }
         }
 	}
@@ -2407,6 +2408,7 @@ void DictZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
     blocks->erase_all();
     blocks->emplace_back(m_strDict.data(), m_strDict.size());
     blocks->emplace_back(m_offsets.data(), m_offsets.mem_size());
+    // TODO add decoder if no compress table
 }
 
 void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
@@ -2415,8 +2417,9 @@ void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
 }
 
 void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
+    // TODO detach decoder if no compress table
     assert(!m_isDetachMeta);
-    assert(blocks.size() == 2);
+    assert(blocks.size() >= 2);
     auto dict_mem = blocks.front();
     auto offset_mem = blocks.back();
     assert(dict_mem.size() == m_strDict.size());
@@ -3078,7 +3081,7 @@ const {
             // UintVecMin0 & SortedUintVec same layour ...
             isOffsetsZipped ? (UintVecMin0&)newZipOffsets : newOffsets,
             fstring((char*)newEntropyBitmap.data(), newEntropyBitmap.mem_size()),
-            fstring(entropyMem, entropyLen), mmapBase->entropyTableCompress, maxOffsetEnt);
+            fstring(entropyMem, entropyLen), mmapBase->entropyTableNoCompress, maxOffsetEnt);
         if (mmapBase->embeddedDict != (uint8_t)EmbeddedDictType::kExternal) {
             h.setEmbeddedDictType(mmapBase->getEmbeddedDict().size(),
                                   (EmbeddedDictType)mmapBase->embeddedDict);
