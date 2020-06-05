@@ -193,51 +193,6 @@ void DictZipBlobStore::swap(DictZipBlobStore& y) {
     std::swap(m_gOffsetBits, y.m_gOffsetBits);
 }
 
-void DictZipBlobStore::destroyMe() {
-    if (m_isDetachMeta) {
-        m_strDict.risk_release_ownership();
-        m_offsets.risk_release_ownership();
-    }
-    switch (m_dictCloseType) {
-    case MemoryCloseType::Clear:
-        m_strDict.clear();
-        break;
-    case MemoryCloseType::MmapClose:
-        mmap_close(m_strDict.data(), m_strDict.size());
-        // fall through
-    case MemoryCloseType::RiskRelease:
-        m_strDict.risk_release_ownership();
-        break;
-    }
-    m_dictCloseType = MemoryCloseType::Clear;
-    if (m_isUserMem) {
-        if (m_isMmapData) {
-            mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
-        }
-        m_offsets.risk_release_ownership();
-        m_ptrList.risk_release_ownership();
-        m_entropyBitmap.risk_release_ownership();
-        m_mmapBase = nullptr;
-        m_isMmapData = false;
-        m_isUserMem = false;
-    }
-    else {
-        m_offsets.clear();
-        m_ptrList.clear();
-        m_entropyBitmap.clear();
-    }
-    if (m_globalEntropyTableObject) {
-        FSE_freeDTable((FSE_DTable*)m_globalEntropyTableObject);
-        m_globalEntropyTableObject = nullptr;
-    }
-    if (m_huffman_decoder) {
-        auto mmapBase = (const FileHeader*)base;
-        if(!mmapBase || !mmapBase->entropyTableNoCompress) {
-            delete m_huffman_decoder;
-        }
-        m_huffman_decoder = nullptr;
-    }
-}
 
 /////////////////////////////////////////////////////////////////////////////
 static inline uint32_t HashBytes(uint32_t bytes, unsigned shift) {
@@ -1483,6 +1438,52 @@ struct DictZipBlobStore::FileHeader : public FileHeaderBase {
 		return (BlobStoreFileFooter*)((byte_t*)(this) + fileSize) - 1;
 	}
 };
+
+void DictZipBlobStore::destroyMe() {
+    if (m_isDetachMeta) {
+        m_strDict.risk_release_ownership();
+        m_offsets.risk_release_ownership();
+    }
+    switch (m_dictCloseType) {
+    case MemoryCloseType::Clear:
+        m_strDict.clear();
+        break;
+    case MemoryCloseType::MmapClose:
+        mmap_close(m_strDict.data(), m_strDict.size());
+        // fall through
+    case MemoryCloseType::RiskRelease:
+        m_strDict.risk_release_ownership();
+        break;
+    }
+    m_dictCloseType = MemoryCloseType::Clear;
+    if (m_isUserMem) {
+        if (m_isMmapData) {
+            mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
+        }
+        m_offsets.risk_release_ownership();
+        m_ptrList.risk_release_ownership();
+        m_entropyBitmap.risk_release_ownership();
+        m_mmapBase = nullptr;
+        m_isMmapData = false;
+        m_isUserMem = false;
+    }
+    else {
+        m_offsets.clear();
+        m_ptrList.clear();
+        m_entropyBitmap.clear();
+    }
+    if (m_globalEntropyTableObject) {
+        FSE_freeDTable((FSE_DTable*)m_globalEntropyTableObject);
+        m_globalEntropyTableObject = nullptr;
+    }
+    if (m_huffman_decoder) {
+        auto mmapBase = (const FileHeader*)m_mmapBase;
+        if(!mmapBase || !mmapBase->entropyTableNoCompress) {
+            delete m_huffman_decoder;
+        }
+        m_huffman_decoder = nullptr;
+    }
+}
 #pragma pack(pop)
 BOOST_STATIC_ASSERT(sizeof(DictZipBlobStore::FileHeader) == 128);
 
@@ -2408,10 +2409,10 @@ void DictZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
     blocks->erase_all();
     blocks->emplace_back(m_strDict.data(), m_strDict.size());
     blocks->emplace_back(m_offsets.data(), m_offsets.mem_size());
-    if (entropyTableNoCompress) {
+    if (m_huffman_decoder) {
         // add decoder if no compress table
         blocks->emplace_back(
-                reinterpret_cast<char*>m_huffman_decoder,
+                reinterpret_cast<const char*>(m_huffman_decoder),
                 sizeof(Huffman::decoder_o1));
     }
 }
@@ -2423,17 +2424,17 @@ void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
 
 void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
     assert(!m_isDetachMeta);
+    assert(blocks.size() >= 2);
     fstring dict_mem,offset_mem;
-    if (entropyTableNoCompress) {
-        assert(blocks.size() == 3);
-        dict_mem = blocks.front();
-        offset_mem = blocks[1];
-        m_huffman_decoder = blocks.back().data();
+    dict_mem = blocks.front();
+    if (blocks.size()==2) {
+        offset_mem = blocks.back();
     }
     else {
-        assert(blocks.size() == 2);
-        dict_mem = blocks.front();
-        offset_mem = blocks.back();
+        assert(blocks.size() == 3);
+        offset_mem = blocks[1];
+        m_huffman_decoder =
+            reinterpret_cast<const Huffman::decoder_o1*>(blocks.back().data());
     }
     assert(dict_mem.size() == m_strDict.size());
     assert(offset_mem.size() == m_offsets.mem_size());
