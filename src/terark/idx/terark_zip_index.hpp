@@ -1,12 +1,12 @@
 #pragma once
 
-#include <terark/histogram.hpp>
-#include <terark/int_vector.hpp>
-#include <terark/util/refcount.hpp>
-#include <terark/util/fstrvec.hpp>
 #include <boost/intrusive_ptr.hpp>
 #include <boost/noncopyable.hpp>
 #include <memory>
+#include <terark/histogram.hpp>
+#include <terark/int_vector.hpp>
+#include <terark/util/fstrvec.hpp>
+#include <terark/util/refcount.hpp>
 
 namespace terark {
 
@@ -14,32 +14,41 @@ class TerarkContext;
 class ZReorderMap;
 struct FilePair;
 
-struct TERARK_DLL_EXPORT TerarkIndexOptions{
+struct TERARK_DLL_EXPORT TerarkIndexOptions {
   uint64_t smallTaskMemory = 1200 << 20;
+  uint32_t cbtEntryPerTrie = 65536;
+  uint32_t cbtMinKeySize = 16;
+  double cbtMinKeyRatio = 0.5;
   int32_t indexNestLevel = 3;
   uint8_t debugLevel = 0;
   uint8_t indexNestScale = 8;
-  int8_t  indexTempLevel = 0;
+  uint8_t cbtHashBits = 0;
+  int8_t indexTempLevel = 0;
   bool compressGlobalDict = false;
   std::string localTempDir = "/tmp";
   std::string indexType = "Mixed_XL_256_32_FL";
 };
 
 class TERARK_DLL_EXPORT TerarkKeyReader {
-public:
-  virtual ~TerarkKeyReader(){}
-  static TerarkKeyReader* TERARK_DLL_EXPORT MakeReader(fstring fileName, size_t fileBegin, size_t fileEnd, bool reverse);
-  static TerarkKeyReader* TERARK_DLL_EXPORT MakeReader(const valvec<std::shared_ptr<FilePair>>& files, bool attach);
+ public:
+  virtual ~TerarkKeyReader() {}
+  static TerarkKeyReader* TERARK_DLL_EXPORT MakeReader(fstring fileName,
+                                                       size_t fileBegin,
+                                                       size_t fileEnd,
+                                                       bool reverse);
+  static TerarkKeyReader* TERARK_DLL_EXPORT
+  MakeReader(const valvec<std::shared_ptr<FilePair>>& files, bool attach);
   virtual fstring next() = 0;
   virtual void rewind() = 0;
 };
 
 class TERARK_DLL_EXPORT TerarkIndex : boost::noncopyable {
-public:
+ public:
   class Iterator : boost::noncopyable {
-  protected:
+   protected:
     size_t m_id = size_t(-1);
-  public:
+
+   public:
     virtual ~Iterator();
     virtual bool SeekToFirst() = 0;
     virtual bool SeekToLast() = 0;
@@ -58,6 +67,7 @@ public:
     };
     size_t keyCount = 0;
     size_t sumKeyLen = 0;
+    size_t sumValueLen = 0;
     size_t minKeyLen = size_t(-1);
     size_t maxKeyLen = 0;
     size_t minPrefixLen = size_t(-1);
@@ -70,7 +80,7 @@ public:
     valvec<byte_t> maxKey;
     valvec<DiffItem> diff;
   };
-  struct TERARK_DLL_EXPORT UintPrefixBuildInfo {
+  struct TERARK_DLL_EXPORT PrefixBuildInfo {
     size_t common_prefix;
     size_t key_length;
     size_t key_count;
@@ -81,8 +91,9 @@ public:
     uint64_t max_value;
     double zip_ratio;
     size_t estimate_size;
-    enum UintType{
-      fail = 0,
+    enum PrefixAlgo {
+      nest_louds_trie = 0,
+      crit_bit_trie,
       asc_allone,
       asc_few_zero_3,
       asc_few_zero_4,
@@ -109,23 +120,27 @@ public:
     } type;
   };
   class TERARK_DLL_EXPORT Factory : public RefCounter {
-  public:
+   public:
     virtual ~Factory();
-    static TerarkIndex* TERARK_DLL_EXPORT Build(
-        TerarkKeyReader* keyReader, const TerarkIndexOptions& tiopt,
-        const KeyStat&, const UintPrefixBuildInfo*);
+    static TerarkIndex* TERARK_DLL_EXPORT Build(TerarkKeyReader* keyReader,
+                                                const TerarkIndexOptions& tiopt,
+                                                const KeyStat&,
+                                                const PrefixBuildInfo*);
     static size_t MemSizeForBuild(const KeyStat&);
 
     virtual std::unique_ptr<TerarkIndex> LoadMemory(fstring mem) const = 0;
   };
   typedef boost::intrusive_ptr<Factory> FactoryPtr;
-  static UintPrefixBuildInfo GetUintPrefixBuildInfo(const TerarkIndex::KeyStat& ks);
+  static PrefixBuildInfo GetPrefixBuildInfo(const TerarkIndexOptions& opt,
+                                            const TerarkIndex::KeyStat& ks);
   static std::unique_ptr<TerarkIndex> LoadMemory(fstring mem);
   virtual ~TerarkIndex();
   virtual fstring Name() const = 0;
-  virtual void SaveMmap(std::function<void(const void*, size_t)> write) const = 0;
-  virtual void
-  Reorder(ZReorderMap& newToOld, std::function<void(const void*, size_t)> write, fstring tmpFile) const = 0;
+  virtual void SaveMmap(
+      std::function<void(const void*, size_t)> write) const = 0;
+  virtual void Reorder(ZReorderMap& newToOld,
+                       std::function<void(const void*, size_t)> write,
+                       fstring tmpFile) const = 0;
   virtual size_t Find(fstring key, TerarkContext* ctx) const = 0;
   virtual size_t DictRank(fstring key, TerarkContext* ctx) const = 0;
   virtual void MinKey(valvec<byte_t>* key, TerarkContext* ctx) const = 0;
@@ -136,14 +151,14 @@ public:
   virtual valvec<fstring> GetMetaData() const = 0;
   virtual void DetachMetaData(const valvec<fstring>&) = 0;
   virtual const char* Info(char* buffer, size_t size) const = 0;
-  virtual Iterator* NewIterator(valvec<byte_t>* buffer = nullptr, TerarkContext* ctx = nullptr) const = 0;
+  virtual Iterator* NewIterator(valvec<byte_t>* buffer = nullptr,
+                                TerarkContext* ctx = nullptr) const = 0;
   virtual size_t IteratorSize() const = 0;
   virtual bool NeedsReorder() const = 0;
   virtual void GetOrderMap(UintVecMin0& newToOld) const = 0;
   virtual void BuildCache(double cacheRatio) = 0;
-  virtual void DumpKeys(std::function<void(fstring, fstring, fstring)>) const = 0;
+  virtual void DumpKeys(
+      std::function<void(fstring, fstring, fstring)>) const = 0;
 };
 
-
-}
-
+}  // namespace terark

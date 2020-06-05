@@ -20,6 +20,7 @@
 #include <terark/fsa/fsa_cache.hpp>
 #include <terark/fsa/nest_louds_trie_inline.hpp>
 #include <terark/fsa/nest_trie_dawg.hpp>
+#include <terark/fsa/crit_bit_trie.hpp>
 #include <terark/util/tmpfile.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/mmap.hpp>
@@ -43,14 +44,20 @@ namespace terark {
 static const uint64_t g_terark_index_prefix_seed = 0x505f6b7261726554ull; // echo Terark_P | od -t x8
 static const uint64_t g_terark_index_suffix_seed = 0x535f6b7261726554ull; // echo Terark_S | od -t x8
 
-static bool g_indexEnableCompositeIndex = getEnvBool("TerarkZipTable_enableCompositeIndex", true);
-static bool g_indexEnableUintIndex = getEnvBool("TerarkZipTable_enableUintIndex", true);
-static bool g_indexEnableFewZero = getEnvBool("TerarkZipTable_enableFewZero", true);
-static bool g_indexEnableNonDescUint = getEnvBool("TerarkZipTable_enableNonDescUint", true);
-static bool g_indexEnableDynamicSuffix = getEnvBool("TerarkZipTable_enableDynamicSuffix", true);
-static bool g_indexEnableEntropySuffix = getEnvBool("TerarkZipTable_enableEntropySuffix", true);
-static bool g_indexEnableDictZipSuffix = getEnvBool("TerarkZipTable_enableDictZipSuffix", true);
-static long g_indexSuffixThreshold = getEnvLong("TerarkZipTable_suffixThreshold", 0);
+#define DEFINE_TERARK_INDEX_ENV_OPT(type,var_name,def_val,env_call,env_name) \
+  static type var_name() { static type g_##var_name = env_call(#env_name,def_val); return g_##var_name; }
+
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableCompositeIndex, true , getEnvBool, TerarkZipTable_enableCompositeIndex);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableCritBitTrie   , false, getEnvBool, TerarkZipTable_enableCritBitTrie   );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableUintIndex     , true , getEnvBool, TerarkZipTable_enableUintIndex     );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableFewZero       , true , getEnvBool, TerarkZipTable_enableFewZero       );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableNonDescUint   , true , getEnvBool, TerarkZipTable_enableNonDescUint   );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableDynamicSuffix , true , getEnvBool, TerarkZipTable_enableDynamicSuffix );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableEntropySuffix , true , getEnvBool, TerarkZipTable_enableEntropySuffix );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableDictZipSuffix , true , getEnvBool, TerarkZipTable_enableDictZipSuffix );
+DEFINE_TERARK_INDEX_ENV_OPT(long, indexSuffixThreshold     , 0    , getEnvLong, TerarkZipTable_suffixThreshold     );
+
+#undef DEFINE_TERARK_INDEX_ENV_OPT
 
 using std::unique_ptr;
 
@@ -251,7 +258,7 @@ TerarkIndex::~TerarkIndex() {}
 TerarkIndex::Factory::~Factory() {}
 TerarkIndex::Iterator::~Iterator() {}
 
-using UintPrefixBuildInfo = TerarkIndex::UintPrefixBuildInfo;
+using PrefixBuildInfo = TerarkIndex::PrefixBuildInfo;
 
 namespace index_detail {
 
@@ -321,14 +328,6 @@ struct LowerBoundResult {
   ContextBuffer buffer;
 };
 
-struct PrefixBase {
-  StatusFlags flags;
-  virtual ~PrefixBase() = default;
-
-  virtual bool Load(fstring mem) = 0;
-  virtual void Save(std::function<void(const void*, size_t)> append) const = 0;
-};
-
 struct SuffixBase {
   StatusFlags flags;
 
@@ -342,6 +341,14 @@ struct SuffixBase {
   virtual void Save(std::function<void(const void*, size_t)> append) const = 0;
   virtual void
   Reorder(ZReorderMap& newToOld, std::function<void(const void*, size_t)> append, fstring tmpFile) const = 0;
+};
+
+struct PrefixBase {
+  StatusFlags flags;
+  virtual ~PrefixBase() = default;
+
+  virtual bool Load(fstring mem, SuffixBase* suffix) = 0;
+  virtual void Save(std::function<void(const void*, size_t)> append) const = 0;
 };
 
 template<class B, class T>
@@ -382,13 +389,13 @@ struct VirtualPrefixBase : public PrefixBase {
 
   virtual bool IterSeekToFirst(size_t& id, size_t& count, void* iter) const = 0;
   virtual bool IterSeekToLast(size_t& id, size_t* count, void* iter) const = 0;
-  virtual bool IterSeek(size_t& id, size_t& count, fstring target, void* iter) const = 0;
+  virtual bool IterSeek(size_t& id, size_t& count, fstring target, const SuffixBase* suffix, void* iter) const = 0;
   virtual bool IterNext(size_t& id, size_t count, void* iter) const = 0;
   virtual bool IterPrev(size_t& id, size_t* count, void* iter) const = 0;
   virtual fstring IterGetKey(size_t id, const void* iter) const = 0;
   virtual size_t IterDictRank(size_t id, const void* iter) const = 0;
 
-  virtual bool Load(fstring mem) = 0;
+  virtual bool Load(fstring mem, SuffixBase* suffix) = 0;
   virtual void Save(std::function<void(const void*, size_t)> append) const = 0;
 };
 
@@ -460,8 +467,8 @@ struct VirtualPrefix : public PrefixBase {
   bool IterSeekToLast(size_t& id, size_t* count, void* iter) const {
     return prefix->IterSeekToLast(id, count, iter);
   }
-  bool IterSeek(size_t& id, size_t& count, fstring target, void* iter) const {
-    return prefix->IterSeek(id, count, target, iter);
+  bool IterSeek(size_t& id, size_t& count, fstring target, const SuffixBase* suffix, void* iter) const {
+    return prefix->IterSeek(id, count, target, suffix, iter);
   }
   bool IterNext(size_t& id, size_t count, void* iter) const {
     return prefix->IterNext(id, count, iter);
@@ -476,8 +483,8 @@ struct VirtualPrefix : public PrefixBase {
     return prefix->IterDictRank(id, iter);
   }
 
-  bool Load(fstring mem) final {
-    return prefix->Load(mem);
+  bool Load(fstring mem, SuffixBase* suffix) final {
+    return prefix->Load(mem, suffix);
   }
   void Save(std::function<void(const void*, size_t)> append) const final {
     prefix->Save(append);
@@ -659,16 +666,17 @@ public:
                                    saved, computed);
       }
     }
-    unique_ptr<PrefixBase> p(CreatePrefix());
-    p->flags.is_bfs_suffix = footer.bfs_suffix;
-    if (!p->Load(prefix)) {
-      throw std::invalid_argument("TerarkIndex::LoadMemory Prefix Fail, bad mem");
-    }
     unique_ptr<SuffixBase> s(CreateSuffix());
     s->flags.is_rev_suffix = footer.rev_suffix;
     if (!s->Load(suffix)) {
       throw std::invalid_argument("TerarkIndex::LoadMemory Suffix Fail, bad mem");
     }
+    unique_ptr<PrefixBase> p(CreatePrefix());
+    p->flags.is_bfs_suffix = footer.bfs_suffix;
+    if (!p->Load(prefix, s.get())) {
+      throw std::invalid_argument("TerarkIndex::LoadMemory Prefix Fail, bad mem");
+    }
+
     return unique_ptr<TerarkIndex>(CreateIndex(&footer, Common(common, false), p.release(), s.release()));
   }
 
@@ -887,18 +895,21 @@ public:
     }
     target = target.substr(cplen);
     size_t suffix_count;
-    if (suffix().TotalKeySize() == 0) {
-      if (prefix().IterSeek(m_id, suffix_count, target, prefix_storage_)) {
+    const SuffixBase* suffix_ptr = suffix().TotalKeySize() == 0 ? nullptr : &suffix();
+    if (prefix().TotalKeySize() == 0 || suffix().TotalKeySize() == 0) {
+      if (prefix().IterSeek(m_id, suffix_count, target, suffix_ptr,
+                            prefix_storage_)) {
         assert(suffix_count == 1);
         suffix().IterSet(m_id, suffix_storage_);
         return UpdateKey();
       } else {
-        m_id = size_t(-1);
+        assert(m_id == size_t(-1));
         return false;
       }
     }
     fstring prefix_key;
-    if (prefix().IterSeek(m_id, suffix_count, target, prefix_storage_)) {
+    if (prefix().IterSeek(m_id, suffix_count, target, suffix_ptr,
+                          prefix_storage_)) {
       prefix_key = prefix().IterGetKey(m_id, prefix_storage_);
       assert(prefix_key >= target);
       if (prefix_key != target) {
@@ -1123,7 +1134,7 @@ public:
 
   void DetachMetaData(const valvec<fstring>& blocks) final {
     assert(footer_ != nullptr);
-    bool ok = prefix_.Load(blocks.back());
+    bool ok = prefix_.Load(blocks.back(), suffix_.TotalKeySize() != 0 ? &suffix_ : nullptr);
     assert(ok); (void)ok;
     valvec<fstring> suffix_blocks;
     suffix_blocks.risk_set_data((fstring*)blocks.data(), blocks.size() - 1);
@@ -1407,8 +1418,8 @@ struct IndexAscendingUintPrefix : public UintPrefixBase<RankSelect> {
     return true;
   }
   bool IterSeek(size_t& id, size_t& count, fstring target,
-                void* iter_ptr) const {
-    auto iter = static_cast<IteratorStorage*>(iter_ptr);
+                const SuffixBase* /*suffix*/, void* iter_ptr) const {
+    auto iter = static_cast<IteratorStorage *>(iter_ptr);
     if (!SeekImpl(target, id, iter->pos, iter->get_hint()).first) {
       return false;
     }
@@ -1465,7 +1476,7 @@ struct IndexAscendingUintPrefix : public UintPrefixBase<RankSelect> {
     return fstring(iter->buffer, key_length);
   }
 
-  bool Load(fstring mem) override {
+  bool Load(fstring mem, SuffixBase* /*suffix*/) override {
     if (mem.size() < sizeof(IndexUintPrefixHeader)) {
       return false;
     }
@@ -1680,7 +1691,7 @@ struct IndexNonDescendingUintPrefix : public UintPrefixBase<RankSelect> {
     UpdateBuffer(iter);
     return true;
   }
-  bool IterSeek(size_t& id, size_t& count, fstring target,
+  bool IterSeek(size_t& id, size_t& count, fstring target, const SuffixBase* /*suffix*/,
                 void* iter_ptr) const {
     auto iter = static_cast<IteratorStorage*>(iter_ptr);
     if (!SeekImpl(target, id, count, iter->pos, iter->get_hint()).first) {
@@ -1757,7 +1768,7 @@ struct IndexNonDescendingUintPrefix : public UintPrefixBase<RankSelect> {
     return fstring(iter->buffer, key_length);
   }
 
-  bool Load(fstring mem) override {
+  bool Load(fstring mem, SuffixBase* /*suffix*/) override {
     if (mem.size() < sizeof(IndexUintPrefixHeader)) {
       return false;
     }
@@ -2052,7 +2063,7 @@ struct IndexNestLoudsTriePrefix : public VirtualPrefixBase {
     }
     return iter->SeekToLast(id, flags.is_bfs_suffix);
   }
-  bool IterSeek(size_t& id, size_t& count, fstring target,
+  bool IterSeek(size_t& id, size_t& count, fstring target, const SuffixBase* /*suffix*/,
                 void* iter_ptr) const {
     auto iter = static_cast<IteratorStorage*>(iter_ptr);
     count = 1;
@@ -2084,7 +2095,7 @@ struct IndexNestLoudsTriePrefix : public VirtualPrefixBase {
     return iter->GetKey();
   }
 
-  bool Load(fstring mem) override {
+  bool Load(fstring mem, SuffixBase* /*suffix*/) override {
     std::unique_ptr<BaseDFA> dfa(BaseDFA::load_mmap_user_mem(mem.data(), mem.size()));
     auto dawg = dynamic_cast<NestLoudsTrieDAWG*>(dfa.get());
     if (dawg == nullptr) {
@@ -2096,6 +2107,210 @@ struct IndexNestLoudsTriePrefix : public VirtualPrefixBase {
   }
   void Save(std::function<void(const void*, size_t)> append) const override {
     trie_->save_mmap(append);
+  }
+};
+
+template <class RankSelect>
+struct IndexCBTPrefix : public VirtualPrefixBase {
+  using SelfType = IndexCBTPrefix;
+  IndexCBTPrefix() {}
+  IndexCBTPrefix(const IndexCBTPrefix&) = delete;
+  IndexCBTPrefix(SelfType&& other) { *this = std::move(other); }
+  IndexCBTPrefix(CritBitTriePacked* trie, fstrvec& bounds)
+      : cbt_packed(std::move(*trie)), bounds_(std::move(bounds)) {}
+  IndexCBTPrefix(PrefixBase* base) {
+    assert(dynamic_cast<SelfType*>(base) != nullptr);
+    auto other = static_cast<SelfType*>(base);
+    *this = std::move(*other);
+    delete other;
+  }
+  ~IndexCBTPrefix() {
+    if (flags.is_user_mem) {
+      cbt_packed.risk_release();
+    }
+  }
+  IndexCBTPrefix& operator=(SelfType&& other) {
+    std::swap(cbt_packed, other.cbt_packed);
+    std::swap(bounds_, other.bounds_);
+    std::swap(flags, other.flags);
+    return *this;
+  }
+  CritBitTriePacked cbt_packed;
+  fstrvec bounds_;
+
+  size_t IteratorStorageSize() const {
+    return cbt_packed.max_layer() * sizeof(CritBitTrie::PathElement) +
+           sizeof(valvec<byte_t>);
+  }
+
+  valvec<byte_t>& IteratorStorageBuffer(void* ptr) const {
+    return *reinterpret_cast<valvec<byte_t>*>(
+        (char*)ptr + cbt_packed.max_layer() * sizeof(CritBitTrie::PathElement));
+  }
+
+  void IteratorStorageConstruct(TerarkContext* ctx, void* ptr) const {
+    new (&IteratorStorageBuffer(ptr)) valvec<byte_t>;
+  }
+
+  void IteratorStorageDestruct(TerarkContext* ctx, void* ptr) const {
+    IteratorStorageBuffer(ptr).~valvec();
+  }
+
+  size_t TotalKeySize() const { return 0; }
+
+  size_t KeyCount() const { return cbt_packed.num_words_; }
+
+  size_t Find(fstring key, const SuffixBase* suffix, TerarkContext* ctx) const {
+    assert(suffix != nullptr);
+    size_t cbt_index = FindTrie(key);
+    if (cbt_index == cbt_packed.trie_nums()) {
+      return size_t(-1);
+    }
+    auto& cbt = cbt_packed[cbt_index];
+    size_t id_in_trie = cbt.index(key, nullptr);
+    if (cbt_packed.hash_bit_num() > 0) {
+      if (!cbt.hash_match(key, id_in_trie, cbt_packed.hash_bit_num())) {
+        return size_t(-1);
+      }
+    }
+    size_t suffix_id = id_in_trie + cbt_packed.base_rank_id(cbt_index);
+    ContextBuffer suffix_key = ctx->alloc();
+    suffix->AppendKey(suffix_id, &suffix_key.get(), ctx);
+    return key == suffix_key ? suffix_id : size_t(-1);
+  }
+
+  size_t DictRank(fstring key, const SuffixBase* suffix,
+                  TerarkContext* ctx) const {
+    assert(suffix != nullptr);
+    size_t cbt_index = FindTrie(key);
+    if (cbt_index == cbt_packed.trie_nums()) {
+      return cbt_packed.num_words();
+    }
+    auto& cbt = cbt_packed[cbt_index];
+    ContextBuffer mem = ctx->alloc(sizeof(uint64_t) * cbt.layer_);
+    CritBitTrie::Path vec;
+    vec.risk_set_data(reinterpret_cast<CritBitTrie::PathElement*>(mem.data()),
+                      cbt.layer_);
+    size_t best_match_rank =
+        cbt.index(key, &vec) + cbt_packed.base_rank_id(cbt_index);
+    ContextBuffer best_match_key = ctx->alloc();
+    suffix->AppendKey(best_match_rank, &best_match_key.get(), ctx);
+    int c = fstring_func::compare3()(key, best_match_key);
+    if (c != 0) {
+      best_match_rank = cbt.lower_bound(key, best_match_key, vec, c) +
+                        cbt_packed.base_rank_id(cbt_index);
+    }
+    vec.risk_release_ownership();
+    return best_match_rank;
+  }
+
+size_t AppendMinKey(valvec<byte_t>* buffer, TerarkContext* ctx) const {
+    return 0;
+  }
+
+  size_t AppendMaxKey(valvec<byte_t>* buffer, TerarkContext* ctx) const {
+    return cbt_packed.num_words() - 1;
+  }
+
+  bool NeedsReorder() const { return false; }
+
+  void GetOrderMap(UintVecMin0& newToOld) const {}
+
+  void BuildCache(double cacheRatio) {}
+
+  bool IterSeekToFirst(size_t& id, size_t& count, void* /*iter*/) const {
+    id = 0;
+    count = 1;
+    return true;
+  }
+
+  bool IterSeekToLast(size_t& id, size_t* count, void* /*iter*/) const {
+    id = cbt_packed.num_words() - 1;
+    if (count != nullptr) {
+      *count = 1;
+    }
+    return true;
+  }
+
+  bool IterSeek(size_t& id, size_t& count, fstring target,
+                const SuffixBase* suffix, void* iter) const {
+    assert(suffix != nullptr);
+    count = 1;
+    size_t cbt_index = FindTrie(target);
+    if (cbt_index == cbt_packed.trie_nums()) {
+      id = size_t(-1);
+      return false;
+    }
+    auto& cbt = cbt_packed[cbt_index];
+    CritBitTrie::Path vec;
+    vec.risk_set_data(reinterpret_cast<CritBitTrie::PathElement*>(iter),
+                      cbt.layer_);
+    size_t best_match_rank =
+        cbt.index(target, &vec) + cbt_packed.base_rank_id(cbt_index);
+    auto& best_match_key = IteratorStorageBuffer(iter);
+    best_match_key.risk_set_size(0);
+    suffix->AppendKey(best_match_rank, &best_match_key, GetTlsTerarkContext());
+    int c = fstring_func::compare3()(target, best_match_key);
+    if (c == 0) {
+      id = best_match_rank;
+    } else {
+      id = cbt.lower_bound(target, best_match_key, vec, c) +
+           cbt_packed.base_rank_id(cbt_index);
+      assert(id < cbt_packed.num_words());
+    }
+    vec.risk_release_ownership();
+    return id != size_t(-1);
+  }
+
+  bool IterNext(size_t& id, size_t count, void* /*iter*/) const {
+    if (id + count < cbt_packed.num_words()) {
+      id += count;
+      return true;
+    }
+    id = size_t(-1);
+    return false;
+  }
+
+  bool IterPrev(size_t& id, size_t* count, void* /*iter*/) const {
+    if (count != nullptr) {
+      *count = 1;
+    }
+    if (id > 0) {
+      --id;
+      return true;
+    }
+    id = size_t(-1);
+    return false;
+  }
+
+  size_t IterDictRank(size_t id, const void* /*iter*/) const { return id; }
+
+  fstring IterGetKey(size_t id, const void* /*iter*/) const {
+    return fstring();
+  }
+
+  bool Load(fstring mem, SuffixBase* suffix) {
+    cbt_packed.load(mem);
+    auto ctx = GetTlsTerarkContext();
+    ContextBuffer suffix_key = ctx->alloc();
+    for (size_t i = 0; i < cbt_packed.trie_nums(); ++i) {
+      size_t suffix_id = cbt_packed.get_largest_id(i);
+      suffix->AppendKey(suffix_id, &suffix_key.get(), ctx);
+      bounds_.push_back(suffix_key.get());
+      suffix_key.resize_no_init(0);
+    }
+    flags.is_user_mem = true;
+    return true;
+  }
+
+  void Save(std::function<void(const void*, size_t)> append) const {
+    cbt_packed.save(append);
+  }
+
+ protected:
+  size_t FindTrie(fstring key) const {
+    return terark::lower_bound_0<const fstrvec&>(bounds_,
+                                                 cbt_packed.trie_nums(), key);
   }
 };
 
@@ -2477,7 +2692,7 @@ struct IndexEntropySuffix : public IndexBlobStoreSuffix<EntropyZipBlobStore> {
 
 template<class RankSelect, class InputBufferType>
 void AscendingUintPrefixFillRankSelect(
-    const UintPrefixBuildInfo& info,
+    const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     RankSelect& rs, InputBufferType& input) {
   assert(info.max_value - info.min_value < std::numeric_limits<uint64_t>::max());
@@ -2493,7 +2708,7 @@ void AscendingUintPrefixFillRankSelect(
 
 template<class InputBufferType>
 void AscendingUintPrefixFillRankSelect(
-    const UintPrefixBuildInfo& info,
+    const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     rank_select_allone& rs, InputBufferType& input) {
   assert(info.max_value - info.min_value < std::numeric_limits<uint64_t>::max());
@@ -2502,10 +2717,10 @@ void AscendingUintPrefixFillRankSelect(
 
 template<size_t P, size_t W, class InputBufferType>
 void AscendingUintPrefixFillRankSelect(
-    const UintPrefixBuildInfo& info,
+    const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     rank_select_few<P, W>& rs, InputBufferType& input) {
-  assert(g_indexEnableFewZero);
+  assert(indexEnableFewZero());
   rank_select_few_builder <P, W> builder(info.bit_count0, info.bit_count1, ks.minKey > ks.maxKey);
   for (size_t seq_id = 0; seq_id < info.key_count; ++seq_id) {
     auto key = input.next();
@@ -2521,7 +2736,7 @@ PrefixBase*
 BuildAscendingUintPrefix(
     InputBufferType& input,
     const TerarkIndex::KeyStat& ks,
-    const UintPrefixBuildInfo& info) {
+    const PrefixBuildInfo& info) {
   RankSelect rank_select;
   assert(info.min_value <= info.max_value);
   AscendingUintPrefixFillRankSelect(info, ks, rank_select, input);
@@ -2535,7 +2750,7 @@ BuildAscendingUintPrefix(
 
 template<class RankSelect, class InputBufferType>
 void NonDescendingUintPrefixFillRankSelect(
-    const UintPrefixBuildInfo& info,
+    const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     RankSelect& rs, InputBufferType& input) {
   size_t bit_count = info.bit_count0 + info.bit_count1;
@@ -2573,10 +2788,10 @@ void NonDescendingUintPrefixFillRankSelect(
 
 template<size_t P, size_t W, class InputBufferType>
 void NonDescendingUintPrefixFillRankSelect(
-    const UintPrefixBuildInfo& info,
+    const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     rank_select_few<P, W>& rs, InputBufferType& input) {
-  assert(g_indexEnableFewZero);
+  assert(indexEnableFewZero());
   bool isReverse = ks.minKey > ks.maxKey;
   rank_select_few_builder<P, W> builder(info.bit_count0, info.bit_count1, isReverse);
   size_t bit_count = info.bit_count0 + info.bit_count1;
@@ -2615,8 +2830,8 @@ PrefixBase*
 BuildNonDescendingUintPrefix(
     InputBufferType& input,
     const TerarkIndex::KeyStat& ks,
-    const UintPrefixBuildInfo& info) {
-  assert(g_indexEnableNonDescUint);
+    const PrefixBuildInfo& info) {
+  assert(indexEnableNonDescUint());
   RankSelect rank_select;
   assert(info.min_value <= info.max_value);
   NonDescendingUintPrefixFillRankSelect(info, ks, rank_select, input);
@@ -2633,65 +2848,65 @@ PrefixBase*
 BuildUintPrefix(
     InputBufferType& input,
     const TerarkIndex::KeyStat& ks,
-    const UintPrefixBuildInfo& info) {
-  assert(g_indexEnableUintIndex);
+    const PrefixBuildInfo& info) {
+  assert(indexEnableUintIndex());
   input.rewind();
   switch (info.type) {
-  case UintPrefixBuildInfo::asc_few_zero_3:
+  case PrefixBuildInfo::asc_few_zero_3:
     return BuildAscendingUintPrefix<rank_select_fewzero<3>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_zero_4:
+  case PrefixBuildInfo::asc_few_zero_4:
     return BuildAscendingUintPrefix<rank_select_fewzero<4>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_zero_5:
+  case PrefixBuildInfo::asc_few_zero_5:
     return BuildAscendingUintPrefix<rank_select_fewzero<5>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_zero_6:
+  case PrefixBuildInfo::asc_few_zero_6:
     return BuildAscendingUintPrefix<rank_select_fewzero<6>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_zero_7:
+  case PrefixBuildInfo::asc_few_zero_7:
     return BuildAscendingUintPrefix<rank_select_fewzero<7>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_zero_8:
+  case PrefixBuildInfo::asc_few_zero_8:
     return BuildAscendingUintPrefix<rank_select_fewzero<8>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_allone:
+  case PrefixBuildInfo::asc_allone:
     return BuildAscendingUintPrefix<rank_select_allone>(input, ks, info);
-  case UintPrefixBuildInfo::asc_il_256:
+  case PrefixBuildInfo::asc_il_256:
     return BuildAscendingUintPrefix<rank_select_il_256_32>(input, ks, info);
-  case UintPrefixBuildInfo::asc_se_512:
+  case PrefixBuildInfo::asc_se_512:
     return BuildAscendingUintPrefix<rank_select_se_512_64>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_one_3:
+  case PrefixBuildInfo::asc_few_one_3:
     return BuildAscendingUintPrefix<rank_select_fewone<3>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_one_4:
+  case PrefixBuildInfo::asc_few_one_4:
     return BuildAscendingUintPrefix<rank_select_fewone<4>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_one_5:
+  case PrefixBuildInfo::asc_few_one_5:
     return BuildAscendingUintPrefix<rank_select_fewone<5>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_one_6:
+  case PrefixBuildInfo::asc_few_one_6:
     return BuildAscendingUintPrefix<rank_select_fewone<6>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_one_7:
+  case PrefixBuildInfo::asc_few_one_7:
     return BuildAscendingUintPrefix<rank_select_fewone<7>>(input, ks, info);
-  case UintPrefixBuildInfo::asc_few_one_8:
+  case PrefixBuildInfo::asc_few_one_8:
     return BuildAscendingUintPrefix<rank_select_fewone<8>>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_il_256:
+  case PrefixBuildInfo::non_desc_il_256:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_il_256_32>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_se_512:
+  case PrefixBuildInfo::non_desc_se_512:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_se_512_64>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_few_one_3:
+  case PrefixBuildInfo::non_desc_few_one_3:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_fewone<3>>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_few_one_4:
+  case PrefixBuildInfo::non_desc_few_one_4:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_fewone<4>>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_few_one_5:
+  case PrefixBuildInfo::non_desc_few_one_5:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_fewone<5>>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_few_one_6:
+  case PrefixBuildInfo::non_desc_few_one_6:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_fewone<6>>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_few_one_7:
+  case PrefixBuildInfo::non_desc_few_one_7:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_fewone<7>>(input, ks, info);
-  case UintPrefixBuildInfo::non_desc_few_one_8:
+  case PrefixBuildInfo::non_desc_few_one_8:
     assert(ks.maxKeyLen > commonPrefixLen(ks.minKey, ks.maxKey) + info.key_length);
     return BuildNonDescendingUintPrefix<rank_select_fewone<8>>(input, ks, info);
-  case UintPrefixBuildInfo::fail:
+  case PrefixBuildInfo::nest_louds_trie:
   default:
     assert(false);
     return nullptr;
@@ -2865,13 +3080,32 @@ BuildNestLoudsTriePrefix(
   }
 }
 
+template <class InputBufferType>
+PrefixBase* BuildCritBitTriePrefix(InputBufferType& input,
+                                   const TerarkIndexOptions& tiopt,
+                                   size_t numKeys, size_t sumKeyLen,
+                                   bool isReverse) {
+  input.rewind();
+  auto entryPerTrie = tiopt.cbtEntryPerTrie;
+  std::unique_ptr<CritBitTriePackedBuilder> trie(new CritBitTriePackedBuilder(
+      numKeys, entryPerTrie, sumKeyLen, isReverse, tiopt.cbtHashBits));
+  for (size_t i = 0; i < numKeys; ++i) {
+    trie->insert(input.next(), i / entryPerTrie);
+  }
+  trie->encode();
+  auto cbt = trie->newcbt();
+  fstrvec bounds;
+  trie->get_bounds(false, &bounds);
+  return new IndexCBTPrefix<rank_select_il_256>(cbt, bounds);
+}
+
 SuffixBase*
 BuildEmptySuffix() {
   return new IndexEmptySuffix();
 }
 
 bool UseEntropySuffix(size_t numKeys, size_t sumKeyLen, double zipRatio) {
-  return g_indexEnableEntropySuffix && numKeys > 4096 && sumKeyLen * zipRatio + 1024 < sumKeyLen;
+  return indexEnableEntropySuffix() && numKeys > 4096 && sumKeyLen * zipRatio + 1024 < sumKeyLen;
 }
 
 template<class InputBufferType>
@@ -2879,7 +3113,7 @@ SuffixBase*
 BuildFixedStringSuffix(
     InputBufferType& input,
     size_t numKeys, size_t sumKeyLen, size_t fixedLen, bool isReverse) {
-  assert(g_indexEnableCompositeIndex);
+  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
   input.rewind();
   FixedLenStrVec keyVec(fixedLen);
   IndexFillKeyVector(input, keyVec, numKeys, sumKeyLen, fixedLen, false);
@@ -2890,7 +3124,7 @@ BuildFixedStringSuffix(
 }
 
 bool UseDictZipSuffix(size_t numKeys, size_t sumKeyLen, double zipRatio) {
-  return g_indexEnableDictZipSuffix && numKeys > 8192 && sumKeyLen > numKeys * 32 &&
+  return indexEnableDictZipSuffix() && numKeys > 8192 && sumKeyLen > numKeys * 32 &&
          (sumKeyLen + numKeys * 4) * zipRatio + 1024 < sumKeyLen + numKeys;
 }
 
@@ -2899,8 +3133,8 @@ SuffixBase*
 BuildVerLenSuffix(
     InputBufferType& input,
     size_t numKeys, size_t sumKeyLen, bool isReverse) {
-  assert(g_indexEnableCompositeIndex);
-  assert(g_indexEnableDynamicSuffix);
+  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
+  assert(indexEnableDynamicSuffix());
   input.rewind();
   FileMemIO memory;
   terark::ZipOffsetBlobStore::Options options;
@@ -2934,8 +3168,8 @@ SuffixBase*
 BuildEntropySuffix(
     InputBufferType& input,
     size_t numKeys, size_t sumKeyLen, bool isReverse) {
-  assert(g_indexEnableCompositeIndex);
-  assert(g_indexEnableEntropySuffix);
+  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
+  assert(indexEnableEntropySuffix());
   input.rewind();
   std::unique_ptr<freq_hist_o1> freq(new freq_hist_o1);
   for (size_t i = 0; i < numKeys; ++i) {
@@ -2967,8 +3201,8 @@ template <class InputBufferType>
 SuffixBase *BuildDictZipSuffix(InputBufferType &input, size_t numKeys,
                                size_t sumKeyLen, bool isReverse,
                                const TerarkIndexOptions &tiopt) {
-  assert(g_indexEnableCompositeIndex);
-  assert(g_indexEnableDynamicSuffix);
+  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
+  assert(indexEnableDynamicSuffix());
   input.rewind();
   FileMemIO memory;
   std::unique_ptr<DictZipBlobStore::ZipBuilder> zbuilder;
@@ -3047,7 +3281,7 @@ SuffixBase *BuildSuffixAutoSelect(InputBufferType &input, size_t numKeys,
 
 }
 
-UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeyStat& ks) {
+PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, const TerarkIndex::KeyStat& ks) {
   size_t cplen = ks.keyCount > 1 ? commonPrefixLen(ks.minKey, ks.maxKey) : 0;
   auto GetZipRatio = [&](size_t p) {
     if (ks.sumKeyLen < 1024) {
@@ -3055,15 +3289,20 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
     }
     return std::pow(double(ks.entropyLen) / ks.sumKeyLen, double(ks.sumKeyLen - p * ks.keyCount) / ks.sumKeyLen);
   };
-  UintPrefixBuildInfo result = {
-      cplen, 0, 0, 0, 0, 0, 0, 0, GetZipRatio(0), 0, UintPrefixBuildInfo::fail
+  PrefixBuildInfo result = {
+      cplen, 0, 0, 0, 0, 0, 0, 0, GetZipRatio(0), 0, PrefixBuildInfo::nest_louds_trie
   };
-  if (!g_indexEnableUintIndex || (!g_indexEnableDynamicSuffix && ks.maxKeyLen != ks.minKeyLen)) {
+  size_t keyCount = ks.keyCount;
+  size_t totalKeySize = ks.sumKeyLen - keyCount * cplen;
+  if (indexEnableCritBitTrie() && totalKeySize / keyCount > opt.cbtMinKeySize &&
+      totalKeySize >= ks.sumValueLen * opt.cbtMinKeyRatio) {
+    result.type = PrefixBuildInfo::crit_bit_trie;
+  }
+  if (!indexEnableUintIndex() ||
+      (!indexEnableDynamicSuffix() && ks.maxKeyLen != ks.minKeyLen)) {
     return result;
   }
-  size_t keyCount = ks.keyCount;
   size_t maxPrefixLen = std::min<size_t>(8, ks.minKeyLen - cplen);
-  size_t totalKeySize = ks.sumKeyLen - keyCount * cplen;
   size_t best_estimate_size = totalKeySize;
   if (ks.minKeyLen != ks.maxKeyLen) {
     best_estimate_size += keyCount;
@@ -3074,13 +3313,13 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
     entryCnt[i - cplen] = keyCount - (i < ks.diff.size() ? ks.diff[i].cnt : 0);
   }
   for (size_t i = 2; i <= maxPrefixLen; ++i) {
-    if (!g_indexEnableCompositeIndex && (ks.maxKeyLen != ks.minKeyLen || cplen + i != ks.maxKeyLen)) {
+    if (!indexEnableCompositeIndex() && (ks.maxKeyLen != ks.minKeyLen || cplen + i != ks.maxKeyLen)) {
       continue;
     }
     if (cplen + i < ks.diff.size() && (ks.diff[cplen + i].max > 32 || entryCnt[i - 1] * 4 < keyCount)) {
       continue;
     }
-    UintPrefixBuildInfo info;
+    PrefixBuildInfo info;
     info.common_prefix = cplen;
     info.key_length = i;
     info.key_count = keyCount;
@@ -3093,8 +3332,8 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
     assert(info.entry_count > 0);
     assert(diff >= info.entry_count - 1);
     size_t bit_count;
-    bool useFewOne = g_indexEnableFewZero;
-    bool useFewZero = g_indexEnableFewZero;
+    bool useFewOne = indexEnableFewZero();
+    bool useFewZero = indexEnableFewZero();
     bool useNormal = true;
     if (info.entry_count == keyCount) {
       // ascending
@@ -3116,7 +3355,7 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
     } else {
       // non descending
       info.bit_count1 = keyCount;
-      if (!g_indexEnableNonDescUint || keyCount + 1 > std::numeric_limits<uint64_t>::max() - diff) {
+      if (!indexEnableNonDescUint() || keyCount + 1 > std::numeric_limits<uint64_t>::max() - diff) {
         info.bit_count0 = 0;
         bit_count = 0;
         useFewOne = false;
@@ -3131,56 +3370,56 @@ UintPrefixBuildInfo TerarkIndex::GetUintPrefixBuildInfo(const TerarkIndex::KeySt
       useFewZero = false;
     }
     size_t prefixCost;
-    using UintType = UintPrefixBuildInfo::UintType;
+    using PrefixAlgo = PrefixBuildInfo::PrefixAlgo;
     if (info.entry_count == keyCount && info.entry_count == diff + 1) {
-      info.type = UintType::asc_allone;
+      info.type = PrefixAlgo::asc_allone;
       prefixCost = 0;
     } else if (useFewOne) {
       assert(bit_count > 0);
       /*****/if (bit_count < (1ULL << 24)) {
-        info.type = info.entry_count == keyCount ? UintType::asc_few_one_3 : UintType::non_desc_few_one_3;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_3 : PrefixAlgo::non_desc_few_one_3;
       } else if (bit_count < (1ULL << 32)) {
-        info.type = info.entry_count == keyCount ? UintType::asc_few_one_4 : UintType::non_desc_few_one_4;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_4 : PrefixAlgo::non_desc_few_one_4;
       } else if (bit_count < (1ULL << 40)) {
-        info.type = info.entry_count == keyCount ? UintType::asc_few_one_5 : UintType::non_desc_few_one_5;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_5 : PrefixAlgo::non_desc_few_one_5;
       } else if (bit_count < (1ULL << 48)) {
-        info.type = info.entry_count == keyCount ? UintType::asc_few_one_6 : UintType::non_desc_few_one_6;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_6 : PrefixAlgo::non_desc_few_one_6;
       } else if (bit_count < (1ULL << 56)) {
-        info.type = info.entry_count == keyCount ? UintType::asc_few_one_7 : UintType::non_desc_few_one_7;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_7 : PrefixAlgo::non_desc_few_one_7;
       } else {
-        info.type = info.entry_count == keyCount ? UintType::asc_few_one_8 : UintType::non_desc_few_one_8;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_8 : PrefixAlgo::non_desc_few_one_8;
       }
       prefixCost = info.bit_count1 * i * 256 / 255;
     } else if (useFewZero) {
       assert(bit_count > 0);
       assert(info.entry_count == keyCount);
       /*****/if (bit_count < (1ULL << 24)) {
-        info.type = UintType::asc_few_zero_3;
+        info.type = PrefixAlgo::asc_few_zero_3;
       } else if (bit_count < (1ULL << 32)) {
-        info.type = UintType::asc_few_zero_4;
+        info.type = PrefixAlgo::asc_few_zero_4;
       } else if (bit_count < (1ULL << 40)) {
-        info.type = UintType::asc_few_zero_5;
+        info.type = PrefixAlgo::asc_few_zero_5;
       } else if (bit_count < (1ULL << 48)) {
-        info.type = UintType::asc_few_zero_6;
+        info.type = PrefixAlgo::asc_few_zero_6;
       } else if (bit_count < (1ULL << 56)) {
-        info.type = UintType::asc_few_zero_7;
+        info.type = PrefixAlgo::asc_few_zero_7;
       } else {
-        info.type = UintType::asc_few_zero_8;
+        info.type = PrefixAlgo::asc_few_zero_8;
       }
       prefixCost = info.bit_count0 * i * 256 / 255;
     } else if (useNormal) {
       assert(bit_count > 0);
       if (bit_count <= std::numeric_limits<uint32_t>::max()) {
-        info.type = info.entry_count == keyCount ? UintType::asc_il_256 : UintType::non_desc_il_256;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_il_256 : PrefixAlgo::non_desc_il_256;
       } else {
-        info.type = info.entry_count == keyCount ? UintType::asc_se_512 : UintType::non_desc_se_512;
+        info.type = info.entry_count == keyCount ? PrefixAlgo::asc_se_512 : PrefixAlgo::non_desc_se_512;
       }
       prefixCost = bit_count * 21 / 128;
     } else {
       continue;
     }
     size_t suffixCost = totalKeySize - i * keyCount;
-    if (suffixCost / ks.keyCount < g_indexSuffixThreshold) {
+    if (suffixCost / ks.keyCount < size_t(indexSuffixThreshold())) {
       continue;
     } else if (index_detail::UseDictZipSuffix(keyCount, suffixCost, info.zip_ratio)) {
       suffixCost = (suffixCost + 8 * keyCount) * info.zip_ratio + 1024;
@@ -3287,7 +3526,7 @@ TerarkIndexDebugBuilder::Finish(TerarkIndex::KeyStat* output) {
 }
 
 TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIndexOptions& tiopt,
-                                         const KeyStat& ks, const UintPrefixBuildInfo* info_ptr) {
+                                         const KeyStat& ks, const PrefixBuildInfo* info_ptr) {
   using namespace index_detail;
   struct DefaultInputBuffer {
     TerarkKeyReader* reader;
@@ -3423,7 +3662,7 @@ TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIn
 
   assert(ks.keyCount > 0);
   bool isReverse = ks.minKey > ks.maxKey;
-  UintPrefixBuildInfo uint_prefix_info = info_ptr != nullptr ? *info_ptr : GetUintPrefixBuildInfo(ks);
+  PrefixBuildInfo uint_prefix_info = info_ptr != nullptr ? *info_ptr : GetPrefixBuildInfo(tiopt, ks);
   size_t cplen = uint_prefix_info.common_prefix;
   PrefixBase* prefix;
   SuffixBase* suffix;
@@ -3442,8 +3681,13 @@ TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIn
           ks.minKeyLen == ks.maxKeyLen, isReverse, uint_prefix_info.zip_ratio,
           tiopt);
     }
-  } else if ((!g_indexEnableDynamicSuffix && ks.minSuffixLen != ks.maxSuffixLen) ||
-             !g_indexEnableCompositeIndex || ks.sumPrefixLen >= ks.sumKeyLen * 31 / 32) {
+  } else if (uint_prefix_info.type == PrefixBuildInfo::crit_bit_trie) {
+    DefaultInputBuffer input_reader{reader, cplen};
+    prefix = BuildCritBitTriePrefix(input_reader, tiopt, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen, isReverse);
+    suffix = BuildSuffixAutoSelect(input_reader, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen,
+                                   ks.minKeyLen == ks.maxKeyLen, isReverse, uint_prefix_info.zip_ratio, tiopt);
+  } else if ((!indexEnableDynamicSuffix() && ks.minSuffixLen != ks.maxSuffixLen) ||
+              !indexEnableCompositeIndex() || ks.sumPrefixLen >= ks.sumKeyLen * 31 / 32) {
     DefaultInputBuffer input_reader{reader, cplen};
     prefix = BuildNestLoudsTriePrefix(
         input_reader, tiopt, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen,
@@ -3600,6 +3844,7 @@ using PrefixComponentList_1 = ComponentRegister<>
 ::reg<NAME(ND_FewOne_6 ), IndexNonDescendingUintPrefix<rank_select_fewone<6>>>
 ::reg<NAME(ND_FewOne_7 ), IndexNonDescendingUintPrefix<rank_select_fewone<7>>>
 ::reg<NAME(ND_FewOne_8 ), IndexNonDescendingUintPrefix<rank_select_fewone<8>>>
+::reg<NAME(CBT_IL_256  ), IndexCBTPrefix<rank_select_il_256_32>              >
 ::list;
 
 using SuffixComponentList_1 = ComponentRegister<>
@@ -3608,7 +3853,6 @@ using SuffixComponentList_1 = ComponentRegister<>
 ::reg<NAME(Entropy), IndexEntropySuffix                      >
 ::reg<NAME(DictZip), IndexBlobStoreSuffix<DictZipBlobStore  >>
 ::list;
-
 
 #if __clang__
 # pragma clang diagnostic ignored "-Wunused-value"

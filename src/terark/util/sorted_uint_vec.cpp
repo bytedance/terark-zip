@@ -565,6 +565,15 @@ SortedUintVec::SortedUintVec() {
 SortedUintVec::~SortedUintVec() {
 }
 
+SortedUintVec::SortedUintVec(SortedUintVec&& o) noexcept { swap(o); }
+
+SortedUintVec& SortedUintVec::operator=(SortedUintVec&& o) noexcept {
+  if (this != &o) {
+    swap(o);
+  }
+  return *this;
+}
+
 size_t SortedUintVec::lower_bound(size_t lo, size_t hi, size_t key) const {
     assert(lo <= hi);
     if (terark_unlikely(lo == hi)) {

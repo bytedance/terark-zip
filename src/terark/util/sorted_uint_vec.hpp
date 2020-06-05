@@ -37,6 +37,9 @@ public:
 	SortedUintVec();
 	~SortedUintVec();
 
+        SortedUintVec(SortedUintVec&&) noexcept;
+        SortedUintVec& operator=(SortedUintVec&&) noexcept;
+
 /*
 	class UintVecMin0& as_UintVecMin0() {
 		assert(0 == m_is_sorted_uint_vec);

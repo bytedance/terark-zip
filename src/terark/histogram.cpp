@@ -13,7 +13,7 @@ Histogram<index_t>::Histogram(size_t max_small_value)
     m_distinct_key_cnt = 0;
     m_cnt_sum = 0;
     m_total_key_len = 0;
-    m_min_key_len = size_t(-1);
+    m_min_key_len = index_t(-1);
     m_max_key_len = 0;
     m_min_cnt_key = index_t(-1);
     m_max_cnt_key = 0;
