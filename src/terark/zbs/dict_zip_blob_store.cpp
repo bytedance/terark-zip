@@ -2408,7 +2408,12 @@ void DictZipBlobStore::get_meta_blocks(valvec<fstring>* blocks) const {
     blocks->erase_all();
     blocks->emplace_back(m_strDict.data(), m_strDict.size());
     blocks->emplace_back(m_offsets.data(), m_offsets.mem_size());
-    // TODO add decoder if no compress table
+    if (entropyTableNoCompress) {
+        // add decoder if no compress table
+        blocks->emplace_back(
+                reinterpret_cast<char*>m_huffman_decoder,
+                sizeof(Huffman::decoder_o1));
+    }
 }
 
 void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
@@ -2417,11 +2422,19 @@ void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
 }
 
 void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
-    // TODO detach decoder if no compress table
     assert(!m_isDetachMeta);
-    assert(blocks.size() >= 2);
-    auto dict_mem = blocks.front();
-    auto offset_mem = blocks.back();
+    fstring dict_mem,offset_mem;
+    if (entropyTableNoCompress) {
+        assert(blocks.size() == 3);
+        dict_mem = blocks.front();
+        offset_mem = blocks[1];
+        m_huffman_decoder = blocks.back().data();
+    }
+    else {
+        assert(blocks.size() == 2);
+        dict_mem = blocks.front();
+        offset_mem = blocks.back();
+    }
     assert(dict_mem.size() == m_strDict.size());
     assert(offset_mem.size() == m_offsets.mem_size());
     switch (m_dictCloseType) {
