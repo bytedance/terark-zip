@@ -143,8 +143,6 @@ public:
         virtual void freeDict() = 0;
 		virtual void dictSwapOut(fstring fname) = 0;
 		virtual void dictSwapIn(fstring fname) = 0;
-
-		bool compressGlobalDict;
 	};
 	friend class DictZipBlobStoreBuilder;
 	static ZipBuilder* createZipBuilder(const Options&);

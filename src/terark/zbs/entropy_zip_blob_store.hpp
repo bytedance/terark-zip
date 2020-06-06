@@ -14,6 +14,8 @@
 #include <terark/io/FileMemStream.hpp>
 #include <terark/util/sorted_uint_vec.hpp>
 
+#define NOCOMPRESS_FLAG 0x01
+
 namespace terark {
 
 class TERARK_DLL_EXPORT EntropyZipBlobStore : public AbstractBlobStore {
@@ -21,8 +23,9 @@ class TERARK_DLL_EXPORT EntropyZipBlobStore : public AbstractBlobStore {
     valvec<byte_t> m_content;
     SortedUintVec  m_offsets;
     valvec<byte_t> m_table;
-    std::unique_ptr<Huffman::decoder> m_decoder_o0;
-    std::unique_ptr<Huffman::decoder_o1> m_decoder_o1;
+    const Huffman::decoder* m_decoder_o0;
+    const Huffman::decoder_o1* m_decoder_o1;
+    bool m_is_mmap_decoder;
 
     template<size_t Order>
     void get_record_append_imp(size_t recID, valvec<byte_t>* recData) const;
@@ -37,6 +40,7 @@ public:
     EntropyZipBlobStore();
     ~EntropyZipBlobStore();
 
+    uint08_t get_entropy_flags() const;
     void swap(EntropyZipBlobStore& other);
     void init_get_calls(size_t order);
 
@@ -60,9 +64,9 @@ public:
         class TERARK_DLL_EXPORT Impl; Impl* impl;
     public:
         MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset = 0,
-                  int checksumLevel = 3, int checksumType = 0);
+                  int checksumLevel = 3, int checksumType = 0, bool entropyTableNoCompress = true);
         MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem,
-                  int checksumLevel = 3, int checksumType = 0);
+                  int checksumLevel = 3, int checksumType = 0, bool entropyTableNoCompress = true);
         virtual ~MyBuilder();
         void addRecord(fstring rec) override;
         void finish() override;
