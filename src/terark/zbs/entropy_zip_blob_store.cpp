@@ -155,7 +155,7 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
         if (mmapBase->entropyFlags & NOCOMPRESS_FLAG) {
             assert(mmapBase->tableBytes == sizeof(Huffman::decoder));
             m_decoder_o0 = reinterpret_cast<Huffman::decoder*>(m_table.data());
-            m_is_mmap_decoder = true;
+            // m_is_mmap_decoder = true;
             table_size = mmapBase->tableBytes;
         }
         else {
@@ -165,7 +165,7 @@ void EntropyZipBlobStore::init_from_memory(fstring dataMem, Dictionary/*dict*/) 
         if (mmapBase->entropyFlags & NOCOMPRESS_FLAG) {
             assert(mmapBase->tableBytes == sizeof(Huffman::decoder_o1));
             m_decoder_o1 = reinterpret_cast<Huffman::decoder_o1*>(m_table.data());
-            m_is_mmap_decoder = true;
+            // m_is_mmap_decoder = true;
             table_size = mmapBase->tableBytes;
         }
         else {
@@ -279,7 +279,7 @@ EntropyZipBlobStore::EntropyZipBlobStore() {
     m_checksumType = 0;  // crc32c
     m_decoder_o0 = nullptr;
     m_decoder_o1 = nullptr;
-    m_is_mmap_decoder = false;
+    // m_is_mmap_decoder = false;
     init_get_calls(0);
 }
 
@@ -287,15 +287,29 @@ EntropyZipBlobStore::~EntropyZipBlobStore() {
     if (m_isDetachMeta) {
         m_offsets.risk_release_ownership();
     }
-    if (m_isUserMem) {
-        if (m_decoder_o0!=nullptr && !m_is_mmap_decoder) {
+    if (m_decoder_o0) {
+        auto mmapBase = (const FileHeader*)m_mmapBase;
+        if(!mmapBase || !(mmapBase->entropyFlags & NOCOMPRESS_FLAG)) {
             delete m_decoder_o0;
         }
-        if (m_decoder_o1!=nullptr && !m_is_mmap_decoder) {
+        m_decoder_o0 = nullptr;
+    }
+    if (m_decoder_o1) {
+        auto mmapBase = (const FileHeader*)m_mmapBase;
+        if(!mmapBase || !(mmapBase->entropyFlags & NOCOMPRESS_FLAG)) {
             delete m_decoder_o1;
         }
-        m_decoder_o0 = nullptr;
         m_decoder_o1 = nullptr;
+    }
+    if (m_isUserMem) {
+//        if (m_decoder_o0!=nullptr && !m_is_mmap_decoder) {
+//            delete m_decoder_o0;
+//        }
+//        if (m_decoder_o1!=nullptr && !m_is_mmap_decoder) {
+//            delete m_decoder_o1;
+//        }
+//        m_decoder_o0 = nullptr;
+//        m_decoder_o1 = nullptr;
 
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
@@ -308,8 +322,8 @@ EntropyZipBlobStore::~EntropyZipBlobStore() {
         m_table.risk_release_ownership();
     }
     else {
-        m_decoder_o0 = nullptr;
-        m_decoder_o1 = nullptr;
+//        m_decoder_o0 = nullptr;
+//        m_decoder_o1 = nullptr;
         m_content.clear();
         m_offsets.clear();
         m_table.clear();
@@ -324,7 +338,7 @@ void EntropyZipBlobStore::swap(EntropyZipBlobStore& other) {
   m_table.swap(other.m_table);
   std::swap(m_decoder_o0, other.m_decoder_o0);
   std::swap(m_decoder_o1, other.m_decoder_o1);
-  m_is_mmap_decoder = other.m_is_mmap_decoder;
+  // m_is_mmap_decoder = other.m_is_mmap_decoder;
 }
 
 size_t EntropyZipBlobStore::mem_size() const {

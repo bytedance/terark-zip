@@ -1456,6 +1456,13 @@ void DictZipBlobStore::destroyMe() {
         break;
     }
     m_dictCloseType = MemoryCloseType::Clear;
+    if (m_huffman_decoder) {
+        auto mmapBase = (const FileHeader*)m_mmapBase;
+        if(!mmapBase || !mmapBase->entropyTableNoCompress) {
+            delete m_huffman_decoder;
+        }
+        m_huffman_decoder = nullptr;
+    }
     if (m_isUserMem) {
         if (m_isMmapData) {
             mmap_close((void*)m_mmapBase, m_mmapBase->fileSize);
@@ -1475,13 +1482,6 @@ void DictZipBlobStore::destroyMe() {
     if (m_globalEntropyTableObject) {
         FSE_freeDTable((FSE_DTable*)m_globalEntropyTableObject);
         m_globalEntropyTableObject = nullptr;
-    }
-    if (m_huffman_decoder) {
-        auto mmapBase = (const FileHeader*)m_mmapBase;
-        if(!mmapBase || !mmapBase->entropyTableNoCompress) {
-            delete m_huffman_decoder;
-        }
-        m_huffman_decoder = nullptr;
     }
 }
 #pragma pack(pop)
