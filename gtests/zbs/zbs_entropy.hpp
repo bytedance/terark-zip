@@ -102,7 +102,7 @@ class ZBSEntropy : ZBS {
 
     // 2. prepare output zbs file
     ezbuilder = std::make_unique<EntropyZipBlobStore::MyBuilder>(
-        *freq, dzopt.offsetArrayBlockUnits, zbs_file);
+        *freq, dzopt.offsetArrayBlockUnits, zbs_file, 3, 0, true);
 
     // 3. add records
     _addRecords(fmmap, file_type);

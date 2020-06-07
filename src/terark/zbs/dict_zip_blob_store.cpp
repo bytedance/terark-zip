@@ -1443,6 +1443,7 @@ void DictZipBlobStore::destroyMe() {
     if (m_isDetachMeta) {
         m_strDict.risk_release_ownership();
         m_offsets.risk_release_ownership();
+        m_huffman_decoder = nullptr;
     }
     switch (m_dictCloseType) {
     case MemoryCloseType::Clear:
@@ -2432,6 +2433,11 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
     }
     else {
         assert(blocks.size() == 3);
+        assert(m_huffman_decoder != nullptr);
+        auto mmapBase = (const FileHeader*)m_mmapBase;
+        if(!mmapBase || !mmapBase->entropyTableNoCompress) {
+            delete m_huffman_decoder;
+        }
         offset_mem = blocks[1];
         m_huffman_decoder =
             reinterpret_cast<const Huffman::decoder_o1*>(blocks.back().data());

@@ -539,8 +539,10 @@ GetoptDone:
         store.reset(AbstractBlobStore::load_from_mmap(nlt_fname, false));
     }
     else if (select_store == 'e') {
-        EntropyZipBlobStore::MyBuilder ezbuilder(*freq.get(), dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel, checksumType);
-        for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
+      EntropyZipBlobStore::MyBuilder ezbuilder(
+          *freq.get(), dzopt.offsetArrayBlockUnits, nlt_fname, 0, checksumLevel,
+          checksumType, true);
+      for (size_t i = 0, ei = strVec.size(); i < ei; ++i) {
             ezbuilder.addRecord(strVec[i]);
         }
         ezbuilder.finish();

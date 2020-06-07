@@ -2681,8 +2681,7 @@ struct IndexEntropySuffix : public IndexBlobStoreSuffix<EntropyZipBlobStore> {
     content.risk_set_data(ptr -= footer.data_size, footer.data_size);
     assert(ptr == (byte_t*)mem.data());
     flags.is_user_mem = true;
-    store_.init_from_components(std::move(offsets), std::move(content), std::move(table), 1, footer.raw_size,
-                                3 /* check data area */, 0 /* ignored */, mem);
+    store_.init_from_components(std::move(offsets), std::move(content), std::move(table), footer.raw_size);
     return true;
   }
 };
@@ -3162,12 +3161,10 @@ BuildVerLenSuffix(
   return new IndexBlobStoreSuffix<ZipOffsetBlobStore>(static_cast<ZipOffsetBlobStore*>(store), memory, isReverse);
 }
 
-
-template<class InputBufferType>
+template <class InputBufferType>
 SuffixBase*
-BuildEntropySuffix(
-    InputBufferType& input,
-    size_t numKeys, size_t sumKeyLen, bool isReverse) {
+BuildEntropySuffix(InputBufferType& input, size_t numKeys, size_t sumKeyLen,
+                   bool isReverse, const TerarkIndexOptions& tiopt) {
   assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
   assert(indexEnableEntropySuffix());
   input.rewind();
@@ -3177,7 +3174,9 @@ BuildEntropySuffix(
   }
   freq->finish();
   FileMemIO memory;
-  EntropyZipBlobStore::MyBuilder builder(*freq, 128, memory, 1);
+  EntropyZipBlobStore::MyBuilder builder(
+      *freq, 128 /* blockUnits */, memory, 1 /* checksumLevel */,
+      0 /* checksumType */, tiopt.compressGlobalDict);
   input.rewind();
   for (size_t i = 0; i < numKeys; ++i) {
     builder.addRecord(input.next());
@@ -3270,7 +3269,7 @@ SuffixBase *BuildSuffixAutoSelect(InputBufferType &input, size_t numKeys,
   } else if (UseDictZipSuffix(numKeys, sumKeyLen, zipRatio)) {
     return BuildDictZipSuffix(input, numKeys, sumKeyLen, isReverse, tiopt);
   } else if (UseEntropySuffix(numKeys, sumKeyLen, zipRatio)) {
-    return BuildEntropySuffix(input, numKeys, sumKeyLen, isReverse);
+    return BuildEntropySuffix(input, numKeys, sumKeyLen, isReverse, tiopt);
   } else if (isFixedLen) {
     assert(sumKeyLen % numKeys == 0);
     return BuildFixedStringSuffix(input, numKeys, sumKeyLen, sumKeyLen / numKeys, isReverse);

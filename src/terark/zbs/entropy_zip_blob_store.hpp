@@ -14,8 +14,6 @@
 #include <terark/io/FileMemStream.hpp>
 #include <terark/util/sorted_uint_vec.hpp>
 
-#define NOCOMPRESS_FLAG 0x01
-
 namespace terark {
 
 class TERARK_DLL_EXPORT EntropyZipBlobStore : public AbstractBlobStore {
@@ -25,7 +23,6 @@ class TERARK_DLL_EXPORT EntropyZipBlobStore : public AbstractBlobStore {
     valvec<byte_t> m_table;
     const Huffman::decoder* m_decoder_o0;
     const Huffman::decoder_o1* m_decoder_o1;
-    bool m_is_mmap_decoder;
 
     template<size_t Order>
     void get_record_append_imp(size_t recID, valvec<byte_t>* recData) const;
@@ -40,15 +37,15 @@ public:
     EntropyZipBlobStore();
     ~EntropyZipBlobStore();
 
-    uint08_t get_entropy_flags() const;
+    bool is_entropy_table_compress() const;
+    bool is_order1() const;
+
     void swap(EntropyZipBlobStore& other);
-    void init_get_calls(size_t order);
+    void init_get_calls();
 
     void init_from_memory(fstring dataMem, Dictionary dict) override;
-    void init_from_components(
-        SortedUintVec&& offset, valvec<byte_t>&& data,
-        valvec<byte_t>&& table, size_t order, uint64_t raw_size,
-        int checksumLevel, int checksumType, fstring mem /* need mem header info*/);
+    void init_from_components(SortedUintVec&& offset, valvec<byte_t>&& data,
+                              valvec<byte_t>&& table, uint64_t raw_size);
     void get_meta_blocks(valvec<fstring>* blocks) const override;
     void get_data_blocks(valvec<fstring>* blocks) const override;
     void detach_meta_blocks(const valvec<fstring>& blocks) override;
@@ -64,9 +61,9 @@ public:
         class TERARK_DLL_EXPORT Impl; Impl* impl;
     public:
         MyBuilder(freq_hist_o1& freq, size_t blockUnits, fstring fpath, size_t offset = 0,
-                  int checksumLevel = 3, int checksumType = 0, bool entropyTableNoCompress = true);
+                  int checksumLevel = 3, int checksumType = 0, bool entropyTableCompress = false);
         MyBuilder(freq_hist_o1& freq, size_t blockUnits, FileMemIO& mem,
-                  int checksumLevel = 3, int checksumType = 0, bool entropyTableNoCompress = true);
+                  int checksumLevel = 3, int checksumType = 0, bool entropyTableCompress = false);
         virtual ~MyBuilder();
         void addRecord(fstring rec) override;
         void finish() override;
