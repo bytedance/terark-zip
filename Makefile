@@ -381,10 +381,10 @@ ${1}/git-version-zbs.cpp: ${zbs_src}
 ${1}/git-version-%.cpp: Makefile
 	@mkdir -p $$(dir $$@)
 	@rm -f $$@.tmp
-	@echo '__attribute__ ((visibility ("default"))) const char*' \
+	@echo -n '__attribute__ ((visibility ("default"))) const char*' \
 		  'git_version_hash_info_'$$(patsubst git-version-%.cpp,%,$$(notdir $$@))\
 		  '() { return R"StrLiteral(git_version_hash_info_is:' > $$@.tmp
-	@env LC_ALL=C git log -n1 >> $$@.tmp
+	@env LC_ALL=C git rev-parse  HEAD >> $$@.tmp
 	@env LC_ALL=C git diff >> $$@.tmp
 	@env LC_ALL=C $(CXX) --version >> $$@.tmp
 	@echo INCS = ${INCS}           >> $$@.tmp
