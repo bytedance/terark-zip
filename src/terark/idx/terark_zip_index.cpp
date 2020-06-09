@@ -2542,8 +2542,8 @@ struct IndexBlobStoreSuffix : public VirtualSuffixBase {
     iter->~IteratorStorage();
   }
 
-  BlobStoreType store_;
   FileMemIO memory_;
+  BlobStoreType store_;
 
   size_t TotalKeySize() const {
     return store_.total_data_size();
