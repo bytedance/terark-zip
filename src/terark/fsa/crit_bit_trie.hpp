@@ -65,8 +65,10 @@ class CritBitTrieBuilder {
   void compress_diff_bit_array();
   uint64_t trie_size() const { return encoded_trie_.mem_size(); }
   uint64_t layer() const { return layer_; };
+
   static bool test_key(fstring key, uint64_t bit);
   static uint64_t comp_key(fstring key, fstring key2);
+
   rank_select_il encoded_trie_;
   valvec<uint64_t> diff_bit_array_;
   struct Node {
@@ -103,11 +105,15 @@ class CritBitTriePacked {
   uint64_t num_words_;
   uint64_t max_layer_;
   uint8_t hash_bit_num_;
-  std::vector<CritBitTrie> trie_list_;
+
   SortedUintVec header_vec;
+  std::vector<CritBitTrie> trie_list_;
+
   void save(std::function<void(const void*, size_t)> append) const;
   void load(fstring mem);
+  void clear();
   void risk_release();
+
   size_t base_rank_id(int trie_index) const {
     return trie_index * entry_per_trie_;
   }

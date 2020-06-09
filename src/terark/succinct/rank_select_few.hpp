@@ -147,6 +147,8 @@ public:
   // release ownership without destroying internal elements
   void risk_release_ownership() { m_mempool.risk_release_ownership(); }
 
+  void clear() { m_mempool.clear(); }
+
 private:
   uint64_t m_num0, m_num1, m_layer;
   uint64_t *m_offset;

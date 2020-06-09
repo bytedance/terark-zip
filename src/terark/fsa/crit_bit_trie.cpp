@@ -118,11 +118,17 @@ void CritBitTriePackedBuilder::get_bounds(bool reverse, fstrvec* bounds) {
   }
 }
 
+void CritBitTriePacked::clear() {
+  header_vec.clear();
+  trie_list_.clear();
+}
+
 void CritBitTriePacked::risk_release() {
   header_vec.risk_release_ownership();
   for (auto& trie : trie_list_) {
     trie.risk_release_ownership();
   }
+  trie_list_.clear();
 }
 
 uint64_t CritBitTriePacked::get_largest_id(size_t trie_index) const {

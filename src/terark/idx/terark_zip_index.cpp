@@ -1487,7 +1487,11 @@ struct IndexAscendingUintPrefix : public UintPrefixBase<RankSelect> {
     key_length = header->key_length;
     min_value = header->min_value;
     max_value = header->max_value;
-    rank_select.risk_release_ownership();
+    if (flags.is_user_mem) {
+      rank_select.risk_release_ownership();
+    } else {
+      rank_select.clear();
+    }
     rank_select.risk_mmap_from((byte_t*)mem.data() + sizeof(IndexUintPrefixHeader), header->rank_select_size);
     flags.is_user_mem = true;
     return true;
@@ -1779,7 +1783,11 @@ struct IndexNonDescendingUintPrefix : public UintPrefixBase<RankSelect> {
     key_length = header->key_length;
     min_value = header->min_value;
     max_value = header->max_value;
-    rank_select.risk_release_ownership();
+    if (flags.is_user_mem) {
+      rank_select.risk_release_ownership();
+    } else {
+      rank_select.clear();
+    }
     rank_select.risk_mmap_from((byte_t*)mem.data() + sizeof(IndexUintPrefixHeader), header->rank_select_size);
     flags.is_user_mem = true;
     return true;
@@ -2204,7 +2212,7 @@ struct IndexCBTPrefix : public VirtualPrefixBase {
     return best_match_rank;
   }
 
-size_t AppendMinKey(valvec<byte_t>* buffer, TerarkContext* ctx) const {
+  size_t AppendMinKey(valvec<byte_t>* buffer, TerarkContext* ctx) const {
     return 0;
   }
 
@@ -2290,6 +2298,13 @@ size_t AppendMinKey(valvec<byte_t>* buffer, TerarkContext* ctx) const {
   }
 
   bool Load(fstring mem, SuffixBase* suffix) {
+    if (flags.is_user_mem) {
+      cbt_packed.risk_release();
+    } else {
+      cbt_packed.clear();
+    }
+    bounds_.erase_all();
+
     cbt_packed.load(mem);
     auto ctx = GetTlsTerarkContext();
     ContextBuffer suffix_key = ctx->alloc();
