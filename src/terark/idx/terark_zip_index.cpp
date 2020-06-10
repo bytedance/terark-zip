@@ -2557,6 +2557,8 @@ struct IndexBlobStoreSuffix : public VirtualSuffixBase {
     iter->~IteratorStorage();
   }
 
+  // Need to destruct store_ first and then destruct memory_
+  // These two members must be in this order
   FileMemIO memory_;
   BlobStoreType store_;
 
@@ -3176,7 +3178,7 @@ BuildVerLenSuffix(
   return new IndexBlobStoreSuffix<ZipOffsetBlobStore>(static_cast<ZipOffsetBlobStore*>(store), memory, isReverse);
 }
 
-template <class InputBufferType>
+template<class InputBufferType>
 SuffixBase*
 BuildEntropySuffix(InputBufferType& input, size_t numKeys, size_t sumKeyLen,
                    bool isReverse, const TerarkIndexOptions& tiopt) {
