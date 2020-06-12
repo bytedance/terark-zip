@@ -2792,11 +2792,11 @@ const {
 	assert(m_ptrList.data() == (const byte_t*)((FileHeader*)m_mmapBase + 1));
 	size_t offset = sizeof(FileHeader) + BegEnd[0];
 	size_t zipLen = BegEnd[1] - BegEnd[0];
+	if (zipLen == 0) {
+		return;  // empty
+	}
 	const byte* pos = readRaw(offset, zipLen);
 	if (CheckSumLevel == 2) {
-        if (BegEnd[0] == BegEnd[1]) {
-            return; // empty
-        }
 		if (zipLen <= 4) {
 			THROW_STD(logic_error
 				, "CRC check failed: recId = %zd, zlen = %zd"
