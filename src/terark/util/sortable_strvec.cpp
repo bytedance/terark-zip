@@ -19,6 +19,13 @@
 // #define memcpyForward memcpy
 #define memcpyForward memmove
 
+// 2020-06-21 00:16 -- prefetch has no observable improve
+//#define StrVec_EnablePrefetch
+#if defined(StrVec_EnablePrefetch)
+	#define StrVec_prefetch(cond, ptr) do if (cond) _mm_prefetch((const char*)ptr, _MM_HINT_T0); while (0)
+#else
+	#define StrVec_prefetch(cond, ptr)
+#endif
 namespace terark {
 
 SortableStrVec::SortableStrVec() {
@@ -210,16 +217,19 @@ void SortableStrVec::build_subkeys(valvec<SEntry>& subkeys) {
 	else {
 		valvec<byte_t> subpool;
 		size_t offset = 0;
-		for(size_t i = 0; i < subkeys.size(); ++i) {
-			offset += subkeys[i].length;
+		size_t subnum = subkeys.size();
+		SEntry* subptr = subkeys.data();
+		for(size_t i = 0; i < subnum; ++i) {
+			offset += subptr[i].length;
 		}
 		subpool.resize_no_init(offset);
 		offset = 0;
-		for(size_t i = 0; i < subkeys.size(); ++i) {
-			SEntry s = subkeys[i];
+		for(size_t i = 0; i < subnum; ++i) {
+			SEntry s = subptr[i];
 			size_t l = s.length;
+			StrVec_prefetch(i + 4 < subnum, base + subptr[i + 4].offset);
 			memcpy(subpool.data() + offset, base + s.offset, l);
-			subkeys[i].offset = offset;
+			subptr[i].offset = offset;
 			offset += l;
 		}
 		m_strpool.risk_destroy(m_strpool_mem_type);
@@ -632,6 +642,8 @@ size_t SortableStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte
 	while (lo < hi) {
 		size_t mid = (lo + hi) / 2;
 		assert(pos < a[mid].length);
+		StrVec_prefetch(true, a + (lo+mid)/2);
+		StrVec_prefetch(true, a + (hi+mid)/2);
 		if (s[a[mid].offset + pos] <= ch)
 			lo = mid + 1;
 		else
@@ -918,6 +930,8 @@ size_t SortThinStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte
 	while (lo < hi) {
 		size_t mid = (lo + hi) / 2;
 		assert(pos < a[mid].length);
+		StrVec_prefetch(true, a + (lo+mid)/2);
+		StrVec_prefetch(true, a + (hi+mid)/2);
 		if (s[a[mid].offset + pos] <= ch)
 			lo = mid + 1;
 		else
@@ -1152,6 +1166,8 @@ size_t FixedLenStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
         assert(pos < fixlen);
+		StrVec_prefetch(true, s + fixlen*((lo+mid)/2));
+		StrVec_prefetch(true, s + fixlen*((hi+mid)/2));
         if (s[fixlen * mid + pos] <= ch)
             lo = mid + 1;
         else
@@ -1511,6 +1527,8 @@ size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound_at_pos(size_t lo, size
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
         assert(pos < this->nth_size(mid));
+		StrVec_prefetch(true, odata + (lo+mid)/2);
+		StrVec_prefetch(true, odata + (hi+mid)/2);
         size_t offset = odata[mid];
         if (s[offset + pos] <= ch)
             lo = mid + 1;
