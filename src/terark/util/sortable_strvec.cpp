@@ -21,6 +21,13 @@
 
 namespace terark {
 
+SortableStrVec::SortableStrVec() {
+	m_strpool_mem_type = MemType::Malloc;
+}
+SortableStrVec::~SortableStrVec() {
+	m_strpool.risk_destroy(m_strpool_mem_type);
+}
+
 void SortableStrVec::reserve(size_t strNum, size_t maxStrPool) {
     m_index.reserve(strNum);
     m_strpool.reserve(maxStrPool);
@@ -41,6 +48,7 @@ size_t SortableStrVec::sync_real_str_size() {
 void SortableStrVec::swap(SortableStrVec& y) {
 	m_index.swap(y.m_index);
 	m_strpool.swap(y.m_strpool);
+	std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
 }
 
 void SortableStrVec::push_back(fstring str) {
@@ -132,7 +140,7 @@ void SortableStrVec::sort() {
 }
 
 void SortableStrVec::clear() {
-	m_strpool.clear();
+	m_strpool.risk_destroy(m_strpool_mem_type);
 	m_index.clear();
 }
 
@@ -185,18 +193,39 @@ void SortableStrVec::build_subkeys() {
 void SortableStrVec::build_subkeys(valvec<SEntry>& subkeys) {
 	assert(&subkeys != &m_index);
 	byte* base = m_strpool.data();
-	// to reuse m_strpool, must sort by offset
-	std::sort(subkeys.begin(), subkeys.end(), CompareBy_offset());
-	size_t offset = 0;
-	for(size_t i = 0; i < subkeys.size(); ++i) {
-		SEntry s = subkeys[i];
-		memcpyForward(base + offset, base + s.offset, s.length);
-		subkeys[i].offset = offset;
-		offset += s.length;
+	if (MemType::Malloc == m_strpool_mem_type) {
+		// to reuse m_strpool, must sort by offset
+		std::sort(subkeys.begin(), subkeys.end(), CompareBy_offset());
+		size_t offset = 0;
+		for(size_t i = 0; i < subkeys.size(); ++i) {
+			SEntry s = subkeys[i];
+			memcpyForward(base + offset, base + s.offset, s.length);
+			subkeys[i].offset = offset;
+			offset += s.length;
+		}
+		assert(offset <= m_strpool.size());
+		m_strpool.risk_set_size(offset);
+		m_strpool.shrink_to_fit();
 	}
-	assert(offset <= m_strpool.size());
-	m_strpool.risk_set_size(offset);
-	m_strpool.shrink_to_fit();
+	else {
+		valvec<byte_t> subpool;
+		size_t offset = 0;
+		for(size_t i = 0; i < subkeys.size(); ++i) {
+			offset += subkeys[i].length;
+		}
+		subpool.resize_no_init(offset);
+		offset = 0;
+		for(size_t i = 0; i < subkeys.size(); ++i) {
+			SEntry s = subkeys[i];
+			size_t l = s.length;
+			memcpy(subpool.data() + offset, base + s.offset, l);
+			subkeys[i].offset = offset;
+			offset += l;
+		}
+		m_strpool.risk_destroy(m_strpool_mem_type);
+		m_strpool.swap(subpool);
+		m_strpool_mem_type = MemType::Malloc;
+	}
 	m_index.swap(subkeys);
 	m_index.shrink_to_fit();
 	subkeys.clear();
@@ -692,13 +721,291 @@ size_t SortableStrVec::max_strlen() const {
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+SortThinStrVec::SortThinStrVec() {
+	m_strpool_mem_type = MemType::Malloc;
+}
+SortThinStrVec::~SortThinStrVec() {
+	m_strpool.risk_destroy(m_strpool_mem_type);
+}
+
+void SortThinStrVec::reserve(size_t strNum, size_t maxStrPool) {
+    m_index.reserve(strNum);
+    m_strpool.reserve(maxStrPool);
+}
+
+void SortThinStrVec::shrink_to_fit() {
+    m_strpool.shrink_to_fit();
+    m_index.shrink_to_fit();
+}
+
+void SortThinStrVec::swap(SortThinStrVec& y) {
+	m_index.swap(y.m_index);
+	m_strpool.swap(y.m_strpool);
+	std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
+}
+
+void SortThinStrVec::push_back(fstring str) {
+	assert(str.size() < MAX_STR_LEN);
+	assert(m_index.size() < MAX_STR_NUM);
+	if (terark_unlikely(str.size() >= MAX_STR_LEN)) {
+		THROW_STD(length_error, "str too long, size = %zd", str.size());
+	}
+	if (terark_unlikely(m_index.size() >= MAX_STR_NUM)) {
+		THROW_STD(length_error, "m_index too large, size = %zd", m_index.size());
+	}
+	SEntry tmp;
+	tmp.offset = m_strpool.size();
+	tmp.length = uint32_t(str.size());
+	m_index.push_back(tmp);
+	m_strpool.append(str);
+}
+
+void SortThinStrVec::pop_back() {
+	assert(m_index.size() >= 1);
+	m_strpool.resize_no_init(m_index.back().offset);
+	m_index.pop_back();
+}
+
+void SortThinStrVec::back_append(fstring str) {
+	assert(m_index.size() >= 1);
+	assert(m_index.back().length + str.size() < MAX_STR_LEN);
+	m_index.back().length += str.size();
+	m_strpool.append(str);
+}
+
+void SortThinStrVec::back_shrink(size_t nShrink) {
+	assert(m_index.size() >= 1);
+	assert(m_index.back().length >= nShrink);
+	m_index.back().length -= nShrink;
+	m_strpool.resize_no_init(m_strpool.size() - nShrink);
+}
+
+void SortThinStrVec::back_grow_no_init(size_t nGrow) {
+	assert(m_index.size() >= 1);
+	assert(m_index.back().length + nGrow < MAX_STR_LEN);
+	m_strpool.resize_no_init(m_strpool.size() + nGrow);
+	m_index.back().length += nGrow;
+}
+
+void SortThinStrVec::reverse_keys() {
+	byte* base = m_strpool.data();
+	for(size_t i = 0; i < m_index.size(); ++i) {
+		size_t offset = m_index[i].offset;
+		size_t length = m_index[i].length;
+		assert(length < MAX_STR_LEN);
+		std::reverse(base + offset, base + offset + length);
+	}
+}
+
+void SortThinStrVec::sort() {
+	const byte* pool = m_strpool.data();
+	double avgLen = double(m_strpool.size()+1) / double(m_index.size() + 1);
+	double minRadixSortStrLen = UINT32_MAX; // disable radix sort by default
+	if (const char* env = getenv("SortThinStrVec_minRadixSortStrLen")) {
+		minRadixSortStrLen = atof(env);
+	}
+	if (avgLen < minRadixSortStrLen) {
+		auto cmp = [pool](const SEntry& x, const SEntry& y) {
+			fstring sx(pool + x.offset, x.length);
+			fstring sy(pool + y.offset, y.length);
+			return sx < sy;
+		};
+		if (getEnvBool("SortThinStrVec_useMergeSort", false)) {
+			std::stable_sort(m_index.begin(), m_index.end(), cmp);
+			return;
+		}
+#if defined(__GNUC__) && !defined(__CYGWIN__) && !defined(__clang__)
+		const size_t paralell_threshold = (16<<20);
+		if (m_index.size() > paralell_threshold &&
+			getEnvBool("SortThinStrVec_enableParallelSort", false))
+		{
+			parallel_sort(m_index.begin(), m_index.end(), cmp);
+		}
+		else
+#endif
+		std::sort(m_index.begin(), m_index.end(), cmp);
+	} else { // use radix sort
+		auto getChar = [pool](const SEntry& x,size_t i){return pool[x.offset+i];};
+		auto getSize = [](const SEntry& x) { return x.length; };
+		radix_sort_tpl(m_index.data(), m_index.size(), getChar, getSize);
+	}
+}
+
+void SortThinStrVec::clear() {
+	m_strpool.risk_destroy(m_strpool_mem_type);
+	m_index.clear();
+}
+
+void SortThinStrVec::sort_by_offset() {
+	std::sort(m_index.begin(), m_index.end(), CompareBy_offset());
+}
+
+// m_index point to a subset of m_strpool
+void SortThinStrVec::build_subkeys() {
+	valvec<SEntry> subkeys;
+	subkeys.swap(m_index);
+	build_subkeys(subkeys);
+}
+
+void SortThinStrVec::build_subkeys(valvec<SEntry>& subkeys) {
+	assert(&subkeys != &m_index);
+	byte* base = m_strpool.data();
+	// to reuse m_strpool, must sort by offset
+	std::sort(subkeys.begin(), subkeys.end(), CompareBy_offset());
+	size_t offset = 0;
+	for(size_t i = 0; i < subkeys.size(); ++i) {
+		SEntry s = subkeys[i];
+		memcpyForward(base + offset, base + s.offset, s.length);
+		subkeys[i].offset = offset;
+		offset += s.length;
+	}
+	assert(offset <= m_strpool.size());
+	m_strpool.risk_set_size(offset);
+	m_strpool.shrink_to_fit();
+	m_index.swap(subkeys);
+	m_index.shrink_to_fit();
+	subkeys.clear();
+}
+
+void SortThinStrVec::make_ascending_offset() {
+	valvec<byte> tmp(m_strpool.size(), valvec_reserve());
+	const byte* oldptr = m_strpool.data();
+	for(size_t i = 0; i < m_index.size(); ++i) {
+		size_t offset = m_index[i].offset;
+		size_t length = m_index[i].length;
+		m_index[i].offset = tmp.size();
+		tmp.append(oldptr + offset, length);
+	}
+	m_strpool.swap(tmp);
+}
+
+size_t SortThinStrVec::lower_bound_by_offset(size_t offset) const {
+	SEntry const* a = m_index.data();
+	size_t lo = 0, hi = m_index.size();
+	while (lo < hi) {
+		size_t mid = (lo + hi) / 2;
+		if (a[mid].offset < offset)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo;
+}
+
+size_t SortThinStrVec::upper_bound_by_offset(size_t offset) const {
+	SEntry const* a = m_index.data();
+	size_t lo = 0, hi = m_index.size();
+	while (lo < hi) {
+		size_t mid = (lo + hi) / 2;
+		if (a[mid].offset <= offset)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo;
+}
+
+size_t SortThinStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
+	assert(lo < hi);
+	assert(hi <= m_index.size());
+	assert(pos < m_index[lo].length);
+	SEntry const* a = m_index.data();
+	byte   const* s = m_strpool.data();
+#if !defined(NDEBUG)
+	byte_t const kh = s[a[lo].offset + pos];
+	assert(kh == ch);
+#endif
+	while (lo < hi) {
+		size_t mid = (lo + hi) / 2;
+		assert(pos < a[mid].length);
+		if (s[a[mid].offset + pos] <= ch)
+			lo = mid + 1;
+		else
+			hi = mid;
+	}
+	return lo;
+}
+
+terark_flatten
+size_t SortThinStrVec::lower_bound(fstring key) const {
+    const SEntry* index = m_index.data();
+    const byte_t* strbase = m_strpool.data();
+    size_t lo = 0, hi = m_index.size();
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        const byte_t* strMid = index[mid].offset + strbase;
+        const size_t  lenMid = index[mid].length;
+        if (str_less(strMid, lenMid, key.p, key.n))
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+	return lo;
+}
+
+terark_flatten
+size_t SortThinStrVec::upper_bound(fstring key) const {
+    const SEntry* index = m_index.data();
+    const byte_t* strbase = m_strpool.data();
+    size_t lo = 0, hi = m_index.size();
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        const byte_t* strMid = index[mid].offset + strbase;
+        const size_t  lenMid = index[mid].length;
+        if (!str_less(key.p, key.n, strMid, lenMid))
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+	return lo;
+}
+
+terark_flatten
+size_t SortThinStrVec::find(fstring key) const {
+    const SEntry* index = m_index.data();
+    const byte_t* strbase = m_strpool.data();
+    size_t lo = 0, hi = m_index.size();
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        const byte_t* strMid = index[mid].offset + strbase;
+        const size_t  lenMid = index[mid].length;
+        if (str_less(strMid, lenMid, key.p, key.n))
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    size_t num = m_index.size();
+    if (lo < num) {
+        const byte_t* strLo = index[lo].offset + strbase;
+        const size_t  lenLo = index[lo].length;
+        if (lenLo == size_t(key.n) && memcmp(strLo, key.p, lenLo) == 0)
+            return lo;
+    }
+	return num;
+}
+
+size_t SortThinStrVec::max_strlen() const {
+    const SEntry* index = m_index.data();
+    const size_t  count = m_index.size();
+    size_t maxlen = 0;
+    for(size_t i = 0; i < count; ++i) {
+        size_t x = index[i].length;
+        if (maxlen < x)
+            maxlen = x;
+    }
+    return maxlen;
+}
+
+///////////////////////////////////////////////////////////////////////////////
 
 FixedLenStrVec::FixedLenStrVec(size_t fixlen) {
     m_fixlen = fixlen;
     m_size = 0;
+	m_strpool_mem_type = MemType::Malloc;
 }
 
 FixedLenStrVec::~FixedLenStrVec() {
+	m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
 void FixedLenStrVec::reserve(size_t strNum, size_t maxStrPool) {
@@ -723,6 +1030,7 @@ void FixedLenStrVec::swap(FixedLenStrVec& y) {
     std::swap(m_fixlen, y.m_fixlen);
     std::swap(m_size  , y.m_size);
     m_strpool.swap(y.m_strpool);
+	std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
 }
 
 void FixedLenStrVec::push_back(fstring str) {
@@ -806,7 +1114,7 @@ void FixedLenStrVec::clear() {
 //  assert is not needed
 //  assert(m_fixlen * m_size == m_strpool.size());
     m_size = 0;
-    m_strpool.clear();
+    m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
 size_t FixedLenStrVec::lower_bound_by_offset(size_t offset) const {
@@ -900,8 +1208,14 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-SortedStrVec::SortedStrVec() {}
-SortedStrVec::~SortedStrVec() {}
+SortedStrVec::SortedStrVec() {
+	m_offsets_mem_type = MemType::Malloc;
+	m_strpool_mem_type = MemType::Malloc;
+}
+SortedStrVec::~SortedStrVec() {
+	m_offsets.risk_destroy(m_offsets_mem_type);
+	m_strpool.risk_destroy(m_strpool_mem_type);
+}
 
 void SortedStrVec::reserve(size_t strNum, size_t maxStrPool) {
     m_strpool.reserve(maxStrPool);
@@ -923,6 +1237,8 @@ void SortedStrVec::shrink_to_fit() {
 void SortedStrVec::swap(SortedStrVec& y) {
     m_offsets.swap(y.m_offsets);
     m_strpool.swap(y.m_strpool);
+	std::swap(m_offsets_mem_type, y.m_offsets_mem_type);
+	std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
 }
 
 void SortedStrVec::push_back(fstring str) {
@@ -999,8 +1315,8 @@ void SortedStrVec::sort() {
 }
 
 void SortedStrVec::clear() {
-    m_offsets.clear();
-    m_strpool.clear();
+    m_offsets.risk_destroy(m_offsets_mem_type);
+    m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
 size_t SortedStrVec::lower_bound_by_offset(size_t offset) const {
@@ -1074,6 +1390,182 @@ size_t SortedStrVec::max_strlen() const {
     }
     return maxlen;
 }
+
+/////////////////////////////////////////////////////////////////////////////
+
+template<class UintXX, int DelimLen>
+SortedStrVecUintTpl<UintXX, DelimLen>::SortedStrVecUintTpl() {
+	m_offsets_mem_type = MemType::Malloc;
+	m_strpool_mem_type = MemType::Malloc;
+}
+
+template<class UintXX, int DelimLen>
+SortedStrVecUintTpl<UintXX, DelimLen>::~SortedStrVecUintTpl() {
+	m_offsets.risk_destroy(m_offsets_mem_type);
+	m_strpool.risk_destroy(m_strpool_mem_type);
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::reserve(size_t strNum, size_t maxStrPool) {
+    m_strpool.reserve(maxStrPool + DelimLen*strNum);
+    m_offsets.reserve(strNum+1);
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::shrink_to_fit() {
+    if (terark_unlikely(0 == m_offsets.size())){
+        m_offsets.push_back(0);
+    }
+    m_strpool.shrink_to_fit();
+    m_offsets.shrink_to_fit();
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::swap(SortedStrVecUintTpl& y) {
+    m_offsets.swap(y.m_offsets);
+    m_strpool.swap(y.m_strpool);
+	std::swap(m_offsets_mem_type, y.m_offsets_mem_type);
+	std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::push_back(fstring str) {
+    if (terark_unlikely(m_offsets.size() == 0)) {
+        m_offsets.push_back(0);
+    }
+    m_strpool.append(str.data(), str.size());
+    m_offsets.push_back(m_strpool.size());
+	m_offsets.push_n(DelimLen, '\0');
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::pop_back() {
+	size_t osize = m_offsets.size();
+    assert(osize > 2);
+    m_strpool.risk_set_size(m_offsets[osize-2]);
+    m_offsets.risk_set_size(osize-1);
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::back_grow_no_init(size_t nGrow) {
+    assert(m_offsets.size() >= 2);
+	size_t slen = m_strpool.size() + nGrow;
+    m_strpool.resize_no_init(slen);
+    m_offsets.back() = slen;
+}
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::reverse_keys() {
+    byte_t* beg = m_strpool.begin();
+    size_t  offset = 0;
+    for(size_t i = 0, n = m_offsets.size()-1; i < n; ++i) {
+        size_t endpos = m_offsets[i+1];
+    //  std::reverse(beg, beg + fixlen);
+        byte_t* lo = beg + offset;
+        byte_t* hi = beg + endpos - DelimLen;
+        while (lo < --hi) {
+            byte_t tmp = *lo;
+            *lo = *hi;
+            *hi = tmp;
+            ++lo;
+        }
+        offset = endpos;
+    }
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::sort() {
+    THROW_STD(invalid_argument, "This method is not supported");
+}
+
+template<class UintXX, int DelimLen>
+void SortedStrVecUintTpl<UintXX, DelimLen>::clear() {
+    m_offsets.risk_destroy(m_offsets_mem_type);
+    m_strpool.risk_destroy(m_strpool_mem_type);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::lower_bound_by_offset(size_t offset) const {
+    return lower_bound_0(m_offsets.begin(), m_offsets.size()-1, offset);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound_by_offset(size_t offset) const {
+    return upper_bound_0(m_offsets.begin(), m_offsets.size()-1, offset);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
+    assert(m_offsets.size() >= 1);
+    assert(lo < hi);
+    assert(hi <= m_offsets.size()-1);
+    const UintXX* odata = m_offsets.data();
+    const byte_t* s = m_strpool.data();
+#if !defined(NDEBUG)
+    const byte_t kh = s[odata[lo] + pos];
+    assert(kh == ch);
+    for (size_t i = lo; i < hi; ++i) {
+        fstring s = (*this)[i];
+        assert(pos < s.size());
+    }
+#endif
+    while (lo < hi) {
+        size_t mid = (lo + hi) / 2;
+        assert(pos < this->nth_size(mid));
+        size_t offset = odata[mid];
+        if (s[offset + pos] <= ch)
+            lo = mid + 1;
+        else
+            hi = mid;
+    }
+    return lo;
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::lower_bound(fstring key) const {
+    return lower_bound_0<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, m_offsets.size()-1, key);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound(fstring key) const {
+    return upper_bound_0<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, m_offsets.size()-1, key);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::lower_bound(fstring key, size_t start, size_t end) const {
+    assert(start <= end);
+    assert(end <= m_offsets.size()-1);
+    return lower_bound_n<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, start, end, key);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound(fstring key, size_t start, size_t end) const {
+    assert(start <= end);
+    assert(end <= m_offsets.size()-1);
+    return upper_bound_n<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, start, end, key);
+}
+
+template<class UintXX, int DelimLen>
+size_t SortedStrVecUintTpl<UintXX, DelimLen>::max_strlen() const {
+	const auto offsets = m_offsets.data();
+    const auto size = m_offsets.size();
+    size_t maxlen = 0;
+    for(size_t i = 1; i < size; ++i) {
+        size_t s = offsets[i-1];
+        size_t t = offsets[i-0];
+        size_t x = t - s;
+        if (maxlen < x)
+            maxlen = x;
+    }
+    return maxlen - DelimLen;
+}
+
+template class SortedStrVecUintTpl<uint32_t, 0>;
+template class SortedStrVecUintTpl<uint32_t, 1>;
+template class SortedStrVecUintTpl<uint32_t, 2>;
+
+template class SortedStrVecUintTpl<uint64_t, 0>;
+template class SortedStrVecUintTpl<uint64_t, 1>;
+template class SortedStrVecUintTpl<uint64_t, 2>;
 
 } // namespace terark
 

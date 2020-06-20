@@ -24,6 +24,7 @@ void usage(const char* prog) {
 Options:
     -h Show this help information
     -M maxFragLen
+    -m mmap input file
     -n Nest Level
     -o Output-Trie-File
     -g Output-Graphviz-Dot-File
@@ -32,20 +33,29 @@ Options:
     -B Input is binary(bson) data
     -6 Input is base64 encoded data
     -U StrVecType, can be one of:
-         x: SortableStrVec, this is the default
+         t: SortThinStrVec, this is the default
+         x: SortableStrVec,
          s:   SortedStrVec, -s must also be specified, for double check
          z: ZoSortedStrVec, -s must also be specified, for double check
          f: FixedLenStrVec
-         +--------------------------------------------------------+
-         |              |Memory Usage|Var Key Len|Can Be UnSorted?|
-         |SortableStrVec|    High    |    Yes    |     Yes        |
-         |  SortedStrVec|   Medium   |    Yes    |!Must be Sorted!|
-         |ZoSortedStrVec|    Low     |    Yes    |!Must be Sorted!|
-         |FixedLenStrVec|    Lowest  |    No     |     Yes        |
-         +--------------------------------------------------------+
+         u: SortedStrVecU32<DelimLen=1>, mmap is used for string content
+		      -s must also be specified, for double check
+         +---------------+---------+---------+---------------+-----------+
+         |               |Mem Usage|VarKeyLen|CanBe UnSorted?|CanBe Mmap?|
+		 +---------------+---------+---------+---------------+-----------+
+         |SortThinStrVec |  High   |   Yes   |     Yes       |    Yes    |
+         |SortableStrVec |  High   |   Yes   |     Yes       |    Yes    |
+         |  SortedStrVec | Medium  |   Yes   |Must Be Sorted |    LF     |
+         |ZoSortedStrVec |  Low    |   Yes   |Must Be Sorted |    LF     |
+         |FixedLenStrVec |  Lowest |   No    |     Yes       |    LF     |
+         |SortedStrVecU32|  Lowest |   Yes   |     Yes       |    Yes    |
+         +---------------+---------+---------+---------------+-----------+
           ZoSortedStrVec is slower than SortedStrVec(20%% ~ 40%% slower).
           When using ZoSortedStrVec, you should also use -T 4@/path/to/tmpdir,
           otherwise warning will be issued.
+              LF means the line feed char('\n') of each line will be
+          included in the output NLT. when using mmap input,
+          only SortedStrVecU32 will trim the LF char.
     -T TmpDir, if specified, will use less memory
        TmpLevel@TmpDir, TmpLevel is 0-9
     -F bool(0 or 1), default = 1
@@ -72,11 +82,12 @@ size_t benchmarkLoop = 0;
 bool b_write_dot_file = false;
 bool is_binary_input = false;
 bool is_base64_input = false;
+bool mmap_input_file = false;
 const char* rlouds_trie_fname = NULL;
 const char* bench_input_fname = NULL;
 const char* nlt_order_fname = NULL;
 auchar_t kv_delim = '\t';
-char strVecTypeChar = 'x';
+char strVecTypeChar = 't';
 NestLoudsTrieConfig conf;
 
 template<class NestTrieDAWG>
@@ -87,7 +98,7 @@ int main(int argc, char* argv[]) {
 	conf.initFromEnv();
 	const char* rank_select_impl = "m-xl-256";
 	for (;;) {
-		int opt = getopt(argc, argv, "Bb:w:ghd:M:n:o:R:T:U:s6F:");
+		int opt = getopt(argc, argv, "Bb:w:ghd:M:mn:o:R:T:U:s6F:");
 		switch (opt) {
 		case -1:
 			goto GetoptDone;
@@ -111,6 +122,9 @@ int main(int argc, char* argv[]) {
 			break;
 		case 'M':
 			conf.maxFragLen = atoi(optarg);
+			break;
+		case 'm':
+			mmap_input_file = true;
 			break;
 		case 'n':
 			conf.nestLevel = atoi(optarg);
@@ -144,7 +158,7 @@ int main(int argc, char* argv[]) {
 			break;
         case 'U':
             strVecTypeChar = optarg[0];
-            if (strchr("zxsf", strVecTypeChar) == NULL) {
+            if (strchr("zxsftu", strVecTypeChar) == NULL) {
                 fprintf(stderr, "ERROR: invalid option: -U %c\n", strVecTypeChar);
                 usage(argv[0]);
             }
@@ -232,12 +246,19 @@ int build(int argc, char* argv[]) {
         return build_impl<NestTrieDAWG,   SortedStrVec>(argc, argv);
     case 'f':
         return build_impl<NestTrieDAWG, FixedLenStrVec>(argc, argv);
+    case 't':
+        return build_impl<NestTrieDAWG, SortThinStrVec>(argc, argv);
+    case 'u':
+        return build_impl<NestTrieDAWG, SortedStrVecU32<1> >(argc, argv);
     }
     return 0; // should not goes here, for compiler warnings
 }
 
 void StrVec_sanitize(SortableStrVec& strVec, size_t keylen) {
     // do nothing
+}
+void StrVec_sanitize(SortThinStrVec& strVec, size_t keylen) {
+	// do nothing
 }
 void StrVec_sanitize(FixedLenStrVec& strVec, size_t keylen) {
     if (0 == strVec.m_fixlen) {
@@ -266,6 +287,10 @@ void StrVec_sanitize(ZoSortedStrVecWithBuilder& strVec, size_t keylen) {
         strVec.init(128);
     }
 }
+template<class U, int D>
+void StrVec_sanitize(SortedStrVecUintTpl<U,D>& strVec, size_t keylen) {
+	// do nothing
+}
 
 static bool checkSortOrder(fstring curr) {
     static valvec<byte_t> prev;
@@ -285,6 +310,7 @@ static bool checkSortOrder(fstring curr) {
 
 template<class StrVecType>
 long binary_read_onekey(StrVecType& strVec, FILE* fp, size_t keylen) {
+    StrVec_sanitize(strVec, keylen);
     strVec.push_back("");
     strVec.back_grow_no_init(keylen);
     size_t len = fread(strVec.mutable_nth_data(strVec.size() - 1), 1, keylen, fp);
@@ -325,15 +351,84 @@ long binary_read_onekey(ZoSortedStrVecWithBuilder& strVec, FILE* fp, size_t keyl
     return long(len);
 }
 
+void StrVec_index_reserve(SortableStrVec& strVec, size_t num, size_t) {
+	strVec.m_index.reserve(num);
+}
+void StrVec_index_reserve(SortThinStrVec& strVec, size_t num, size_t) {
+	strVec.m_index.reserve(num);
+}
+void StrVec_index_reserve(SortedStrVec& strVec, size_t num, size_t filesize) {
+	strVec.m_offsets.resize_with_wire_max_val(num, filesize);
+	strVec.m_offsets.resize(0);
+}
+template<class U, int D>
+void StrVec_index_reserve(SortedStrVecUintTpl<U,D>& strVec, size_t num, size_t) {
+	strVec.m_offsets.reserve(num);
+}
+void StrVec_index_reserve(FixedLenStrVec&, size_t, size_t) {} // do nothing
+
 template<class StrVecType>
 void StrVec_init_reserve(StrVecType& strVec, size_t filesize) {
     size_t assume_avg_len = 100;
-    strVec.reserve(filesize / assume_avg_len, filesize);
+	if (mmap_input_file) {
+		strVec.m_strpool_mem_type = MemType::Mmap;
+		StrVec_index_reserve(strVec, filesize / assume_avg_len, filesize);
+	}
+	else {
+		strVec.reserve(filesize / assume_avg_len, filesize);
+	}
 }
 void StrVec_init_reserve(ZoSortedStrVecWithBuilder& strVec, size_t filesize) {
     strVec.init(128);
-    strVec.reserve(0, filesize);
+	if (!mmap_input_file)
+    	strVec.reserve(0, filesize);
 }
+
+void StrVec_index_push(SortableStrVec& strVec, size_t offset, size_t len) {
+    strVec.m_index.push_back({offset, len, strVec.m_index.size()});
+}
+void StrVec_index_push(SortThinStrVec& strVec, size_t offset, size_t len) {
+    strVec.m_index.push_back({offset,len});
+}
+void StrVec_index_push(SortedStrVec& strVec, size_t offset, size_t len) {
+    strVec.m_offsets.push_back(offset);
+}
+void StrVec_index_push(ZoSortedStrVecWithBuilder& strVec, size_t offset, size_t) {
+	strVec.push_offset(offset);
+}
+void StrVec_index_push(FixedLenStrVec& strVec, size_t offset, size_t) {}
+template<class U, int D>
+void StrVec_index_push(SortedStrVecUintTpl<U,D>& strVec, size_t offset, size_t) {
+    strVec.m_offsets.push_back(offset);
+}
+
+void StrVec_index_finish(SortableStrVec& strVec, size_t offset) {
+    //strVec.m_index.shrink_to_fit();
+	strVec.m_strpool.risk_set_size(strVec.m_index.back().endpos());
+}
+void StrVec_index_finish(SortThinStrVec& strVec, size_t offset) {
+    //strVec.m_index.shrink_to_fit();
+	strVec.m_strpool.risk_set_size(strVec.m_index.back().endpos());
+}
+void StrVec_index_finish(SortedStrVec& strVec, size_t offset) {
+    strVec.m_offsets.push_back(offset);
+}
+void StrVec_index_finish(ZoSortedStrVecWithBuilder& strVec, size_t offset) {
+	strVec.push_offset(offset);
+	strVec.finish();
+}
+void StrVec_index_finish(FixedLenStrVec& strVec, size_t offset) {}
+template<class U, int D>
+void StrVec_index_finish(SortedStrVecUintTpl<U,D>& strVec, size_t offset) {
+    strVec.m_offsets.push_back(offset);
+}
+
+template<class StrVec>
+bool StrVec_needs_end_lf(StrVec&) { return true; }
+template<class U, int D>
+bool StrVec_needs_end_lf(SortedStrVecUintTpl<U,D>&) { return false; }
+bool StrVec_needs_end_lf(SortableStrVec&) { return false; }
+bool StrVec_needs_end_lf(SortThinStrVec&) { return false; }
 
 template<class NestTrieDAWG, class StrVecType>
 int build_impl(int argc, char* argv[]) {
@@ -364,6 +459,10 @@ int build_impl(int argc, char* argv[]) {
 		else if (S_ISREG(st.st_mode)) { // OK, get file size
 			StrVec_init_reserve(strVec, st.st_size);
 		}
+		else if (mmap_input_file) {
+			fprintf(stderr, "input file is not a regular file, can not mmap\n");
+			exit(1);
+		}
 	}
 //	fprintf(stderr, "is_base64_input = %d\n", is_base64_input);
 //	fprintf(stderr, "is_binary_input = %d\n", is_binary_input);
@@ -388,6 +487,7 @@ int build_impl(int argc, char* argv[]) {
 			}
 			nth++;
 		}
+		strVec.finish();
 	}
 	else if (is_base64_input) {
 		LineBuf line;
@@ -403,6 +503,41 @@ int build_impl(int argc, char* argv[]) {
 			if (!conf.isInputSorted || checkSortOrder(key))
 				strVec.push_back(key);
 		}
+		strVec.finish();
+	}
+	else if (mmap_input_file) {
+		byte_t* base = NULL;
+		size_t  size = 0;
+		try {
+			if (NULL == input_fname) {
+			  #if defined(_MSC_VER)
+				fprintf(stderr, "ERROR: input file name is required when using -m\n");
+				usage(argv[0]);
+				return 1;
+			  #else
+				base = (byte_t*)mmap_load("/dev/stdin", &size, false, true);
+			  #endif
+			}
+			else {
+				base = (byte_t*)mmap_load(input_fname, &size, false, true);
+			}
+		} catch (std::exception& ex) {
+			fprintf(stderr, "mmap failed\n");
+			exit(1);
+		}
+		if (StrVec_needs_end_lf(strVec) && '\n' != base[size-1]) {
+			fprintf(stderr, "ERROR: StrVec: -%c needs file ending LF('\\n')\n", strVecTypeChar);
+			exit(1);
+		}
+		strVec.m_strpool.risk_set_data(base);
+		byte_t* endp = base + size;
+		byte_t* line = base;
+		while (line < endp) {
+			byte_t* next = std::find(line, endp, '\n');
+			StrVec_index_push(strVec, line - base, next - line);
+			line = next + 1;
+		}
+		StrVec_index_finish(strVec, line - base);
 	}
 	else {
 		LineBuf line;
@@ -412,8 +547,8 @@ int build_impl(int argc, char* argv[]) {
 			if (!conf.isInputSorted || checkSortOrder(line))
 				strVec.push_back(line);
 		}
+		strVec.finish();
 	}
-	strVec.finish();
 //	fprintf(stderr, "strVec.size() = %zd, strVec.str_size() = %zd\n", strVec.size(), strVec.str_size());
 	if (strVec.size() == 0) {
 		fprintf(stderr, "Input is empty\n");

@@ -51,6 +51,11 @@ public:
 		nullize();
 	}
 
+	void risk_destroy(MemType mt) {
+		m_data.risk_destroy(mt);
+		nullize();
+	}
+
 	void risk_set_data(byte* Data, size_t num, size_t bits) {
 		assert(m_bits <= 64);
 		assert(bits <= sizeof(size_t) * 8);

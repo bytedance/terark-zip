@@ -179,9 +179,14 @@ public:
 	void build_strpool(SortableStrVec&, valvec<index_t>& idvec, const NestLoudsTrieConfig&);
 	void build_strpool2(SortableStrVec& strVec, valvec<index_t>& linkVec, const NestLoudsTrieConfig& conf);
 	void build_patricia(SortableStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(SortThinStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 	void build_patricia(FixedLenStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 	void build_patricia(  SortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 	void build_patricia(ZoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(SortedStrVecU32<0>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(SortedStrVecU32<1>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(SortedStrVecU64<0>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(SortedStrVecU64<1>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 
     template<class StrVecType>
     void build_patricia_tpl(StrVecType&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);

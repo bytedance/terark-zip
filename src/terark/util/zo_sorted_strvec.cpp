@@ -31,20 +31,36 @@ void ZoSortedStrVec::Builder::push_back(fstring str) {
     impl->m_strpool.append(str);
     impl->m_suvBuilder->push_back(impl->m_strpool.size());
 }
+void ZoSortedStrVec::Builder::push_offset(size_t offset) {
+    assert(NULL != impl);
+    impl->m_suvBuilder->push_back(impl->m_strpool.size());
+}
 void ZoSortedStrVec::Builder::finish(ZoSortedStrVec* strVec) {
     assert(NULL != impl);
-    strVec->m_strpool.swap(impl->m_strpool);
     impl->m_suvBuilder->finish(&strVec->m_offsets);
+    size_t strNum = strVec->m_offsets.size() - 1;
+    size_t poolsize = strVec->m_offsets.get(strNum);
+    if (impl->m_strpool.size() == poolsize) {
+        strVec->m_strpool.swap(impl->m_strpool);
+    }
+    else if (impl->m_strpool.size() != 0) {
+        THROW_STD(logic_error, "May be mixed use of push_back and push_offset");
+    }
     delete impl;
     impl = NULL;
 }
 
-ZoSortedStrVec::ZoSortedStrVec() {}
-ZoSortedStrVec::~ZoSortedStrVec() {}
+ZoSortedStrVec::ZoSortedStrVec() {
+    m_strpool_mem_type = MemType::Malloc;
+}
+ZoSortedStrVec::~ZoSortedStrVec() {
+    m_strpool.risk_destroy(m_strpool_mem_type);
+}
 
 void ZoSortedStrVec::swap(ZoSortedStrVec& y) {
     m_offsets.swap(y.m_offsets);
     m_strpool.swap(y.m_strpool);
+    std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
 }
 
 void ZoSortedStrVec::sort() {
@@ -53,7 +69,7 @@ void ZoSortedStrVec::sort() {
 
 void ZoSortedStrVec::clear() {
     m_offsets.clear();
-    m_strpool.clear();
+    m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
 #define ZoSortedStrVec_SEARCH_INDEX
@@ -238,6 +254,10 @@ void ZoSortedStrVecWithBuilder::finish() {
 
 void ZoSortedStrVecWithBuilder::push_back(fstring str) {
     m_builder.push_back(str);
+}
+
+void ZoSortedStrVecWithBuilder::push_offset(size_t offset) {
+    m_builder.push_offset(offset);
 }
 
 } // namespace terark

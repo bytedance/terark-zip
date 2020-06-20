@@ -1147,6 +1147,15 @@ build_patricia(SortableStrVec& strVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+build_patricia(SortThinStrVec& strVec,
+               function<void(const valvec<index_t>&)> buildTerm,
+               const NestLoudsTrieConfig& conf)
+{
+    build_patricia_tpl(strVec, buildTerm, conf);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(FixedLenStrVec& strVec,
                function<void(const valvec<index_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
@@ -1166,6 +1175,42 @@ template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 build_patricia(ZoSortedStrVec& strVec,
+               function<void(const valvec<index_t>&)> buildTerm,
+               const NestLoudsTrieConfig& conf)
+{
+    build_patricia_tpl(strVec, buildTerm, conf);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+build_patricia(SortedStrVecU32<0>& strVec,
+               function<void(const valvec<index_t>&)> buildTerm,
+               const NestLoudsTrieConfig& conf)
+{
+    build_patricia_tpl(strVec, buildTerm, conf);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+build_patricia(SortedStrVecU32<1>& strVec,
+               function<void(const valvec<index_t>&)> buildTerm,
+               const NestLoudsTrieConfig& conf)
+{
+    build_patricia_tpl(strVec, buildTerm, conf);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+build_patricia(SortedStrVecU64<0>& strVec,
+               function<void(const valvec<index_t>&)> buildTerm,
+               const NestLoudsTrieConfig& conf)
+{
+    build_patricia_tpl(strVec, buildTerm, conf);
+}
+template<class RankSelect, class RankSelect2, bool FastLabel>
+void
+NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
+build_patricia(SortedStrVecU64<1>& strVec,
                function<void(const valvec<index_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
@@ -2112,7 +2157,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		linkSeqStore.reset(new TempFile(conf.tmpDir, "linkSeqVec-"));
 	}
 	else {
-		linkVec.resize_fill(strVec.size(), index_t(-1));
+		linkVec.resize_fill(strVecSize, index_t(-1));
 	}
     typedef LinkSeqTpl<index_t> LinkSeq;
 	auto q1 = createRangeQueue<index_t>(conf, "q1-");
@@ -2130,7 +2175,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	size_t depth = 0;
 	{
 		// allowing empty strings
-		size_t firstNonEmpty = upper_bound_0<StrVecType&>(strVec, strVec.size(), "");
+		size_t firstNonEmpty = upper_bound_0<StrVecType&>(strVec, strVecSize, "");
 		for(size_t i = 0; i < firstNonEmpty; ++i) {
 			size_t seq_id = strVec.nth_seq_id(i);
 			if (linkSeqStore)
@@ -2141,7 +2186,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		if (conf.debugLevel >= 1) {
 			fprintf(stderr, "build_self_trie: firstNonEmpty = %zd\n", firstNonEmpty);
 		}
-		q1->push_back({firstNonEmpty, strVec.size(), 0});
+		q1->push_back({firstNonEmpty, strVecSize, 0});
 		q1->complete_write();
 	}
 #if defined(USE_SUFFIX_ARRAY_TRIE)
@@ -2353,6 +2398,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		nestStrVec.clear();
 	} else {
 		nestStrVec.m_strpool.swap(strVec.m_strpool);
+		std::swap(nestStrVec.m_strpool_mem_type, strVec.m_strpool_mem_type);
 	}
 	strVec.clear(); // free memory
 	std::unique_ptr<typename OnePassQueue<index_t>::InFile> linkVecStore;

@@ -584,6 +584,12 @@ build_from(SortableStrVec& strVec, const NestLoudsTrieConfig& conf) {
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::
+build_from(SortThinStrVec& strVec, const NestLoudsTrieConfig& conf) {
+    build_from_tpl(strVec, conf);
+}
+template<class NestTrie, class DawgType>
+void
+NestTrieDAWG<NestTrie, DawgType>::
 build_from(FixedLenStrVec& strVec, const NestLoudsTrieConfig& conf) {
     build_from_tpl(strVec, conf);
 }
@@ -597,6 +603,30 @@ template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::
 build_from(ZoSortedStrVec& strVec, const NestLoudsTrieConfig& conf) {
+    build_from_tpl(strVec, conf);
+}
+template<class NestTrie, class DawgType>
+void
+NestTrieDAWG<NestTrie, DawgType>::
+build_from(SortedStrVecU32<0>& strVec, const NestLoudsTrieConfig& conf) {
+    build_from_tpl(strVec, conf);
+}
+template<class NestTrie, class DawgType>
+void
+NestTrieDAWG<NestTrie, DawgType>::
+build_from(SortedStrVecU32<1>& strVec, const NestLoudsTrieConfig& conf) {
+    build_from_tpl(strVec, conf);
+}
+template<class NestTrie, class DawgType>
+void
+NestTrieDAWG<NestTrie, DawgType>::
+build_from(SortedStrVecU64<0>& strVec, const NestLoudsTrieConfig& conf) {
+    build_from_tpl(strVec, conf);
+}
+template<class NestTrie, class DawgType>
+void
+NestTrieDAWG<NestTrie, DawgType>::
+build_from(SortedStrVecU64<1>& strVec, const NestLoudsTrieConfig& conf) {
     build_from_tpl(strVec, conf);
 }
 

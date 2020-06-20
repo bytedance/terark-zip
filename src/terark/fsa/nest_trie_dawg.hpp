@@ -159,9 +159,14 @@ public:
 	size_t mem_size() const override final;
 
 	void build_from(SortableStrVec&, const NestLoudsTrieConfig&);
+	void build_from(SortThinStrVec&, const NestLoudsTrieConfig&);
 	void build_from(FixedLenStrVec&, const NestLoudsTrieConfig&);
 	void build_from(  SortedStrVec&, const NestLoudsTrieConfig&);
 	void build_from(ZoSortedStrVec&, const NestLoudsTrieConfig&);
+	void build_from(SortedStrVecU32<0>&, const NestLoudsTrieConfig&);
+	void build_from(SortedStrVecU32<1>&, const NestLoudsTrieConfig&);
+	void build_from(SortedStrVecU64<0>&, const NestLoudsTrieConfig&);
+	void build_from(SortedStrVecU64<1>&, const NestLoudsTrieConfig&);
 
 	void build_with_id(SortableStrVec&, valvec<index_t>& idvec, const NestLoudsTrieConfig&);
 

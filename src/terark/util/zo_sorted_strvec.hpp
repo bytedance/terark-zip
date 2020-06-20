@@ -17,10 +17,12 @@ public:
         void init(size_t blockUnits = 128);
         void reserve_strpool(size_t cap);
         void push_back(fstring str);
+        void push_offset(size_t);
         void finish(ZoSortedStrVec* strVec);
     };
     SortedUintVec  m_offsets;
     valvec<byte_t> m_strpool;
+    MemType m_strpool_mem_type;
 
     explicit ZoSortedStrVec();
     ~ZoSortedStrVec();
@@ -71,6 +73,7 @@ public:
     void reserve(size_t strNum, size_t maxStrPool);
     void finish();
     void push_back(fstring);
+    void push_offset(size_t);
 };
 
 } // namespace terark

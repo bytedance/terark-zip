@@ -21,6 +21,7 @@
 #include <terark/util/autofree.hpp>
 #include <terark/util/function.hpp>
 #include "config.hpp"
+#include "stdtypes.hpp"
 
 #if defined(TERARK_HAS_WEAK_SYMBOL) && 0
   #define TERARK_VALVEC_HAS_WEAK_SYMBOL 1
@@ -39,6 +40,14 @@ extern "C" {
 #endif
 
 namespace terark {
+
+    enum class MemType {
+        Malloc,
+        Mmap,
+        User,
+    };
+    // defined in util/mmap.cpp
+    TERARK_DLL_EXPORT void mmap_close(void* base, size_t size);
 
     template<class T>
     struct ParamPassType {
@@ -1237,6 +1246,24 @@ public:
 		p = NULL;
 		n = c = 0;
 		return q;
+	}
+
+	void risk_destroy(MemType mt) {
+		switch (mt) {
+			default:
+				TERARK_DIE("invalid MemType = %d", int(mt));
+				break;
+			case MemType::Malloc:
+				clear();
+				break;
+			case MemType::Mmap:
+				assert(n <= c);
+				mmap_close(p, sizeof(T) * c);
+				no_break_fallthrough; // fall through
+			case MemType::User:
+				risk_release_ownership();
+				break;
+		}
 	}
 
 /*
