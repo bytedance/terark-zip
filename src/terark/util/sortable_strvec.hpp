@@ -4,7 +4,6 @@
 #include <terark/valvec.hpp>
 #include <terark/fstring.hpp>
 #include <terark/int_vector.hpp>
-#include <terark/util/mmap.hpp>
 
 namespace terark {
 
@@ -493,22 +492,22 @@ public:
     size_t max_strlen() const;
 };
 
-template<class UintXX, int DelimLen = 1>
+template<class UintXX>
 class TERARK_DLL_EXPORT SortedStrVecUintTpl {
-    static_assert(DelimLen >= 0 && DelimLen <= 2, "DelimLen >= 0 && DelimLen <= 2");
 public:
     valvec<UintXX> m_offsets;
     valvec<byte_t> m_strpool;
+    uint32_t       m_delim_len;
     MemType m_offsets_mem_type;
     MemType m_strpool_mem_type;
 
-    explicit SortedStrVecUintTpl();
+    explicit SortedStrVecUintTpl(size_t delim_len = 0);
     ~SortedStrVecUintTpl();
     void reserve(size_t strNum, size_t maxStrPool);
     void finish() { shrink_to_fit(); }
     void shrink_to_fit();
 
-    double avg_size() const { return m_strpool.size() / double(m_offsets.size()-1) - DelimLen; }
+    double avg_size() const { return m_strpool.size() / double(m_offsets.size()-1) - m_delim_len; }
     size_t mem_cap () const { return m_offsets.full_mem_size() + m_strpool.capacity(); }
     size_t mem_size() const { return m_offsets.full_mem_size() + m_strpool.size(); }
     size_t str_size() const { return m_strpool.size(); }
@@ -520,7 +519,7 @@ public:
         assert(idx+1 < m_offsets.size());
         size_t Beg = m_offsets[idx+0];
         size_t End = m_offsets[idx+1];
-        return fstring(m_strpool.data() + Beg, End - Beg - DelimLen);
+        return fstring(m_strpool.data() + Beg, End - Beg - m_delim_len);
     }
     byte_t* mutable_nth_data(size_t idx) { return m_strpool.data() + m_offsets[idx]; }
     const
@@ -529,11 +528,11 @@ public:
         assert(idx+1 < m_offsets.size());
         size_t Beg = m_offsets[idx+0];
         size_t End = m_offsets[idx+1];
-        return End - Beg - DelimLen;
+        return End - Beg - m_delim_len;
     }
     size_t  nth_offset(size_t idx) const { return m_offsets[idx]; }
     size_t  nth_seq_id(size_t idx) const { return idx; }
-    size_t  nth_endpos(size_t idx) const { return m_offsets[idx+1] - DelimLen; }
+    size_t  nth_endpos(size_t idx) const { return m_offsets[idx+1] - m_delim_len; }
     fstring back() const { return (*this)[m_offsets.size()-1]; }
     void swap(SortedStrVecUintTpl&);
     void push_back(fstring str);
@@ -552,11 +551,9 @@ public:
     size_t max_strlen() const;
 };
 
-template<int DelimLen>
-using SortedStrVecU32 = SortedStrVecUintTpl<uint32_t, DelimLen>;
-
-template<int DelimLen>
-using SortedStrVecU64 = SortedStrVecUintTpl<uint64_t, DelimLen>;
+using VoSortedStrVec = SortedStrVec;                  // Vu : VarWidth offset
+using DoSortedStrVec = SortedStrVecUintTpl<uint32_t>; // Du : DWORD    offset
+using QoSortedStrVec = SortedStrVecUintTpl<uint64_t>; // Qu : QWORD    offset
 
 } // namespace terark
 

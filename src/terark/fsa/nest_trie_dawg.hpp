@@ -161,12 +161,10 @@ public:
 	void build_from(SortableStrVec&, const NestLoudsTrieConfig&);
 	void build_from(SortThinStrVec&, const NestLoudsTrieConfig&);
 	void build_from(FixedLenStrVec&, const NestLoudsTrieConfig&);
-	void build_from(  SortedStrVec&, const NestLoudsTrieConfig&);
+	void build_from(VoSortedStrVec&, const NestLoudsTrieConfig&);
 	void build_from(ZoSortedStrVec&, const NestLoudsTrieConfig&);
-	void build_from(SortedStrVecU32<0>&, const NestLoudsTrieConfig&);
-	void build_from(SortedStrVecU32<1>&, const NestLoudsTrieConfig&);
-	void build_from(SortedStrVecU64<0>&, const NestLoudsTrieConfig&);
-	void build_from(SortedStrVecU64<1>&, const NestLoudsTrieConfig&);
+	void build_from(DoSortedStrVec&, const NestLoudsTrieConfig&);
+	void build_from(QoSortedStrVec&, const NestLoudsTrieConfig&);
 
 	void build_with_id(SortableStrVec&, valvec<index_t>& idvec, const NestLoudsTrieConfig&);
 
@@ -327,8 +325,10 @@ TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_SE_512_32_FL, NestTrieDAWG<NestLoudsTri
 TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_IL_256_32_FL, NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_FL, BaseDAWG>);
 TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_XL_256_32_FL, NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_FL, BaseDAWG>);
 
+/*
 TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL, NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_41_FL, BaseDAWG>);
 TERARK_NAME_TYPE(NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL, NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG>);
+*/
 
 /*
 TERARK_NAME_TYPE(DfudsPatriciaTrie_SE, SuffixCoutableNestTrieDAWG<NestDfudsTrie_SE>);

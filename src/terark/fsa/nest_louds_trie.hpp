@@ -181,12 +181,10 @@ public:
 	void build_patricia(SortableStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 	void build_patricia(SortThinStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 	void build_patricia(FixedLenStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(  SortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(VoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(DoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
+	void build_patricia(QoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 	void build_patricia(ZoSortedStrVec&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(SortedStrVecU32<0>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(SortedStrVecU32<1>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(SortedStrVecU64<0>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
-	void build_patricia(SortedStrVecU64<1>&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
 
     template<class StrVecType>
     void build_patricia_tpl(StrVecType&, function<void(const valvec<index_t>& linkVec)> buildTerm, const NestLoudsTrieConfig&);
@@ -413,8 +411,10 @@ TERARK_NAME_TYPE(NestLoudsTrie_Mixed_SE_512_32_FL, NestLoudsTrieTpl<rank_select_
 TERARK_NAME_TYPE(NestLoudsTrie_Mixed_IL_256_32_FL, NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_il_256_0, true>);
 TERARK_NAME_TYPE(NestLoudsTrie_Mixed_XL_256_32_FL, NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_xl_256_0, true>);
 
+/*
 TERARK_NAME_TYPE(NestLoudsTrie_Mixed_IL_256_32_41_FL, NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_il_256_0, true>);
 TERARK_NAME_TYPE(NestLoudsTrie_Mixed_XL_256_32_41_FL, NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_xl_256_0, true>);
+*/
 
 } // namespace terark
 

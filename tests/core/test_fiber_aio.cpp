@@ -14,6 +14,9 @@
 #include <unistd.h>
 
 int main() {
+  #if defined(__DARWIN_NULL)
+    return 0;
+  #endif
     const char* fname = "fiber_aio.test.bin";
     int flags = O_CLOEXEC|O_CREAT|O_RDWR;
   #if defined(O_DIRECT)

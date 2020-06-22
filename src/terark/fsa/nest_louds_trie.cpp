@@ -1165,7 +1165,7 @@ build_patricia(FixedLenStrVec& strVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_patricia(SortedStrVec& strVec,
+build_patricia(VoSortedStrVec& strVec,
                function<void(const valvec<index_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
@@ -1183,7 +1183,7 @@ build_patricia(ZoSortedStrVec& strVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_patricia(SortedStrVecU32<0>& strVec,
+build_patricia(DoSortedStrVec& strVec,
                function<void(const valvec<index_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
@@ -1192,25 +1192,7 @@ build_patricia(SortedStrVecU32<0>& strVec,
 template<class RankSelect, class RankSelect2, bool FastLabel>
 void
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_patricia(SortedStrVecU32<1>& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
-               const NestLoudsTrieConfig& conf)
-{
-    build_patricia_tpl(strVec, buildTerm, conf);
-}
-template<class RankSelect, class RankSelect2, bool FastLabel>
-void
-NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_patricia(SortedStrVecU64<0>& strVec,
-               function<void(const valvec<index_t>&)> buildTerm,
-               const NestLoudsTrieConfig& conf)
-{
-    build_patricia_tpl(strVec, buildTerm, conf);
-}
-template<class RankSelect, class RankSelect2, bool FastLabel>
-void
-NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
-build_patricia(SortedStrVecU64<1>& strVec,
+build_patricia(QoSortedStrVec& strVec,
                function<void(const valvec<index_t>&)> buildTerm,
                const NestLoudsTrieConfig& conf)
 {
@@ -2880,8 +2862,10 @@ template class NestLoudsTrieTpl<rank_select_se_512_32, rank_select_mixed_se_512_
 template class NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_il_256_0, true>;
 template class NestLoudsTrieTpl<rank_select_il_256_32, rank_select_mixed_xl_256_0, true>;
 
+/*
 template class NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_il_256_0, true>;
 template class NestLoudsTrieTpl<rank_select_il_256_32_41, rank_select_mixed_xl_256_0, true>;
+*/
 
 } // namespace terark
 

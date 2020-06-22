@@ -15,6 +15,7 @@
 #include <terark/util/linebuf.hpp>
 #include <getopt.h>
 #include <fcntl.h>
+#include <terark/util/mmap.hpp>
 #include <terark/util/stat.hpp>
 
 using namespace terark;
@@ -35,27 +36,30 @@ Options:
     -U StrVecType, can be one of:
          t: SortThinStrVec, this is the default
          x: SortableStrVec,
-         s:   SortedStrVec, -s must also be specified, for double check
+         s: VoSortedStrVec, -s must also be specified, for double check
          z: ZoSortedStrVec, -s must also be specified, for double check
          f: FixedLenStrVec
-         u: SortedStrVecU32<DelimLen=1>, mmap is used for string content
+         d: DoSortedStrVec, mmap is used for string content
 		      -s must also be specified, for double check
-         +---------------+---------+---------+---------------+-----------+
-         |               |Mem Usage|VarKeyLen|CanBe UnSorted?|CanBe Mmap?|
-		 +---------------+---------+---------+---------------+-----------+
-         |SortThinStrVec |  High   |   Yes   |     Yes       |    Yes    |
-         |SortableStrVec |  High   |   Yes   |     Yes       |    Yes    |
-         |  SortedStrVec | Medium  |   Yes   |Must Be Sorted |    LF     |
-         |ZoSortedStrVec |  Low    |   Yes   |Must Be Sorted |    LF     |
-         |FixedLenStrVec |  Lowest |   No    |     Yes       |    LF     |
-         |SortedStrVecU32|  Lowest |   Yes   |     Yes       |    Yes    |
-         +---------------+---------+---------+---------------+-----------+
-          ZoSortedStrVec is slower than SortedStrVec(20%% ~ 40%% slower).
-          When using ZoSortedStrVec, you should also use -T 4@/path/to/tmpdir,
-          otherwise warning will be issued.
-              LF means the line feed char('\n') of each line will be
-          included in the output NLT. when using mmap input,
-          only SortedStrVecU32 will trim the LF char.
+         q: QoSortedStrVec, mmap is used for string content
+		      -s must also be specified, for double check
+         +--------------+---------+---------+---------------+---------+
+         |              |Mem Usage|VarKeyLen|CanBe UnSorted?|With Mmap|
+		 +--------------+---------+---------+---------------+---------+
+         |SortThinStrVec|  High   |   Yes   |     Yes       | Trim LF |
+         |SortableStrVec|  High   |   Yes   |     Yes       | Trim LF |
+         |VoSortedStrVec| Medium  |   Yes   |Must Be Sorted | Keep LF |
+         |ZoSortedStrVec|  Low    |   Yes   |Must Be Sorted | Keep LF |
+         |FixedLenStrVec|  Lowest |   No    |     Yes       | Keep LF |
+         |DoSortedStrVec|  Lowest |   Yes   |     Yes       | Trim LF |
+         |QoSortedStrVec|  Lowest |   Yes   |     Yes       | Trim LF |
+         +--------------+---------+---------+---------------+---------+
+         * ZoSortedStrVec is slower than SortedStrVec(20%% ~ 40%% slower).
+           When using ZoSortedStrVec, you should also use -T 4@/path/to/tmpdir,
+           otherwise warning will be issued.
+         * When using mmap input, there are more notes:
+           Keep LF: the LF char('\n') of each line is kept   in the output NLT
+           Trim LF: the LF char('\n') of each line is trimed in the output NLT
     -T TmpDir, if specified, will use less memory
        TmpLevel@TmpDir, TmpLevel is 0-9
     -F bool(0 or 1), default = 1
@@ -87,7 +91,7 @@ const char* rlouds_trie_fname = NULL;
 const char* bench_input_fname = NULL;
 const char* nlt_order_fname = NULL;
 auchar_t kv_delim = '\t';
-char strVecTypeChar = 't';
+unsigned char strVecTypeChar = 't';
 NestLoudsTrieConfig conf;
 
 template<class NestTrieDAWG>
@@ -158,7 +162,7 @@ int main(int argc, char* argv[]) {
 			break;
         case 'U':
             strVecTypeChar = optarg[0];
-            if (strchr("zxsftu", strVecTypeChar) == NULL) {
+            if (strchr("zxsftdq", strVecTypeChar) == NULL) {
                 fprintf(stderr, "ERROR: invalid option: -U %c\n", strVecTypeChar);
                 usage(argv[0]);
             }
@@ -170,7 +174,7 @@ int main(int argc, char* argv[]) {
 		}
 	}
 GetoptDone:
-    if (strchr("zs", strVecTypeChar) && !conf.isInputSorted) {
+    if (strchr("zsdq", strVecTypeChar) && !conf.isInputSorted) {
         fprintf(stderr,
             "ERROR: When using option (-U s) or (-U z), option (-s) is required\n");
         usage(argv[0]);
@@ -194,10 +198,12 @@ GetoptDone:
 			return build<NestLoudsTrieDAWG_Mixed_IL_256_32_FL>(argc, argv);
 		if (strcasecmp(rank_select_impl, "m-xl-256") == 0)
 			return build<NestLoudsTrieDAWG_Mixed_XL_256_32_FL>(argc, argv);
+		/*
 		if (strcasecmp(rank_select_impl, "m-il-256-41") == 0)
 			return build<NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL>(argc, argv);
 		if (strcasecmp(rank_select_impl, "m-xl-256-41") == 0)
 			return build<NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL>(argc, argv);
+		*/
 	}
 	else {
 		if (strcasecmp(rank_select_impl, "se-256") == 0)
@@ -214,6 +220,7 @@ GetoptDone:
 			return build<NestLoudsTrieDAWG_Mixed_IL_256>(argc, argv);
 		if (strcasecmp(rank_select_impl, "m-xl-256") == 0)
 			return build<NestLoudsTrieDAWG_Mixed_XL_256>(argc, argv);
+		/*
 		if (strcasecmp(rank_select_impl, "m-il-256-41") == 0) {
             fprintf(stderr, "ERROR: -R m-il-256-41 must with -F1\n");
 			return 1;
@@ -222,6 +229,7 @@ GetoptDone:
             fprintf(stderr, "ERROR: -R m-xl-256-41 must with -F1\n");
 			return 1;
         }
+		*/
 	}
 	fprintf(stderr, "ERROR: invalid arg: -R %s\n", rank_select_impl);
 	usage(argv[0]);
@@ -235,7 +243,7 @@ int build(int argc, char* argv[]) {
     switch (strVecTypeChar) {
     default:
         fprintf(stderr, "ERROR: %s: bad strVecTypeChar = %c(0x%02X)\n"
-            , BOOST_CURRENT_FUNCTION, strVecTypeChar, strVecTypeChar&255);
+            , BOOST_CURRENT_FUNCTION, strVecTypeChar, strVecTypeChar);
         usage(argv[0]);
         break;
     case 'z':
@@ -248,9 +256,11 @@ int build(int argc, char* argv[]) {
         return build_impl<NestTrieDAWG, FixedLenStrVec>(argc, argv);
     case 't':
         return build_impl<NestTrieDAWG, SortThinStrVec>(argc, argv);
-    case 'u':
-        return build_impl<NestTrieDAWG, SortedStrVecU32<1> >(argc, argv);
-    }
+    case 'd':
+        return build_impl<NestTrieDAWG, DoSortedStrVec>(argc, argv);
+	case 'q':
+		return build_impl<NestTrieDAWG, QoSortedStrVec>(argc, argv);
+	}
     return 0; // should not goes here, for compiler warnings
 }
 
@@ -287,8 +297,8 @@ void StrVec_sanitize(ZoSortedStrVecWithBuilder& strVec, size_t keylen) {
         strVec.init(128);
     }
 }
-template<class U, int D>
-void StrVec_sanitize(SortedStrVecUintTpl<U,D>& strVec, size_t keylen) {
+template<class U>
+void StrVec_sanitize(SortedStrVecUintTpl<U>& strVec, size_t keylen) {
 	// do nothing
 }
 
@@ -361,9 +371,10 @@ void StrVec_index_reserve(SortedStrVec& strVec, size_t num, size_t filesize) {
 	strVec.m_offsets.resize_with_wire_max_val(num, filesize);
 	strVec.m_offsets.resize(0);
 }
-template<class U, int D>
-void StrVec_index_reserve(SortedStrVecUintTpl<U,D>& strVec, size_t num, size_t) {
+template<class U>
+void StrVec_index_reserve(SortedStrVecUintTpl<U>& strVec, size_t num, size_t) {
 	strVec.m_offsets.reserve(num);
+	strVec.m_delim_len = 1; // for '\n'
 }
 void StrVec_index_reserve(FixedLenStrVec&, size_t, size_t) {} // do nothing
 
@@ -385,7 +396,7 @@ void StrVec_init_reserve(ZoSortedStrVecWithBuilder& strVec, size_t filesize) {
 }
 
 void StrVec_index_push(SortableStrVec& strVec, size_t offset, size_t len) {
-    strVec.m_index.push_back({offset, len, strVec.m_index.size()});
+    strVec.m_index.push_back({offset, len, (uint32_t)strVec.m_index.size()});
 }
 void StrVec_index_push(SortThinStrVec& strVec, size_t offset, size_t len) {
     strVec.m_index.push_back({offset,len});
@@ -397,8 +408,8 @@ void StrVec_index_push(ZoSortedStrVecWithBuilder& strVec, size_t offset, size_t)
 	strVec.push_offset(offset);
 }
 void StrVec_index_push(FixedLenStrVec& strVec, size_t offset, size_t) {}
-template<class U, int D>
-void StrVec_index_push(SortedStrVecUintTpl<U,D>& strVec, size_t offset, size_t) {
+template<class U>
+void StrVec_index_push(SortedStrVecUintTpl<U>& strVec, size_t offset, size_t) {
     strVec.m_offsets.push_back(offset);
 }
 
@@ -418,15 +429,15 @@ void StrVec_index_finish(ZoSortedStrVecWithBuilder& strVec, size_t offset) {
 	strVec.finish();
 }
 void StrVec_index_finish(FixedLenStrVec& strVec, size_t offset) {}
-template<class U, int D>
-void StrVec_index_finish(SortedStrVecUintTpl<U,D>& strVec, size_t offset) {
+template<class U>
+void StrVec_index_finish(SortedStrVecUintTpl<U>& strVec, size_t offset) {
     strVec.m_offsets.push_back(offset);
 }
 
 template<class StrVec>
 bool StrVec_needs_end_lf(StrVec&) { return true; }
-template<class U, int D>
-bool StrVec_needs_end_lf(SortedStrVecUintTpl<U,D>&) { return false; }
+template<class U>
+bool StrVec_needs_end_lf(SortedStrVecUintTpl<U>&) { return false; }
 bool StrVec_needs_end_lf(SortableStrVec&) { return false; }
 bool StrVec_needs_end_lf(SortThinStrVec&) { return false; }
 
@@ -521,7 +532,7 @@ int build_impl(int argc, char* argv[]) {
 			else {
 				base = (byte_t*)mmap_load(input_fname, &size, false, true);
 			}
-		} catch (std::exception& ex) {
+		} catch (std::exception&) {
 			fprintf(stderr, "mmap failed\n");
 			exit(1);
 		}

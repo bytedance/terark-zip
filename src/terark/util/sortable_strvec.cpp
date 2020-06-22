@@ -1409,26 +1409,27 @@ size_t SortedStrVec::max_strlen() const {
 
 /////////////////////////////////////////////////////////////////////////////
 
-template<class UintXX, int DelimLen>
-SortedStrVecUintTpl<UintXX, DelimLen>::SortedStrVecUintTpl() {
+template<class UintXX>
+SortedStrVecUintTpl<UintXX>::SortedStrVecUintTpl(size_t delim_len) {
+	m_delim_len = delim_len;
 	m_offsets_mem_type = MemType::Malloc;
 	m_strpool_mem_type = MemType::Malloc;
 }
 
-template<class UintXX, int DelimLen>
-SortedStrVecUintTpl<UintXX, DelimLen>::~SortedStrVecUintTpl() {
+template<class UintXX>
+SortedStrVecUintTpl<UintXX>::~SortedStrVecUintTpl() {
 	m_offsets.risk_destroy(m_offsets_mem_type);
 	m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::reserve(size_t strNum, size_t maxStrPool) {
-    m_strpool.reserve(maxStrPool + DelimLen*strNum);
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::reserve(size_t strNum, size_t maxStrPool) {
+    m_strpool.reserve(maxStrPool + m_delim_len*strNum);
     m_offsets.reserve(strNum+1);
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::shrink_to_fit() {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::shrink_to_fit() {
     if (terark_unlikely(0 == m_offsets.size())){
         m_offsets.push_back(0);
     }
@@ -1436,48 +1437,49 @@ void SortedStrVecUintTpl<UintXX, DelimLen>::shrink_to_fit() {
     m_offsets.shrink_to_fit();
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::swap(SortedStrVecUintTpl& y) {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::swap(SortedStrVecUintTpl& y) {
     m_offsets.swap(y.m_offsets);
     m_strpool.swap(y.m_strpool);
+	std::swap(m_delim_len, y.m_delim_len);
 	std::swap(m_offsets_mem_type, y.m_offsets_mem_type);
 	std::swap(m_strpool_mem_type, y.m_strpool_mem_type);
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::push_back(fstring str) {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::push_back(fstring str) {
     if (terark_unlikely(m_offsets.size() == 0)) {
         m_offsets.push_back(0);
     }
     m_strpool.append(str.data(), str.size());
     m_offsets.push_back(m_strpool.size());
-	m_offsets.push_n(DelimLen, '\0');
+	m_offsets.push_n(m_delim_len, '\0');
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::pop_back() {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::pop_back() {
 	size_t osize = m_offsets.size();
     assert(osize > 2);
     m_strpool.risk_set_size(m_offsets[osize-2]);
     m_offsets.risk_set_size(osize-1);
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::back_grow_no_init(size_t nGrow) {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::back_grow_no_init(size_t nGrow) {
     assert(m_offsets.size() >= 2);
 	size_t slen = m_strpool.size() + nGrow;
     m_strpool.resize_no_init(slen);
     m_offsets.back() = slen;
 }
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::reverse_keys() {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::reverse_keys() {
     byte_t* beg = m_strpool.begin();
     size_t  offset = 0;
     for(size_t i = 0, n = m_offsets.size()-1; i < n; ++i) {
         size_t endpos = m_offsets[i+1];
     //  std::reverse(beg, beg + fixlen);
         byte_t* lo = beg + offset;
-        byte_t* hi = beg + endpos - DelimLen;
+        byte_t* hi = beg + endpos - m_delim_len;
         while (lo < --hi) {
             byte_t tmp = *lo;
             *lo = *hi;
@@ -1488,29 +1490,29 @@ void SortedStrVecUintTpl<UintXX, DelimLen>::reverse_keys() {
     }
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::sort() {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::sort() {
     THROW_STD(invalid_argument, "This method is not supported");
 }
 
-template<class UintXX, int DelimLen>
-void SortedStrVecUintTpl<UintXX, DelimLen>::clear() {
+template<class UintXX>
+void SortedStrVecUintTpl<UintXX>::clear() {
     m_offsets.risk_destroy(m_offsets_mem_type);
     m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::lower_bound_by_offset(size_t offset) const {
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::lower_bound_by_offset(size_t offset) const {
     return lower_bound_0(m_offsets.begin(), m_offsets.size()-1, offset);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound_by_offset(size_t offset) const {
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::upper_bound_by_offset(size_t offset) const {
     return upper_bound_0(m_offsets.begin(), m_offsets.size()-1, offset);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
     assert(m_offsets.size() >= 1);
     assert(lo < hi);
     assert(hi <= m_offsets.size()-1);
@@ -1538,32 +1540,32 @@ size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound_at_pos(size_t lo, size
     return lo;
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::lower_bound(fstring key) const {
-    return lower_bound_0<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, m_offsets.size()-1, key);
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::lower_bound(fstring key) const {
+    return lower_bound_0<const SortedStrVecUintTpl<UintXX>&>(*this, m_offsets.size()-1, key);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound(fstring key) const {
-    return upper_bound_0<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, m_offsets.size()-1, key);
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::upper_bound(fstring key) const {
+    return upper_bound_0<const SortedStrVecUintTpl<UintXX>&>(*this, m_offsets.size()-1, key);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::lower_bound(fstring key, size_t start, size_t end) const {
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::lower_bound(fstring key, size_t start, size_t end) const {
     assert(start <= end);
     assert(end <= m_offsets.size()-1);
-    return lower_bound_n<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, start, end, key);
+    return lower_bound_n<const SortedStrVecUintTpl<UintXX>&>(*this, start, end, key);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::upper_bound(fstring key, size_t start, size_t end) const {
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::upper_bound(fstring key, size_t start, size_t end) const {
     assert(start <= end);
     assert(end <= m_offsets.size()-1);
-    return upper_bound_n<const SortedStrVecUintTpl<UintXX, DelimLen>&>(*this, start, end, key);
+    return upper_bound_n<const SortedStrVecUintTpl<UintXX>&>(*this, start, end, key);
 }
 
-template<class UintXX, int DelimLen>
-size_t SortedStrVecUintTpl<UintXX, DelimLen>::max_strlen() const {
+template<class UintXX>
+size_t SortedStrVecUintTpl<UintXX>::max_strlen() const {
 	const auto offsets = m_offsets.data();
     const auto size = m_offsets.size();
     size_t maxlen = 0;
@@ -1574,16 +1576,11 @@ size_t SortedStrVecUintTpl<UintXX, DelimLen>::max_strlen() const {
         if (maxlen < x)
             maxlen = x;
     }
-    return maxlen - DelimLen;
+    return maxlen - m_delim_len;
 }
 
-template class SortedStrVecUintTpl<uint32_t, 0>;
-template class SortedStrVecUintTpl<uint32_t, 1>;
-template class SortedStrVecUintTpl<uint32_t, 2>;
-
-template class SortedStrVecUintTpl<uint64_t, 0>;
-template class SortedStrVecUintTpl<uint64_t, 1>;
-template class SortedStrVecUintTpl<uint64_t, 2>;
+template class SortedStrVecUintTpl<uint32_t>;
+template class SortedStrVecUintTpl<uint64_t>;
 
 } // namespace terark
 

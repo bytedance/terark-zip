@@ -596,7 +596,7 @@ build_from(FixedLenStrVec& strVec, const NestLoudsTrieConfig& conf) {
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::
-build_from(SortedStrVec& strVec, const NestLoudsTrieConfig& conf) {
+build_from(VoSortedStrVec& strVec, const NestLoudsTrieConfig& conf) {
     build_from_tpl(strVec, conf);
 }
 template<class NestTrie, class DawgType>
@@ -608,25 +608,13 @@ build_from(ZoSortedStrVec& strVec, const NestLoudsTrieConfig& conf) {
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::
-build_from(SortedStrVecU32<0>& strVec, const NestLoudsTrieConfig& conf) {
+build_from(DoSortedStrVec& strVec, const NestLoudsTrieConfig& conf) {
     build_from_tpl(strVec, conf);
 }
 template<class NestTrie, class DawgType>
 void
 NestTrieDAWG<NestTrie, DawgType>::
-build_from(SortedStrVecU32<1>& strVec, const NestLoudsTrieConfig& conf) {
-    build_from_tpl(strVec, conf);
-}
-template<class NestTrie, class DawgType>
-void
-NestTrieDAWG<NestTrie, DawgType>::
-build_from(SortedStrVecU64<0>& strVec, const NestLoudsTrieConfig& conf) {
-    build_from_tpl(strVec, conf);
-}
-template<class NestTrie, class DawgType>
-void
-NestTrieDAWG<NestTrie, DawgType>::
-build_from(SortedStrVecU64<1>& strVec, const NestLoudsTrieConfig& conf) {
+build_from(QoSortedStrVec& strVec, const NestLoudsTrieConfig& conf) {
     build_from_tpl(strVec, conf);
 }
 
@@ -736,8 +724,10 @@ template class NestTrieDAWG<NestLoudsTrie_Mixed_SE_512_32_FL, BaseDAWG>;
 template class NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_FL, BaseDAWG>;
 template class NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_FL, BaseDAWG>;
 
+/*
 template class NestTrieDAWG<NestLoudsTrie_Mixed_IL_256_32_41_FL, BaseDAWG>;
 template class NestTrieDAWG<NestLoudsTrie_Mixed_XL_256_32_41_FL, BaseDAWG>;
+*/
 ///@}
 
 // for compatible with old mmap file format
@@ -769,8 +759,10 @@ TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_SE_512_32_FL);
 TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_IL_256_32_FL);
 TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_XL_256_32_FL);
 
+/*
 TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL);
 TERARK_DFA_NO_LOAD_SAVE(NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL);
+*/
 ///@}
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
@@ -796,8 +788,10 @@ TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_Mixed_SE_512_32_FL)
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_Mixed_IL_256_32_FL)
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_Mixed_XL_256_32_FL)
 
+/*
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_Mixed_IL_256_32_41_FL)
 TMPL_INST_DFA_CLASS(NestLoudsTrieDAWG_Mixed_XL_256_32_41_FL)
+*/
 ///@}
 
 } // namespace terark
