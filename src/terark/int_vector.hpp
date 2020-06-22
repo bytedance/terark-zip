@@ -87,7 +87,7 @@ public:
 		assert(m_bits <= 64);
 		size_t bits = m_bits; // load member into a register
 		size_t bit_idx = bits * idx;
-    febitvec::s_set_uint((size_t*)m_data.data(), bit_idx, bits, val);
+		febitvec::s_set_uint((size_t*)m_data.data(), bit_idx, bits, val);
 	}
 
 	template<class Uint>
@@ -229,6 +229,16 @@ public:
   }
   size_t back() const { assert(m_size > 0); return get(m_size-1); }
   size_t operator[](size_t idx) const { return get(idx); }
+
+  std::pair<size_t, size_t>
+         equal_range(size_t lo, size_t hi, size_t key) const noexcept;
+  size_t lower_bound(size_t lo, size_t hi, size_t key) const noexcept;
+  size_t upper_bound(size_t lo, size_t hi, size_t key) const noexcept;
+
+  std::pair<size_t, size_t>
+         equal_range(size_t key) const noexcept { return equal_range(0, m_size, key); }
+  size_t lower_bound(size_t key) const noexcept { return lower_bound(0, m_size, key); }
+  size_t upper_bound(size_t key) const noexcept { return upper_bound(0, m_size, key); }
 };
 
 // Max uint bits is 64
@@ -260,6 +270,16 @@ public:
   }
   size_t back() const { assert(m_size > 0); return get(m_size-1); }
   size_t operator[](size_t idx) const { return get(idx); }
+
+  std::pair<size_t, size_t>
+         equal_range(size_t lo, size_t hi, size_t key) const noexcept;
+  size_t lower_bound(size_t lo, size_t hi, size_t key) const noexcept;
+  size_t upper_bound(size_t lo, size_t hi, size_t key) const noexcept;
+
+  std::pair<size_t, size_t>
+         equal_range(size_t key) const noexcept { return equal_range(0, m_size, key); }
+  size_t lower_bound(size_t key) const noexcept { return lower_bound(0, m_size, key); }
+  size_t upper_bound(size_t key) const noexcept { return upper_bound(0, m_size, key); }
 };
 
 template<class Int>
@@ -338,6 +358,37 @@ public:
 		}
 #endif
 	}
+
+	std::pair<size_t, size_t>
+	equal_range(size_t lo, size_t hi, size_t key) const noexcept {
+		assert(lo <= hi);
+		assert(hi <= m_size);
+		if (terark_likely(m_min_val < key))
+			return UintVecMin0::equal_range(lo, hi, key - m_min_val);
+		else
+			return std::make_pair(lo, lo);
+	}
+	size_t lower_bound(size_t lo, size_t hi, size_t key) const noexcept {
+		assert(lo <= hi);
+		assert(hi <= m_size);
+		if (terark_likely(m_min_val < key))
+			return UintVecMin0::lower_bound(lo, hi, key - m_min_val);
+		else
+			return lo;
+	}
+	size_t upper_bound(size_t lo, size_t hi, size_t key) const noexcept {
+		assert(lo <= hi);
+		assert(hi <= m_size);
+		if (terark_likely(m_min_val < key))
+			return UintVecMin0::upper_bound(lo, hi, key - m_min_val);
+		else
+			return lo;
+	}
+
+	std::pair<size_t, size_t>
+		   equal_range(size_t key) const noexcept { return equal_range(0, m_size, key); }
+	size_t lower_bound(size_t key) const noexcept { return lower_bound(0, m_size, key); }
+	size_t upper_bound(size_t key) const noexcept { return upper_bound(0, m_size, key); }
 };
 
 typedef ZipIntVector<size_t>   UintVector;

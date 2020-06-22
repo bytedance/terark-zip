@@ -106,5 +106,124 @@ UintVecMin0Base::create_builder_by_max_value(size_t max_val, OutputBuffer* buffe
     return new UintVecMin0Builder(UintVecMin0::compute_uintbits(max_val), buffer);
 }
 
+terark_flatten
+std::pair<size_t, size_t>
+UintVecMin0::equal_range(size_t lo, size_t hi, size_t key) const noexcept {
+    assert(lo <= hi);
+    assert(hi <= m_size);
+    size_t bits = m_bits;
+    size_t mask = m_mask;
+    const byte_t* data = m_data.data();
+    while (lo < hi) {
+        size_t mid_idx = (lo + hi) / 2;
+        size_t bit_idx = bits * mid_idx;
+        size_t mid_val = unaligned_load<size_t>(data + bit_idx / 8);
+        mid_val = (mid_val >> bit_idx % 8) & mask;
+        if (mid_val < key)
+            lo = mid_idx + 1;
+        else if (key < mid_val)
+            hi = mid_idx;
+        else
+            return std::make_pair(lower_bound(lo, mid_idx, key),
+                                  upper_bound(mid_idx+1, hi, key));
+    }
+    return std::make_pair(lo, lo);
+}
+
+size_t
+UintVecMin0::lower_bound(size_t lo, size_t hi, size_t key) const noexcept {
+    assert(lo <= hi);
+    assert(hi <= m_size);
+    size_t bits = m_bits;
+    size_t mask = m_mask;
+    const byte_t* data = m_data.data();
+    while (lo < hi) {
+        size_t mid_idx = (lo + hi) / 2;
+        size_t bit_idx = bits * mid_idx;
+        size_t mid_val = unaligned_load<size_t>(data + bit_idx / 8);
+        mid_val = (mid_val >> bit_idx % 8) & mask;
+        if (mid_val < key)
+            lo = mid_idx + 1;
+        else
+            hi = mid_idx;
+    }
+    return lo;
+}
+
+size_t
+UintVecMin0::upper_bound(size_t lo, size_t hi, size_t key) const noexcept {
+    assert(lo <= hi);
+    assert(hi <= m_size);
+    size_t bits = m_bits;
+    size_t mask = m_mask;
+    const byte_t* data = m_data.data();
+    while (lo < hi) {
+        size_t mid_idx = (lo + hi) / 2;
+        size_t bit_idx = bits * mid_idx;
+        size_t mid_val = unaligned_load<size_t>(data + bit_idx / 8);
+        mid_val = (mid_val >> bit_idx % 8) & mask;
+        if (mid_val <= key)
+            lo = mid_idx + 1;
+        else
+            hi = mid_idx;
+    }
+    return lo;
+}
+
+terark_flatten
+std::pair<size_t, size_t>
+BigUintVecMin0::equal_range(size_t lo, size_t hi, size_t key) const noexcept {
+    assert(lo <= hi);
+    assert(hi <= m_size);
+    size_t bits = m_bits;
+    const byte_t* data = m_data.data();
+    while (lo < hi) {
+        size_t mid_idx = (lo + hi) / 2;
+        size_t mid_val = fast_get(data, bits, mid_idx);
+        if (mid_val < key)
+            lo = mid_idx + 1;
+        else if (key < mid_val)
+            hi = mid_idx;
+        else
+            return std::make_pair(lower_bound(lo, mid_idx, key),
+                                  upper_bound(mid_idx+1, hi, key));
+    }
+    return std::make_pair(lo, lo);
+}
+
+size_t
+BigUintVecMin0::lower_bound(size_t lo, size_t hi, size_t key) const noexcept {
+    assert(lo <= hi);
+    assert(hi <= m_size);
+    size_t bits = m_bits;
+    const byte_t* data = m_data.data();
+    while (lo < hi) {
+        size_t mid_idx = (lo + hi) / 2;
+        size_t mid_val = fast_get(data, bits, mid_idx);
+        if (mid_val < key)
+            lo = mid_idx + 1;
+        else
+            hi = mid_idx;
+    }
+    return lo;
+}
+
+size_t
+BigUintVecMin0::upper_bound(size_t lo, size_t hi, size_t key) const noexcept {
+    assert(lo <= hi);
+    assert(hi <= m_size);
+    size_t bits = m_bits;
+    const byte_t* data = m_data.data();
+    while (lo < hi) {
+        size_t mid_idx = (lo + hi) / 2;
+        size_t mid_val = fast_get(data, bits, mid_idx);
+        if (mid_val <= key)
+            lo = mid_idx + 1;
+        else
+            hi = mid_idx;
+    }
+    return lo;
+}
+
 } // namespace terark
 
