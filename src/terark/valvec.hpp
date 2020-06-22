@@ -1258,6 +1258,7 @@ public:
 				break;
 			case MemType::Mmap:
 				assert(n <= c);
+				TERARK_VERIFY(size_t(p) % 4096 == 0);
 				mmap_close(p, sizeof(T) * c);
 				no_break_fallthrough; // fall through
 			case MemType::User:
