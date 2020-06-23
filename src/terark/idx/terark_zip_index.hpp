@@ -3,9 +3,8 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/noncopyable.hpp>
 #include <memory>
-#include <terark/histogram.hpp>
 #include <terark/int_vector.hpp>
-#include <terark/util/fstrvec.hpp>
+#include <terark/fstring.hpp>
 #include <terark/util/refcount.hpp>
 
 namespace terark {

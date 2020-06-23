@@ -7,11 +7,10 @@
 
 #include "terark_zip_index.hpp"
 #include <typeindex>
-// #include "terark_zip_table.h"
 #include <terark/io/DataIO.hpp>
 #include <terark/io/FileStream.hpp>
+#include <terark/io/MemStream.hpp>
 #include <terark/io/StreamBuffer.hpp>
-// #include "terark_zip_common.h"
 #include <terark/bitmap.hpp>
 #include <terark/entropy/entropy_base.hpp>
 #include <terark/entropy/huffman_encoding.hpp>
@@ -32,7 +31,6 @@
 #include <terark/zbs/dict_zip_blob_store.hpp>
 #include <terark/zbs/xxhash_helper.hpp>
 #include <terark/num_to_str.hpp>
-#include <terark/io/MemStream.hpp>
 
 #if __clang__
 # pragma clang diagnostic push
