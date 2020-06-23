@@ -3,9 +3,8 @@
 #include <boost/intrusive_ptr.hpp>
 #include <boost/noncopyable.hpp>
 #include <memory>
-#include <terark/int_vector.hpp>
-#include <terark/fstring.hpp>
 #include <terark/util/refcount.hpp>
+#include <terark/util/sortable_strvec.hpp>
 
 namespace terark {
 
@@ -61,7 +60,7 @@ class TERARK_DLL_EXPORT TerarkIndex : boost::noncopyable {
     inline void SetInvalid() { m_id = size_t(-1); }
   };
   struct TERARK_DLL_EXPORT KeyStat {
-    struct TERARK_DLL_EXPORT DiffItem {
+    struct DiffItem {
       size_t cur = 0, max = 0, cnt = 0;
     };
     size_t keyCount = 0;
@@ -123,6 +122,10 @@ class TERARK_DLL_EXPORT TerarkIndex : boost::noncopyable {
    public:
     virtual ~Factory();
     static TerarkIndex* TERARK_DLL_EXPORT Build(TerarkKeyReader* keyReader,
+                                                const TerarkIndexOptions& tiopt,
+                                                const KeyStat&,
+                                                const PrefixBuildInfo*);
+    static TerarkIndex* TERARK_DLL_EXPORT Build(DoSortedStrVec&,
                                                 const TerarkIndexOptions& tiopt,
                                                 const KeyStat&,
                                                 const PrefixBuildInfo*);

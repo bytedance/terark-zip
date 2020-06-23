@@ -23,7 +23,6 @@
 #include <terark/util/tmpfile.hpp>
 #include <terark/util/crc.hpp>
 #include <terark/util/mmap.hpp>
-#include <terark/util/sortable_strvec.hpp>
 #include <terark/zbs/blob_store_file_header.hpp>
 #include <terark/zbs/zip_reorder_map.hpp>
 #include <terark/zbs/zip_offset_blob_store.hpp>
@@ -3731,6 +3730,16 @@ size_t TerarkIndex::Factory::MemSizeForBuild(const TerarkIndex::KeyStat& ks) {
   size_t cplen = commonPrefixLen(ks.minKey, ks.maxKey);
   size_t indexSize = UintVecMin0::compute_mem_size_by_max_val(ks.sumKeyLen - cplen, ks.keyCount);
   return ks.sumKeyLen - ks.keyCount * commonPrefixLen(ks.minKey, ks.maxKey) + indexSize;
+}
+
+TerarkIndex*
+TerarkIndex::Factory::Build(DoSortedStrVec& strVec,
+                            const TerarkIndexOptions& tiopt,
+                            const KeyStat& ks,
+                            const PrefixBuildInfo* info_ptr)
+{
+  THROW_STD(invalid_argument, "Unsupported");
+  return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
