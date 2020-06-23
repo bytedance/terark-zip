@@ -146,8 +146,8 @@ int main(int argc, const char** argv) {
   test_group(case1, {"AD"});
   test_group(case2, {"QAAA", "QAAB", "QAAAAA"});
 
-  size_t test_times = 100;
-  size_t test_string_num = 1000;
+  size_t test_times = 10;
+  size_t test_string_num = 10;
   for (size_t j = 0; j < test_times; ++j) {
     std::vector<std::string> rand_string;
     std::vector<std::string> test_string;
