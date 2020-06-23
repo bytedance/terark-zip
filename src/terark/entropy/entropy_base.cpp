@@ -6,6 +6,10 @@
 
 namespace terark {
 
+struct TerarkContext::BufferList {
+    BufferList* next;
+    size_t c;
+};
 
 ContextBuffer::~ContextBuffer() {
     if (c_ != nullptr && b_.capacity() >= sizeof(TerarkContext::BufferList) && b_.capacity() < (1ull << 20)) {
@@ -17,14 +21,22 @@ ContextBuffer::~ContextBuffer() {
     }
 }
 
+TerarkContext::~TerarkContext() {
+    while (list_ != nullptr) {
+        auto l = list_->next;
+        valvec<byte_t>().risk_set_data(reinterpret_cast<byte_t*>(list_), list_->c);
+        list_ = l;
+    }
+}
+
 ContextBuffer TerarkContext::alloc(size_t size) {
     size_t m = std::max(size, sizeof(BufferList));
     if (list_ == nullptr) {
         return ContextBuffer(valvec<byte_t>(size > 0 ? m : 0, valvec_reserve()), this);
     }
     BufferList **node = &list_;
-    size_t c = list_->c;
     BufferList *n = list_;
+    size_t c = list_->c;
     for (size_t r = size == 0 ? size_t(-1) : size; n->next != nullptr; n = n->next) {
         size_t nc = n->next->c;
         if (c >= r ? nc >= r && nc < c : nc > c) {

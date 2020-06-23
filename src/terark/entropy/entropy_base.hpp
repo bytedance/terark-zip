@@ -37,6 +37,7 @@ public:
         other.c_ = nullptr;
     }
     ContextBuffer& operator = (ContextBuffer&& other) {
+        assert(this != &other);
         this->~ContextBuffer();
         ::new(this) ContextBuffer(std::move(other));
         return *this;
@@ -61,10 +62,7 @@ public:
 class TerarkContext {
 private:
     friend class ContextBuffer;
-    struct BufferList {
-        BufferList* next;
-        size_t c;
-    };
+    struct BufferList;
     BufferList *list_ = nullptr;
 
     TerarkContext(const ContextBuffer&) = delete;
@@ -73,14 +71,7 @@ private:
     TerarkContext& operator = (ContextBuffer&&) = delete;
 public:
     TerarkContext() = default;
-    ~TerarkContext() {
-        while (list_ != nullptr) {
-            auto l = list_->next;
-            valvec<byte_t>().risk_set_data(reinterpret_cast<byte_t*>(list_), list_->c);
-            list_ = l;
-        }
-    }
-
+    ~TerarkContext();
     ContextBuffer alloc(size_t size = 0);
 };
 

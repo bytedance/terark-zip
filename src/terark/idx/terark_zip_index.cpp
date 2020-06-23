@@ -44,18 +44,20 @@ namespace terark {
 static const uint64_t g_terark_index_prefix_seed = 0x505f6b7261726554ull; // echo Terark_P | od -t x8
 static const uint64_t g_terark_index_suffix_seed = 0x535f6b7261726554ull; // echo Terark_S | od -t x8
 
-#define DEFINE_TERARK_INDEX_ENV_OPT(type,var_name,def_val,env_call,env_name) \
-  static type var_name() { static type g_##var_name = env_call(#env_name,def_val); return g_##var_name; }
+#define DEFINE_TERARK_INDEX_ENV_OPT(type,name,Default,env_call) \
+  static type name() { \
+    static type val = env_call("TerarkZipTable_" #name, Default); \
+    return val; }
 
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableCompositeIndex, true , getEnvBool, TerarkZipTable_enableCompositeIndex);
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableCritBitTrie   , false, getEnvBool, TerarkZipTable_enableCritBitTrie   );
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableUintIndex     , true , getEnvBool, TerarkZipTable_enableUintIndex     );
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableFewZero       , true , getEnvBool, TerarkZipTable_enableFewZero       );
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableNonDescUint   , true , getEnvBool, TerarkZipTable_enableNonDescUint   );
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableDynamicSuffix , true , getEnvBool, TerarkZipTable_enableDynamicSuffix );
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableEntropySuffix , true , getEnvBool, TerarkZipTable_enableEntropySuffix );
-DEFINE_TERARK_INDEX_ENV_OPT(bool, indexEnableDictZipSuffix , true , getEnvBool, TerarkZipTable_enableDictZipSuffix );
-DEFINE_TERARK_INDEX_ENV_OPT(long, indexSuffixThreshold     , 0    , getEnvLong, TerarkZipTable_suffixThreshold     );
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableCompositeIndex, true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableCritBitTrie   , false, getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableUintIndex     , true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableNonDescUint   , true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableFewZero       , true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableDynamicSuffix , true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableEntropySuffix , true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(bool, enableDictZipSuffix , true , getEnvBool);
+DEFINE_TERARK_INDEX_ENV_OPT(long, suffixThreshold     , 0    , getEnvLong);
 
 #undef DEFINE_TERARK_INDEX_ENV_OPT
 
@@ -64,14 +66,14 @@ using std::unique_ptr;
 class TerarkKeyIndexReaderBase : public TerarkKeyReader {
 protected:
   MmapWholeFile mmap;
-  std::unique_ptr<terark::TerarkIndex> index;
+  std::unique_ptr<TerarkIndex> index;
   valvec<byte_t> buffer;
   TerarkIndex::Iterator* iter;
   bool move_next;
 public:
   TerarkKeyIndexReaderBase(fstring fileName, size_t fileBegin, size_t fileEnd) {
     MmapWholeFile(fileName).swap(mmap);
-    index = terark::TerarkIndex::LoadMemory(mmap.memory().substr(fileBegin, fileEnd - fileBegin));
+    index = TerarkIndex::LoadMemory(mmap.memory().substr(fileBegin, fileEnd - fileBegin));
     buffer.resize(index->IteratorSize());
     iter = index->NewIterator(&buffer, nullptr);
   }
@@ -209,7 +211,7 @@ template<size_t P, size_t W> struct RankSelectNeedHint<rank_select_few<P, W>> : 
 static hash_strmap<TerarkIndex::FactoryPtr> g_TerarkIndexFactroy;
 struct TerarkIndexTypeFactroyHash {
   size_t operator()(const std::pair<std::type_index, std::type_index>& key) const {
-    return terark::FaboHashCombine(
+    return FaboHashCombine(
             std::hash<std::type_index>()(key.first),
             std::hash<std::type_index>()(key.second));
   }
@@ -650,7 +652,7 @@ public:
       uint64_t computed = Crc32c_update(0, common.data(), common.size());
       uint64_t saved = footer.common_crc32;
       if (saved != computed) {
-        throw terark::BadCrc32cException("TerarkIndex::LoadMemory Common",
+        throw BadCrc32cException("TerarkIndex::LoadMemory Common",
                                          (uint32_t)saved, (uint32_t)computed);
       }
       computed = XXHash64(g_terark_index_prefix_seed)(prefix);
@@ -1184,7 +1186,7 @@ public:
     return prefix_.NeedsReorder();
   }
 
-  void GetOrderMap(terark::UintVecMin0& newToOld) const final {
+  void GetOrderMap(UintVecMin0& newToOld) const final {
     prefix_.GetOrderMap(newToOld);
   }
 
@@ -1193,7 +1195,7 @@ public:
   }
 
   void DumpKeys(std::function<void(fstring, fstring, fstring)> callback) const final {
-    auto g_ctx = terark::GetTlsTerarkContext();
+    auto g_ctx = GetTlsTerarkContext();
     auto buffer = g_ctx->alloc(IteratorSize());
     auto storage = buffer.data() + sizeof(IndexIterator<Prefix, Suffix>);
     auto iter = ::new(buffer.data()) IndexIterator<Prefix, Suffix>(this, g_ctx, storage);
@@ -1393,7 +1395,7 @@ struct IndexAscendingUintPrefix : public UintPrefixBase<RankSelect> {
   bool NeedsReorder() const {
     return false;
   }
-  void GetOrderMap(terark::UintVecMin0& newToOld) const {
+  void GetOrderMap(UintVecMin0& newToOld) const {
     assert(false);
   }
   void BuildCache(double cacheRatio) {
@@ -1664,7 +1666,7 @@ struct IndexNonDescendingUintPrefix : public UintPrefixBase<RankSelect> {
   bool NeedsReorder() const {
     return false;
   }
-  void GetOrderMap(terark::UintVecMin0& newToOld) const {
+  void GetOrderMap(UintVecMin0& newToOld) const {
     assert(false);
   }
   void BuildCache(double cacheRatio) {
@@ -2044,7 +2046,7 @@ struct IndexNestLoudsTriePrefix : public VirtualPrefixBase {
   bool NeedsReorder() const {
     return true;
   }
-  void GetOrderMap(terark::UintVecMin0& newToOld) const {
+  void GetOrderMap(UintVecMin0& newToOld) const {
     NonRecursiveDictionaryOrderToStateMapGenerator gen;
     gen(*trie_, [&](size_t dictOrderOldId, size_t state) {
       size_t newId = trie_->state_to_word_id(state);
@@ -2324,7 +2326,7 @@ struct IndexCBTPrefix : public VirtualPrefixBase {
 
  protected:
   size_t FindTrie(fstring key) const {
-    return terark::lower_bound_0<const fstrvec&>(bounds_,
+    return lower_bound_0<const fstrvec&>(bounds_,
                                                  cbt_packed.trie_nums(), key);
   }
 };
@@ -2736,7 +2738,7 @@ void AscendingUintPrefixFillRankSelect(
     const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     rank_select_few<P, W>& rs, InputBufferType& input) {
-  assert(indexEnableFewZero());
+  assert(enableFewZero());
   rank_select_few_builder <P, W> builder(info.bit_count0, info.bit_count1, ks.minKey > ks.maxKey);
   for (size_t seq_id = 0; seq_id < info.key_count; ++seq_id) {
     auto key = input.next();
@@ -2807,7 +2809,7 @@ void NonDescendingUintPrefixFillRankSelect(
     const PrefixBuildInfo& info,
     const TerarkIndex::KeyStat& ks,
     rank_select_few<P, W>& rs, InputBufferType& input) {
-  assert(indexEnableFewZero());
+  assert(enableFewZero());
   bool isReverse = ks.minKey > ks.maxKey;
   rank_select_few_builder<P, W> builder(info.bit_count0, info.bit_count1, isReverse);
   size_t bit_count = info.bit_count0 + info.bit_count1;
@@ -2847,7 +2849,7 @@ BuildNonDescendingUintPrefix(
     InputBufferType& input,
     const TerarkIndex::KeyStat& ks,
     const PrefixBuildInfo& info) {
-  assert(indexEnableNonDescUint());
+  assert(enableNonDescUint());
   RankSelect rank_select;
   assert(info.min_value <= info.max_value);
   NonDescendingUintPrefixFillRankSelect(info, ks, rank_select, input);
@@ -2865,7 +2867,7 @@ BuildUintPrefix(
     InputBufferType& input,
     const TerarkIndex::KeyStat& ks,
     const PrefixBuildInfo& info) {
-  assert(indexEnableUintIndex());
+  assert(enableUintIndex());
   input.rewind();
   switch (info.type) {
   case PrefixBuildInfo::asc_few_zero_3:
@@ -3121,7 +3123,7 @@ BuildEmptySuffix() {
 }
 
 bool UseEntropySuffix(size_t numKeys, size_t sumKeyLen, double zipRatio) {
-  return indexEnableEntropySuffix() && numKeys > 4096 && sumKeyLen * zipRatio + 1024 < sumKeyLen;
+  return enableEntropySuffix() && numKeys > 4096 && sumKeyLen * zipRatio + 1024 < sumKeyLen;
 }
 
 template<class InputBufferType>
@@ -3129,7 +3131,7 @@ SuffixBase*
 BuildFixedStringSuffix(
     InputBufferType& input,
     size_t numKeys, size_t sumKeyLen, size_t fixedLen, bool isReverse) {
-  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
+  assert(enableCompositeIndex() || enableCritBitTrie());
   input.rewind();
   FixedLenStrVec keyVec(fixedLen);
   IndexFillKeyVector(input, keyVec, numKeys, sumKeyLen, fixedLen, false);
@@ -3140,7 +3142,7 @@ BuildFixedStringSuffix(
 }
 
 bool UseDictZipSuffix(size_t numKeys, size_t sumKeyLen, double zipRatio) {
-  return indexEnableDictZipSuffix() && numKeys > 8192 && sumKeyLen > numKeys * 32 &&
+  return enableDictZipSuffix() && numKeys > 8192 && sumKeyLen > numKeys * 32 &&
          (sumKeyLen + numKeys * 4) * zipRatio + 1024 < sumKeyLen + numKeys;
 }
 
@@ -3149,16 +3151,16 @@ SuffixBase*
 BuildVerLenSuffix(
     InputBufferType& input,
     size_t numKeys, size_t sumKeyLen, bool isReverse) {
-  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
-  assert(indexEnableDynamicSuffix());
+  assert(enableCompositeIndex() || enableCritBitTrie());
+  assert(enableDynamicSuffix());
   input.rewind();
   FileMemIO memory;
-  terark::ZipOffsetBlobStore::Options options;
+  ZipOffsetBlobStore::Options options;
   options.block_units = 128;
   options.compress_level = 0;
   options.checksum_level = 1;
   options.checksum_type = 0;
-  terark::ZipOffsetBlobStore::MyBuilder builder(memory, options);
+  ZipOffsetBlobStore::MyBuilder builder(memory, options);
   for (size_t i = 0; i < numKeys; ++i) {
     auto str = input.next();
     builder.addRecord(str);
@@ -3182,8 +3184,8 @@ template<class InputBufferType>
 SuffixBase*
 BuildEntropySuffix(InputBufferType& input, size_t numKeys, size_t sumKeyLen,
                    bool isReverse, const TerarkIndexOptions& tiopt) {
-  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
-  assert(indexEnableEntropySuffix());
+  assert(enableCompositeIndex() || enableCritBitTrie());
+  assert(enableEntropySuffix());
   input.rewind();
   std::unique_ptr<freq_hist_o1> freq(new freq_hist_o1);
   for (size_t i = 0; i < numKeys; ++i) {
@@ -3217,8 +3219,8 @@ template <class InputBufferType>
 SuffixBase *BuildDictZipSuffix(InputBufferType &input, size_t numKeys,
                                size_t sumKeyLen, bool isReverse,
                                const TerarkIndexOptions &tiopt) {
-  assert(indexEnableCompositeIndex() || indexEnableCritBitTrie());
-  assert(indexEnableDynamicSuffix());
+  assert(enableCompositeIndex() || enableCritBitTrie());
+  assert(enableDynamicSuffix());
   input.rewind();
   FileMemIO memory;
   std::unique_ptr<DictZipBlobStore::ZipBuilder> zbuilder;
@@ -3310,12 +3312,12 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
   };
   size_t keyCount = ks.keyCount;
   size_t totalKeySize = ks.sumKeyLen - keyCount * cplen;
-  if (indexEnableCritBitTrie() && totalKeySize / keyCount > opt.cbtMinKeySize &&
+  if (enableCritBitTrie() && totalKeySize / keyCount > opt.cbtMinKeySize &&
       totalKeySize >= ks.sumValueLen * opt.cbtMinKeyRatio) {
     result.type = PrefixBuildInfo::crit_bit_trie;
   }
-  if (!indexEnableUintIndex() ||
-      (!indexEnableDynamicSuffix() && ks.maxKeyLen != ks.minKeyLen)) {
+  if (!enableUintIndex() ||
+      (!enableDynamicSuffix() && ks.maxKeyLen != ks.minKeyLen)) {
     return result;
   }
   size_t maxPrefixLen = std::min<size_t>(8, ks.minKeyLen - cplen);
@@ -3329,7 +3331,7 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
     entryCnt[i - cplen] = keyCount - (i < ks.diff.size() ? ks.diff[i].cnt : 0);
   }
   for (size_t i = 2; i <= maxPrefixLen; ++i) {
-    if (!indexEnableCompositeIndex() && (ks.maxKeyLen != ks.minKeyLen || cplen + i != ks.maxKeyLen)) {
+    if (!enableCompositeIndex() && (ks.maxKeyLen != ks.minKeyLen || cplen + i != ks.maxKeyLen)) {
       continue;
     }
     if (cplen + i < ks.diff.size() && (ks.diff[cplen + i].max > 32 || entryCnt[i - 1] * 4 < keyCount)) {
@@ -3348,8 +3350,8 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
     assert(info.entry_count > 0);
     assert(diff >= info.entry_count - 1);
     size_t bit_count;
-    bool useFewOne = indexEnableFewZero();
-    bool useFewZero = indexEnableFewZero();
+    bool useFewOne = enableFewZero();
+    bool useFewZero = enableFewZero();
     bool useNormal = true;
     if (info.entry_count == keyCount) {
       // ascending
@@ -3371,7 +3373,7 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
     } else {
       // non descending
       info.bit_count1 = keyCount;
-      if (!indexEnableNonDescUint() || keyCount + 1 > std::numeric_limits<uint64_t>::max() - diff) {
+      if (!enableNonDescUint() || keyCount + 1 > std::numeric_limits<uint64_t>::max() - diff) {
         info.bit_count0 = 0;
         bit_count = 0;
         useFewOne = false;
@@ -3435,7 +3437,7 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
       continue;
     }
     size_t suffixCost = totalKeySize - i * keyCount;
-    if (suffixCost / ks.keyCount < size_t(indexSuffixThreshold())) {
+    if (suffixCost / ks.keyCount < size_t(suffixThreshold())) {
       continue;
     } else if (index_detail::UseDictZipSuffix(keyCount, suffixCost, info.zip_ratio)) {
       suffixCost = (suffixCost + 8 * keyCount) * info.zip_ratio + 1024;
@@ -3702,8 +3704,8 @@ TerarkIndex* TerarkIndex::Factory::Build(TerarkKeyReader* reader, const TerarkIn
     prefix = BuildCritBitTriePrefix(input_reader, tiopt, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen, isReverse);
     suffix = BuildSuffixAutoSelect(input_reader, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen,
                                    ks.minKeyLen == ks.maxKeyLen, isReverse, uint_prefix_info.zip_ratio, tiopt);
-  } else if ((!indexEnableDynamicSuffix() && ks.minSuffixLen != ks.maxSuffixLen) ||
-              !indexEnableCompositeIndex() || ks.sumPrefixLen >= ks.sumKeyLen * 31 / 32) {
+  } else if ((!enableDynamicSuffix() && ks.minSuffixLen != ks.maxSuffixLen) ||
+              !enableCompositeIndex() || ks.sumPrefixLen >= ks.sumKeyLen * 31 / 32) {
     DefaultInputBuffer input_reader{reader, cplen};
     prefix = BuildNestLoudsTriePrefix(
         input_reader, tiopt, ks.keyCount, ks.sumKeyLen - ks.keyCount * cplen,
@@ -3743,9 +3745,9 @@ unique_ptr<TerarkIndex> TerarkIndex::LoadMemory(fstring mem) {
       throw std::invalid_argument("TerarkIndex::LoadMemory(): Bad mem size");
     }
     auto& footer = ((const TerarkIndexFooter*)(mem.data() + mem.size() - offset))[-1];
-    auto crc = terark::Crc32c_update(0, &footer, sizeof footer - sizeof(uint32_t));
+    auto crc = Crc32c_update(0, &footer, sizeof footer - sizeof(uint32_t));
     if (crc != footer.footer_crc32) {
-      throw terark::BadCrc32cException("TerarkIndex::LoadMemory(): Bad footer crc",
+      throw BadCrc32cException("TerarkIndex::LoadMemory(): Bad footer crc",
                                        footer.footer_crc32, crc);
     }
     size_t idx = g_TerarkIndexFactroy.find_i(fstring(footer.class_name, sizeof footer.class_name));

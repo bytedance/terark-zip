@@ -117,7 +117,8 @@ class TERARK_DLL_EXPORT TerarkIndex : boost::noncopyable {
       non_desc_few_one_6,
       non_desc_few_one_7,
       non_desc_few_one_8,
-    } type;
+    };
+    PrefixAlgo type;
   };
   class TERARK_DLL_EXPORT Factory : public RefCounter {
    public:
