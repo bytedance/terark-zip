@@ -551,9 +551,9 @@ public:
     size_t max_strlen() const;
 };
 
-using VoSortedStrVec = SortedStrVec;                  // Vu : VarWidth offset
-using DoSortedStrVec = SortedStrVecUintTpl<uint32_t>; // Du : DWORD    offset
-using QoSortedStrVec = SortedStrVecUintTpl<uint64_t>; // Qu : QWORD    offset
+using VoSortedStrVec = SortedStrVec;                  // Vo : VarWidth offset
+using DoSortedStrVec = SortedStrVecUintTpl<uint32_t>; // Do : DWORD    offset
+using QoSortedStrVec = SortedStrVecUintTpl<uint64_t>; // Qo : QWORD    offset
 
 } // namespace terark
 
