@@ -2720,6 +2720,7 @@ load_mmap(const void* data, size_t size) {
 	if (0 == version) {
 		GetLastTrie_core_min_len(this) = coreMinLen;
 	}
+#if defined(TERARK_NLT_ENABLE_SEL0_CACHE)
     m_sel0_cache.resize_no_init(m_louds.size() / 256);
     uint32_t bitpos = m_louds.select0(0);
     for (size_t i = 0; i < m_sel0_cache.size(); ++i) {
@@ -2727,6 +2728,7 @@ load_mmap(const void* data, size_t size) {
         bitpos += m_louds.one_seq_len(bitpos+1) + 1;
         assert(m_louds.is0(bitpos));
     }
+#endif
 }
 
 template<class RankSelect, class RankSelect2, bool FastLabel>

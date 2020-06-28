@@ -85,7 +85,9 @@ public: // protected:
 	struct layer_ref_t {
 		index_t beg, end, mid;
 	};
+#if defined(TERARK_NLT_ENABLE_SEL0_CACHE)
     valvec<uint32_t>    m_sel0_cache;
+#endif
 	valvec<index_t>     m_layer_id;
 	valvec<index_t>     m_layer_rank;
 	valvec<layer_ref_t> m_layer_ref;

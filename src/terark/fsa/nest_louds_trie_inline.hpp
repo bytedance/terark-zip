@@ -71,7 +71,7 @@ state_move(size_t parent, auchar_t ch)
 const {
     assert(ch < 256);
     assert(parent < total_states());
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
 	size_t bitpos = m_louds.select0(parent);
 #else
     size_t bitpos;
@@ -96,7 +96,7 @@ state_move_lower_bound(size_t parent, auchar_t ch)
 const {
     assert(ch < 256);
     assert(parent < total_states());
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
 	size_t bitpos = m_louds.select0(parent);
 #else
     size_t bitpos;
@@ -220,7 +220,7 @@ state_move_fast2(size_t parent, byte_t ch, const byte_t* label,
 const {
     assert(ch < 256);
     assert(parent < total_states());
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
     size_t bitpos = RankSelect::fast_select0(bits, sel0, rank, parent);
 #else
     size_t bitpos;
@@ -322,7 +322,7 @@ size_t NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 state_move_slow(size_t parent, auchar_t ch, StateMoveContext& ctx) const {
     assert(ch < 256);
     assert(parent < total_states());
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
 	size_t bitpos = m_louds.select0(parent);
 #else
     size_t bitpos;
@@ -356,7 +356,7 @@ state_move_no_link(size_t parent, auchar_t ch) const {
     assert(ch < 256);
     assert(parent < total_states());
     assert(m_is_link.max_rank1() == 0);
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
 	size_t bitpos = m_louds.select0(parent);
 #else
     size_t bitpos;
@@ -388,7 +388,7 @@ state_move_lower_bound_no_link(size_t parent, auchar_t ch) const {
     assert(ch < 256);
     assert(parent < total_states());
     assert(m_is_link.max_rank1() == 0);
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
 	size_t bitpos = m_louds.select0(parent);
 #else
     size_t bitpos;
@@ -639,7 +639,7 @@ NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 state_end(const RankSelectTerm& is_term) const {
     size_t state = 0;
     while (true) {
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
         size_t bitpos = m_louds.select0(state);
 #else
         size_t bitpos;
@@ -668,7 +668,7 @@ size_t
 NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 state_next(size_t state, const RankSelectTerm& is_term) const {
     while (true) {
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
         size_t bitpos = m_louds.select0(state);
 #else
         size_t bitpos;
@@ -732,7 +732,7 @@ state_prev(size_t state, const RankSelectTerm& is_term) const {
         if (m_louds[bitpos - 1]) {
             // move to prev brother
             --state;
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
             bitpos = m_louds.select0(state);
 #else
             if (state < m_sel0_cache.size())
@@ -746,10 +746,14 @@ state_prev(size_t state, const RankSelectTerm& is_term) const {
                 assert(m_louds.rank0(bitpos) == state);
                 assert(m_louds.is0(bitpos));
                 state = child0 + lcount - 1;
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
+                bitpos = m_louds.select0(state);
+#else
                 if (state < m_sel0_cache.size())
                     bitpos = m_sel0_cache[state];
                 else
                     bitpos = m_louds.select0(state);
+#endif
                 lcount = m_louds.one_seq_len(bitpos + 1);
             }
             if (is_term[state])
@@ -986,7 +990,7 @@ size_t NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>::
 initIterEntry(size_t parent, Entry* e, byte_t* buf, size_t cap) const {
     assert(parent < total_states());
     m_is_link.prefetch_bit(parent);
-#if 0
+#if !defined(TERARK_NLT_ENABLE_SEL0_CACHE)
 	size_t bitpos = m_louds.select0(parent);
 #else
     size_t bitpos;
