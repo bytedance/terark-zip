@@ -255,6 +255,7 @@ static inline bool Rans64DecInit(Rans64State* r, size_t* psize, const byte_t** p
     return true;
 }
 
+#if 0
 // Returns the current cumulative frequency (map it to a symbol yourself!)
 static inline uint32_t Rans64DecGet(Rans64State* r, uint32_t scale_bits) {
     return *r & ((1u << scale_bits) - 1);
@@ -270,6 +271,7 @@ static inline void Rans64DecAdvanceStep(Rans64State* r, const Rans64DecSymbol* s
     uint64_t x = *r;
     *r = sym->freq * (x >> scale_bits) + (x & mask) - sym->start;
 }
+#endif
 
 // Renormalize.
 static inline bool Rans64DecRenorm(Rans64State* r, const byte_t** pptr, const byte_t* end) {
@@ -971,7 +973,7 @@ EntropyBytes encoder_o1::encode_xN(fstring record, TerarkContext* context, bool 
     byte_t* ptr = ctx_buffer.data() + ctx_buffer.size();
     const byte_t* record_data = record.udata();
 
-    for (intptr_t i = (intptr_t)size - 2, e = (intptr_t)(size - size % N) - 1; N > 1 && i >= e; --i) { 
+    for (intptr_t i = (intptr_t)size - 2, e = (intptr_t)(size - size % N) - 1; N > 1 && i >= e; --i) {
         const Rans64EncSymbol* s = &syms_[i == -1 ? 256 : record_data[i]][record_data[i + 1]];
         Rans64EncRenorm(&rans[N - 1], &ptr, ctx_buffer, s->freq, TF_SHIFT);
         Rans64EncPutSymbol(&rans[N - 1], s, TF_SHIFT);
