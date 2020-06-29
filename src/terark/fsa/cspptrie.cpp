@@ -3480,7 +3480,6 @@ Patricia::ReaderToken::ReaderToken() {
 void Patricia::ReaderToken::acquire(Patricia* trie1) {
     assert(NULL != trie1);
     assert(NULL == m_trie || trie1 == m_trie);
-    assert(ReleaseDone == m_flags.state || ReleaseWait == m_flags.state);
     auto trie = static_cast<MainPatricia*>(trie1);
     m_value = NULL;
     m_trie = trie;
