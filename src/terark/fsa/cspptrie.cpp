@@ -3462,7 +3462,7 @@ void Patricia::TokenBase::release() {
             while (!cas_weak(m_flags.state, AcquireIdle, ReleaseDone)) {
                 _mm_pause(); // spin
             }
-            no_break_fallthrough;
+            break;
         case AcquireDone:
             m_flags.state = ReleaseDone;
             break;
@@ -3498,10 +3498,10 @@ void Patricia::ReaderToken::acquire(Patricia* trie1) {
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case AcquireIdle:
         case AcquireLock:
-            while (cas_weak(m_flags.state, AcquireIdle, AcquireDone)) {
+            while (!cas_weak(m_flags.state, AcquireIdle, AcquireDone)) {
                 _mm_pause(); // spin
             }
-            no_break_fallthrough;
+            break;
         case ReleaseWait:
         case ReleaseDone:
             m_flags.state = AcquireDone;
