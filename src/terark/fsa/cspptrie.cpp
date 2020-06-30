@@ -2922,6 +2922,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
             else {
                 // curr's thread call release/dispose
                 TERARK_VERIFY(ReleaseWait == flags.state ||
+                              AcquireIdle == flags.state ||
                               DisposeWait == flags.state);
                 continue; // try 'curr' in next iteration
             }
@@ -2944,7 +2945,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
             break;
         case ReleaseWait:
             if (NULL != next) { // is not tail
-                if (cax_weak(curr->m_flags, flags, {ReleaseDone, false})) {
+                if (cas_weak(curr->m_flags, flags, {ReleaseDone, false})) {
                     //fprintf(stderr, "DEBUG: thread-%08zX ReleaseDone token of thread-%08zX\n", ThisThreadID(), curr->m_thread_id);
                     //curr->m_link = {UNLINKED_TOKEN, 0}; // curr is other thread's
                     curr = next;
@@ -3552,8 +3553,8 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
   #if !defined(NDEBUG)
     auto flags = m_flags; // must load
     TERARK_ASSERT_F(ReleaseDone == flags.state || ReleaseWait == flags.state
-                 || AcquireIdle == flags.state,
-            "m_flags.state = %d", flags.state);
+                 || AcquireIdle == flags.state || AcquireLock == flags.state,
+            "m_flags.state = %d(%s)", flags.state, enum_cstr(flags.state));
   #endif
     m_thread_id = ThisThreadID();
     if (MultiWriteMultiRead == conLevel) {
