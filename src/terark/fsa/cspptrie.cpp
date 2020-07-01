@@ -4629,12 +4629,14 @@ bool MainPatricia::IterImpl::incr() {
     if (terark_unlikely(m_iter.empty())) {
         return false;
     }
+#if 0
     if (m_live_verseq < m_min_age) {
         m_live_verseq = m_link.verseq;
         if (!seek_lower_bound_impl(m_word)) {
             return false;
         }
     }
+#endif
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
     assert(calc_word_len() == m_word.size());
@@ -4743,6 +4745,7 @@ bool MainPatricia::IterImpl::decr() {
     if (m_iter.empty()) {
         return false;
     }
+#if 0
     if (m_live_verseq < m_min_age) {
         m_live_verseq = m_link.verseq;
         //std::string curr_key((const char*)m_word.data(), m_word.size());
@@ -4751,6 +4754,7 @@ bool MainPatricia::IterImpl::decr() {
             return seek_end();
         }
     }
+#endif
     assert(calc_word_len() == m_word.size());
     auto trie = static_cast<MainPatricia*>(m_trie);
     auto a = reinterpret_cast<const PatriciaNode*>(trie->m_mempool.data());
