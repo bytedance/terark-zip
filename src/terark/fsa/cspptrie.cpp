@@ -2631,6 +2631,8 @@ size_t PatriciaMem<Align>::alloc_aux(size_t size) {
 
 template<size_t Align>
 void PatriciaMem<Align>::mem_free(size_t loc, size_t size) {
+    size_t pos = loc * AlignSize;
+    free_aux(pos, size);
 }
 
 template<size_t Align>

@@ -38,6 +38,19 @@ terark::fstring enum_name(Enum v, const char* unkown = "") {
 }
 
 template<class Enum>
+terark::fstring enum_stdstr(Enum v) {
+  auto names  = enum_all_names ((Enum*)0);
+  auto values = enum_all_values((Enum*)0);
+  for (size_t i = 0; i < names.second; ++i) {
+    if (v == values[i])
+      return names.first[i];
+  }
+  return "unkown:" + (sizeof(Enum) <= 4 ?
+                std::to_string((int)v) :
+                std::to_string((long long)v));
+}
+
+template<class Enum>
 const char* enum_cstr(Enum v, const char* unkown = "") {
   auto names  = enum_all_names ((Enum*)0);
   auto values = enum_all_values((Enum*)0);
@@ -125,17 +138,17 @@ std::string enum_str_all_namevalues() {
     __VA_ARGS__ \
   }; \
   IntRep enum_rep_type(EnumType*); \
-  Inline terark::fstring enum_str_define(EnumType*) { \
+  Inline terark::fstring enum_str_define(const EnumType*) { \
     return TERARK_PP_STR(enum Class EnumType : IntRep) \
       " { " #__VA_ARGS__ " }"; \
   } \
   Inline std::pair<const terark::fstring*, size_t> \
-  enum_all_names(EnumType*) { \
+  enum_all_names(const EnumType*) { \
     static const terark::fstring s_names[] = { \
       TERARK_PP_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
     return std::make_pair(s_names, TERARK_PP_EXTENT(s_names)); \
   } \
-  Inline const EnumType* enum_all_values(EnumType*) { \
+  Inline const EnumType* enum_all_values(const EnumType*) { \
     static const EnumType s_values[] = { \
       TERARK_PP_MAP(TERARK_PP_PREPEND, \
                     EnumValueInit<EnumType>() - EnumScope, \
@@ -184,8 +197,8 @@ std::string enum_str_all_namevalues() {
   enum Class EnumType : IntRep { \
     TERARK_PP_FLATTEN(__VA_ARGS__) \
   }; \
-  IntRep enum_rep_type(EnumType*); \
-  Inline terark::fstring enum_str_define(EnumType*) { \
+  IntRep enum_rep_type(const EnumType*); \
+  Inline terark::fstring enum_str_define(const EnumType*) { \
     return TERARK_PP_STR(enum Class EnumType : IntRep) \
      " { " \
          TERARK_PP_APPLY( \
@@ -196,12 +209,12 @@ std::string enum_str_all_namevalues() {
              TERARK_PP_STR_FLATTEN(__VA_ARGS__))) "}"; \
   } \
   Inline std::pair<const terark::fstring*, size_t> \
-  enum_all_names(EnumType*) { \
+  enum_all_names(const EnumType*) { \
     static const terark::fstring s_names[] = { \
       TERARK_PP_BIG_MAP(TERARK_PP_SYMBOL, ~, __VA_ARGS__) }; \
     return std::make_pair(s_names, TERARK_PP_EXTENT(s_names)); \
   } \
-  Inline const EnumType* enum_all_values(EnumType*) { \
+  Inline const EnumType* enum_all_values(const EnumType*) { \
     static const EnumType s_values[] = { \
       TERARK_PP_BIG_MAP(TERARK_PP_PREPEND, \
                         EnumValueInit<EnumType>() - EnumScope, \
