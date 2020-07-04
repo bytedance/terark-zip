@@ -409,9 +409,11 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 ifeq (Darwin,${UNAME_System})
   # use clonefile
   CP_FAST = cp -X
+  USER_GCC = echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam
 else
   # use hard link as possible
   CP_FAST = cp -l
+  USER_GCC = echo use default CXX
 endif
 
 ${rdir}/boost-static/build.done:
@@ -420,7 +422,7 @@ ${rdir}/boost-static/build.done:
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
-	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
 		                     -j8   cflags="-fPIC" threading=multi link=static variant=release
@@ -431,7 +433,7 @@ ${rdir}/boost-shared/build.done:
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
-	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=release
@@ -442,7 +444,7 @@ ${ddir}/boost-static/build.done:
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
-	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
 		                     -j8   cflags="-fPIC" threading=multi link=static variant=debug
@@ -453,7 +455,7 @@ ${ddir}/boost-shared/build.done:
 	cd $(dir $@) \
 	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
 	 && ${CP_FAST} -r ../../../../boost-include/tools . \
-	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && ${USER_GCC} \
 	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
 	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
 		                     -j8   cflags="-fPIC" threading=multi link=shared variant=debug
