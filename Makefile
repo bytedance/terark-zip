@@ -344,18 +344,27 @@ ${static_idx_d} : $(call objs,idx,d)
 ${static_idx_r} : $(call objs,idx,r)
 ${static_idx_a} : $(call objs,idx,a)
 
-${shared_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${shared_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${shared_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
-${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o boost-include/build-lib-for-terark.done
+${shared_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o ${ddir}/boost-shared/build.done
+${shared_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-shared/build.done
+${shared_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-shared/build.done
+${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o ${ddir}/boost-static/build.done
+${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-static/build.done
+${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-static/build.done
 
 ${static_core_d} ${shared_core_d}: BOOST_VARIANT := debug
 ${static_core_r} ${shared_core_r}: BOOST_VARIANT := release
 ${static_core_a} ${shared_core_a}: BOOST_VARIANT := release
 
+${shared_core_d}: BOOST_BUILD_DIR := ${ddir}/boost-shared
+${shared_core_r}: BOOST_BUILD_DIR := ${rdir}/boost-shared
+${shared_core_a}: BOOST_BUILD_DIR := ${rdir}/boost-shared
+
+${static_core_d}: BOOST_BUILD_DIR := ${ddir}/boost-static
+${static_core_r}: BOOST_BUILD_DIR := ${rdir}/boost-static
+${static_core_a}: BOOST_BUILD_DIR := ${rdir}/boost-static
+
 #@param ${1}: release|debug
+#@param ${2}: BOOST_BUILD_DIR
 define BOOST_OBJS
   $(shell \
   if test -n "${1}"; then  \
@@ -365,14 +374,14 @@ define BOOST_OBJS
     else \
       DirSig=${1}/threading-multi; \
     fi; \
-    find boost-include/bin.v2/libs \
+    find ${2}/boost/bin.v2/libs \
         -path "*/$$DirSig/*" -name '*.o' \
-        -not -path "boost-include/bin.v2/libs/config/*"; \
+        -not -path "${2}/boost/bin.v2/libs/config/*"; \
   fi)
 endef
 
 # must use '=' for lazy evaluation, do not use ':='
-THIS_LIB_OBJS = $(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT}))
+THIS_LIB_OBJS = $(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT},${BOOST_BUILD_DIR}))
 
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
@@ -415,23 +424,32 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 		CFLAGS="-fPIC -std=c99 -O3 -Wall -Wextra -pedantic"
 		#AVX2_CFLAGS=-mavx2 SSE41_CFLAGS=-msse4.1 SSE42_CFLAGS=-msse4.2 AVX_CFLAGS=-mavx
 
-boost-include/build-lib-for-terark.done:
-ifneq (Darwin, ${UNAME_System})
-	cd boost-include \
-		&& echo "using gcc : : ${CXX} ; " > tools/build/src/user-config.jam
-endif
-	cd boost-include \
-		&& CX=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
-		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=debug \
-		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=static threading=multi variant=release \
-		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=debug \
-		&& CX=${CC} CXX=${CXX} ./b2 -j8 cxxflags="-fPIC -std=gnu++14" cflags=-fPIC link=shared threading=multi variant=release
-	touch $@
+${rdir}/boost-static/build.done:
+	@rm -rf $(dir $@)
+	@mkdir -p $(dir $@)tools
+	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=static variant=release
+	@touch $@
+${rdir}/boost-shared/build.done:
+	@mkdir -p $(dir $@)
+	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=shared variant=release
+	@touch $@
+${ddir}/boost-static/build.done:
+	@mkdir -p $(dir $@)
+	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=static variant=debug
+	@touch $@
+${ddir}/boost-shared/build.done:
+	@mkdir -p $(dir $@)
+	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=shared variant=debug
+	@touch $@
 
 %${DLL_SUFFIX}:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating shared library: $@"
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_VARIANT=${BOOST_VARIANT} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p ${BUILD_ROOT}/lib_shared
@@ -451,7 +469,7 @@ endif
 %.a:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating static library: $@"
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_VARIANT=${BOOST_VARIANT} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p $(dir $@)
@@ -465,15 +483,13 @@ install : core
 
 .PHONY : clean
 clean:
-	rm -rf boost-include/bin.v2 boost-include/build-lib-for-terark.done
 	@for f in `find * -name "*${BUILD_NAME}*"`; do \
 		echo rm -rf $${f}; \
 		rm -rf $${f}; \
 	done
 
 .PHONY : cleanall
-cleanall:
-	rm -rf boost-include/bin.v2 boost-include/build-lib-for-terark.done
+cleanall: clean
 	@for f in `find build tools tests gtests -name build`; do \
 		echo rm -rf $${f}; \
 		rm -rf $${f}; \
