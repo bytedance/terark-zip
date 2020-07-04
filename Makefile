@@ -427,23 +427,31 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 ${rdir}/boost-static/build.done:
 	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)tools
-	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=static variant=release
+	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
+		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=static variant=release \
+	                       --with-fiber --with-context --with-system --with-filesystem
 	@touch $@
 ${rdir}/boost-shared/build.done:
 	@mkdir -p $(dir $@)
-	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=shared variant=release
+	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
+		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=shared variant=release \
+	                       --with-fiber --with-context --with-system --with-filesystem
 	@touch $@
 ${ddir}/boost-static/build.done:
 	@mkdir -p $(dir $@)
-	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=static variant=debug
+	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
+		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=static variant=debug \
+	                       --with-fiber --with-context --with-system --with-filesystem
 	@touch $@
 ${ddir}/boost-shared/build.done:
 	@mkdir -p $(dir $@)
-	cd $(dir $@)     && env CXX=${CXX} bash ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CXX=${CXX} ../$(dir $@)b2 -j8 cxxflags="-fPIC -std=gnu++14" --build-dir=../$(dir $@) cflags=-fPIC threading=multi link=shared variant=debug
+	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
+	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
+		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=shared variant=debug \
+	                       --with-fiber --with-context --with-system --with-filesystem
 	@touch $@
 
 %${DLL_SUFFIX}:
