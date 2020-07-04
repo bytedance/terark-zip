@@ -374,9 +374,9 @@ define BOOST_OBJS
     else \
       DirSig=${1}/threading-multi; \
     fi; \
-    find ${2}/boost/bin.v2/libs \
+    find ${2}/bin.v2/libs \
         -path "*/$$DirSig/*" -name '*.o' \
-        -not -path "${2}/boost/bin.v2/libs/config/*"; \
+        -not -path "${2}/bin.v2/libs/config/*"; \
   fi)
 endef
 
@@ -424,35 +424,58 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 		CFLAGS="-fPIC -std=c99 -O3 -Wall -Wextra -pedantic"
 		#AVX2_CFLAGS=-mavx2 SSE41_CFLAGS=-msse4.1 SSE42_CFLAGS=-msse4.2 AVX_CFLAGS=-mavx
 
+ifeq (Darwin,${UNAME_System})
+  # use clonefile
+  CP_FAST = cp -X
+else
+  # use hard link as possible
+  CP_FAST = cp -l
+endif
+
 ${rdir}/boost-static/build.done:
 	@rm -rf $(dir $@)
-	@mkdir -p $(dir $@)tools
-	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
-		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=static variant=release \
-	                       --with-fiber --with-context --with-system --with-filesystem
-	@touch $@
+	@mkdir -p $(dir $@)
+	cd $(dir $@) \
+	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ${CP_FAST} -r ../../../../boost-include/tools . \
+	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
+		                     -j8   cflags="-fPIC" threading=multi link=static variant=release
+	touch $@
 ${rdir}/boost-shared/build.done:
+	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
-	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
-		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=shared variant=release \
-	                       --with-fiber --with-context --with-system --with-filesystem
-	@touch $@
+	cd $(dir $@) \
+	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ${CP_FAST} -r ../../../../boost-include/tools . \
+	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
+		                     -j8   cflags="-fPIC" threading=multi link=shared variant=release
+	touch $@
 ${ddir}/boost-static/build.done:
+	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
-	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
-		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=static variant=debug \
-	                       --with-fiber --with-context --with-system --with-filesystem
-	@touch $@
+	cd $(dir $@) \
+	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ${CP_FAST} -r ../../../../boost-include/tools . \
+	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
+		                     -j8   cflags="-fPIC" threading=multi link=static variant=debug
+	touch $@
 ${ddir}/boost-shared/build.done:
+	@rm -rf $(dir $@)
 	@mkdir -p $(dir $@)
-	cd $(dir $@)     && env CC=${CC} CXX=${CXX} bash  ../../../../boost-include/bootstrap.sh --with-libraries=fiber,context,system,filesystem
-	cd boost-include && env CC=${CC} CXX=${CXX} ../$(dir $@)b2 cxxflags="-fPIC -std=gnu++14" \
-		               --build-dir=../$(dir $@) -j8 cflags="-fPIC" threading=multi link=shared variant=debug \
-	                       --with-fiber --with-context --with-system --with-filesystem
-	@touch $@
+	cd $(dir $@) \
+	 && ln -s -f ../../../../boost-include/*     . && rm tools  \
+	 && ${CP_FAST} -r ../../../../boost-include/tools . \
+	 && echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam \
+	 && env CC=${CC} CXX=${CXX} bash bootstrap.sh --with-libraries=fiber,context,system,filesystem \
+	 && env CC=${CC} CXX=${CXX} ./b2 cxxflags="-fPIC -std=gnu++14" \
+		                     -j8   cflags="-fPIC" threading=multi link=shared variant=debug
+	touch $@
 
 %${DLL_SUFFIX}:
 	@echo "----------------------------------------------------------------------------------"
