@@ -363,25 +363,10 @@ ${static_core_d}: BOOST_BUILD_DIR := ${ddir}/boost-static
 ${static_core_r}: BOOST_BUILD_DIR := ${rdir}/boost-static
 ${static_core_a}: BOOST_BUILD_DIR := ${rdir}/boost-static
 
-#@param ${1}: release|debug
-#@param ${2}: BOOST_BUILD_DIR
-define BOOST_OBJS
-  $(shell \
-  if test -n "${1}"; then  \
-    if test "$(suffix $@)" = ".a"; \
-    then \
-      DirSig=${1}/link-static/threading-multi; \
-    else \
-      DirSig=${1}/threading-multi; \
-    fi; \
-    find ${2}/bin.v2/libs \
-        -path "*/$$DirSig/*" -name '*.o' \
-        -not -path "${2}/bin.v2/libs/config/*"; \
-  fi)
-endef
-
 # must use '=' for lazy evaluation, do not use ':='
-THIS_LIB_OBJS = $(sort $(filter %.o,$^) $(call BOOST_OBJS,${BOOST_VARIANT},${BOOST_BUILD_DIR}))
+THIS_LIB_OBJS = $(sort $(filter %.o,$^) \
+  $(shell find  ${BOOST_BUILD_DIR}/bin.v2/libs -name '*.o' \
+    -not -path "${BOOST_BUILD_DIR}/bin.v2/libs/config/*"))
 
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
