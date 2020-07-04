@@ -351,10 +351,6 @@ ${static_core_d}:${core_d_o} 3rdparty/base64/lib/libbase64.o ${ddir}/boost-stati
 ${static_core_r}:${core_r_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-static/build.done
 ${static_core_a}:${core_a_o} 3rdparty/base64/lib/libbase64.o ${rdir}/boost-static/build.done
 
-${static_core_d} ${shared_core_d}: BOOST_VARIANT := debug
-${static_core_r} ${shared_core_r}: BOOST_VARIANT := release
-${static_core_a} ${shared_core_a}: BOOST_VARIANT := release
-
 ${shared_core_d}: BOOST_BUILD_DIR := ${ddir}/boost-shared
 ${shared_core_r}: BOOST_BUILD_DIR := ${rdir}/boost-shared
 ${shared_core_a}: BOOST_BUILD_DIR := ${rdir}/boost-shared
@@ -465,7 +461,7 @@ ${ddir}/boost-shared/build.done:
 %${DLL_SUFFIX}:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating shared library: $@"
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_VARIANT=${BOOST_VARIANT} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
+	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p ${BUILD_ROOT}/lib_shared
@@ -485,7 +481,7 @@ endif
 %.a:
 	@echo "----------------------------------------------------------------------------------"
 	@echo "Creating static library: $@"
-	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_VARIANT=${BOOST_VARIANT} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
+	@echo BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX} BOOST_BUILD_DIR=${BOOST_BUILD_DIR}
 	@echo -e "OBJS:" $(addprefix "\n  ",${THIS_LIB_OBJS})
 	@echo -e "LIBS:" $(addprefix "\n  ",${LIBS})
 	@mkdir -p $(dir $@)
