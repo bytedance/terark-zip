@@ -361,8 +361,9 @@ ${static_core_a}: BOOST_BUILD_DIR := ${rdir}/boost-static
 
 # must use '=' for lazy evaluation, do not use ':='
 THIS_LIB_OBJS = $(sort $(filter %.o,$^) \
-  $(shell find  ${BOOST_BUILD_DIR}/bin.v2/libs -name '*.o' \
-    -not -path "${BOOST_BUILD_DIR}/bin.v2/libs/config/*"))
+  $(shell if [ -n "${BOOST_BUILD_DIR}" ]; then \
+             find "${BOOST_BUILD_DIR}/bin.v2/libs" -name '*.o' \
+       -not -path "${BOOST_BUILD_DIR}/bin.v2/libs/config/*"; fi))
 
 define GenGitVersionSRC
 ${1}/git-version-core.cpp: ${core_src}
