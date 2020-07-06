@@ -336,8 +336,15 @@ void unit_test() {
             MainPatricia::WriterTokenPtr token(new MainPatricia::WriterToken());
             token->acquire(&trie);
             for (uint32_t i = 0; i < 256; ++i) {
-                char strkey[2] = { char(i), '\0' };
-                token->insert(fstring(strkey, 2), &i);
+                char strkey[9] = "01234567";
+		strkey[4] = i;
+                token->insert(fstring(strkey, 8), &i);
+            }
+            for (uint32_t i = 0; i < 256; ++i) {
+                char strkey[9] = "a1234567";
+		strkey[2] = i;
+		uint32_t val = i+256;
+                token->insert(fstring(strkey, 8), &val);
             }
             {
                 uint32_t val = UINT32_MAX;
@@ -351,7 +358,7 @@ void unit_test() {
                 bool ok = iter.seek_begin();
                 assert(ok);
                 assert(iter.value_of<uint32_t>() == UINT32_MAX);
-                for (uint32_t i = 0; i < 256; ++i) {
+                for (uint32_t i = 0; i < 512; ++i) {
                     ok = iter.incr();
                     assert(ok);
                     assert(iter.value_of<uint32_t>() == i);
@@ -365,7 +372,7 @@ void unit_test() {
             {
                 bool ok = iter.seek_end();
                 assert(ok);
-                uint32_t i = 256;
+                uint32_t i = 512;
                 while (i) {
                     --i;
                     assert(iter.value_of<uint32_t>() == i);
