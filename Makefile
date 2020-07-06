@@ -409,11 +409,11 @@ $(eval $(call GenGitVersionSRC, ${adir}, "AFR_FLAGS = ${AFR_FLAGS}"))
 ifeq (Darwin,${UNAME_System})
   # use clonefile
   CP_FAST = cp -X
-  USER_GCC = echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam
+  USER_GCC = echo use default CXX
 else
   # use hard link as possible
   CP_FAST = cp -l
-  USER_GCC = echo use default CXX
+  USER_GCC = echo "using gcc : : ${CXX} ;" > tools/build/src/user-config.jam
 endif
 
 ${rdir}/boost-static/build.done:
