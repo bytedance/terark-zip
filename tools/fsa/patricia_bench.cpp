@@ -16,5 +16,6 @@ int main(int argc, char* argv[]) {
         fstring word = fsv[i];
         assert(iter->seek_lower_bound(word));
     }
+    fprintf(stderr, "key num = %zd, key len sum = %zd\n", fsv.size(), fsv.strpool.size());
     return 0;
 }
