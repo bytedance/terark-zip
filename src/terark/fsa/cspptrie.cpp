@@ -3886,7 +3886,7 @@ public:
         case DisposeWait: TERARK_DIE("DisposeWait == m_flags.state"); break;
         case AcquireIdle:
         case AcquireLock: ReaderToken::acquire(m_trie); break;
-        case AcquireDone: break;
+        case AcquireDone: assert(ThisThreadID() == m_thread_id); break;
         }
     }
     bool seek_lower_bound_impl(fstring key);
