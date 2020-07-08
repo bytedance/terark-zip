@@ -3987,7 +3987,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
     if (m_flag & 1) {
         goto seek_lower_bound_fast;
     }
-    {
+    else {
         auto conLevel = trie->m_writing_concurrent_level;
         if (conLevel <= SingleThreadShared) {
             // m_iter is very likely over allocated,
@@ -4091,6 +4091,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
         size_t ch = (byte_t)key.p[pos];
         assert(curr < trie->total_states());
         assert(ch <= 255);
+  #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
         default: TERARK_DIE("Invalid == cnt_type"); break;
@@ -4227,19 +4228,19 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
           }
         }
         assert(false);
-    IterNextL:
+      IterNextL:
         assert(nil_state != curr); // now curr is child
         *tiny_memcpy_align_1(m_word.grow_no_init(zlen+1), zptr, zlen) = ch;
-    IterNextNoZpath:
+      IterNextNoZpath:
         m_iter.push_back(e);
         append_lex_min_suffix(curr, a);
         return true;
-    NextLoopL:
+      NextLoopL:
         *tiny_memcpy_align_1(m_word.grow_no_init(zlen+1), zptr, zlen) = ch;
-    NextLoopNoZpathL:
+      NextLoopNoZpathL:
         m_iter.push_back(e);
     }
-    return false;
+    TERARK_DIE("Infinite Loop should not goes here");
 }
 
 #define CurrMinSuffix_HasZpath CurrMinSuffix_HasZpath_2
@@ -4292,6 +4293,7 @@ seek_lower_bound_fast:
                         append_lex_min_suffix(next, a);
                     }
                     else {
+                        assert(m_iter.size() == 1);
                         assert(curr == initial_state);
                         reset1();
                         return false;
@@ -4510,6 +4512,7 @@ seek_lower_bound_fast:
         *wp++ = ch;
         ip++;
     }
+    TERARK_DIE("Infinite Loop should not goes here");
   RewindStackForNext:
     m_iter.risk_set_end(ip);
     m_word.risk_set_end(wp);
