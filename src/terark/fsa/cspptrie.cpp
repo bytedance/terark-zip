@@ -1605,6 +1605,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         }
     }
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
+    bool is_value_inited = false;
     size_t valsize = m_valsize;
     size_t n_retry = 0;
     if (0) {
@@ -1612,7 +1613,6 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         n_retry++;
         lzf->m_n_retry++;
     }
-    bool is_value_inited = false;
     size_t parent = size_t(-1);
     size_t curr_slot = size_t(-1);
     size_t curr = initial_state;
