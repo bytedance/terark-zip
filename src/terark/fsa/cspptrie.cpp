@@ -2076,6 +2076,7 @@ MarkFinalStateOnFastNode: {
       } else if (!a[curr].meta.b_is_final) {
         // lock bit is set by some child, pause and try again
         _mm_pause();
+        n_retry++;
         continue;
       } else {
         token->m_value = (char*)a->chars + valpos;
