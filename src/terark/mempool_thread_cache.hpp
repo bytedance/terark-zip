@@ -8,6 +8,15 @@
 #include <boost/mpl/if.hpp>
 #include <mutex>
 
+#if defined(_MSC_VER) && !defined(__SANITIZE_ADDRESS__)
+#define ASAN_POISON_MEMORY_REGION(addr, size) \
+  ((void)(addr), (void)(size))
+#define ASAN_UNPOISON_MEMORY_REGION(addr, size) \
+  ((void)(addr), (void)(size))
+#else
+  #include <sanitizer/asan_interface.h>
+#endif
+
 namespace terark {
 
 #define TERARK_MPTC_USE_SKIPLIST
@@ -74,12 +83,12 @@ public:
             ++level;
         return level - 1;
     }
-  #if defined(NDEBUG)
+  #if defined(NDEBUG) || defined(__SANITIZE_ADDRESS__)
     #define mptc1t_debug_fill_alloc(mem, len)
     #define mptc1t_debug_fill_free(mem, len)
   #else
-    void mptc1t_debug_fill_alloc(void* /*mem*/, size_t /*len*/) {
-        //memset(mem, 0xCC, len);
+    void mptc1t_debug_fill_alloc(void* mem, size_t len) {
+        memset(mem, 0xCC, len);
     }
     void mptc1t_debug_fill_free(void* mem, size_t len) {
         memset(mem, 0xDD, len);
@@ -104,6 +113,7 @@ public:
                 }
                 list.cnt--;
                 list.head = *(link_size_t*)(base + pos);
+                ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 mptc1t_debug_fill_alloc(base + pos, request);
                 return pos;
             }
@@ -126,10 +136,12 @@ public:
                         list2.head = *(link_size_t*)(base + pos);
                         // put remain half to 'list'...
                         // list.head must be list_tail
+                        ASAN_UNPOISON_MEMORY_REGION(base + pos, 2*request);
                     //  *(link_size_t*)(base + pos + request) = list.head;
                         *(link_size_t*)(base + pos + request) = list_tail;
                         list.cnt++;
                         list.head = (pos + request) / AlignSize;
+                        ASAN_POISON_MEMORY_REGION(base + pos + request, request);
                         mptc1t_debug_fill_alloc(base + pos, request);
                         return pos;
                     }
@@ -142,6 +154,7 @@ public:
                 size_t End = pos + request;
                 if (End <= m_hot_end) {
                     m_hot_pos = End;
+                    ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                     mptc1t_debug_fill_alloc(base + pos, request);
                     return pos;
                 }
@@ -189,6 +202,7 @@ public:
                         fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
                     m_frag_inc = 0;
                 }
+                ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
             }
@@ -212,6 +226,7 @@ public:
                             fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
                         m_frag_inc = 0;
                     }
+                    ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                     mptc1t_debug_fill_alloc(base + res, request);
                     return res;
                 }
@@ -251,6 +266,7 @@ public:
                         fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
                     m_frag_inc = 0;
                 }
+                ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                 mptc1t_debug_fill_alloc(base + res, request);
                 return res;
             }
@@ -272,6 +288,7 @@ public:
                     if (rlen > request) {
                         sfree(base, res + request, rlen - request);
                     }
+                    ASAN_UNPOISON_MEMORY_REGION(base + res, request);
                     mptc1t_debug_fill_alloc(base + res, request);
                     return res;
                 }
@@ -283,6 +300,7 @@ public:
             size_t End = pos + request;
             if (End <= m_hot_end) {
                 m_hot_pos = End;
+                ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 mptc1t_debug_fill_alloc(base + pos, request);
                 return pos;
             }
@@ -298,6 +316,12 @@ public:
             size_t newend = oldpos + newlen;
             if (newend <= m_hot_end) {
                 m_hot_pos = newend;
+            #if defined(__SANITIZE_ADDRESS__)
+                if (newlen > oldlen)
+                  ASAN_UNPOISON_MEMORY_REGION(base + oldpos, newlen);
+                else if (newlen < oldlen)
+                  ASAN_POISON_MEMORY_REGION(base + newend, oldlen - newlen);
+            #endif
                 return oldpos;
             }
         }
@@ -335,6 +359,7 @@ public:
             auto& list = m_freelist_head[idx];
             mptc1t_debug_fill_free((link_t*)(base + pos) + 1, len-sizeof(link_t));
             *(link_size_t*)(base + pos) = list.head;
+            ASAN_POISON_MEMORY_REGION(base + pos, len);
             list.head = link_size_t(pos / AlignSize);
             list.cnt++;
         }
@@ -373,6 +398,7 @@ public:
             huge_list.next[0] = link_size_t(pos >> offset_shift);
           #endif
             mptc1t_debug_fill_free(n2 + 1, len - sizeof(*n2));
+            ASAN_POISON_MEMORY_REGION(n2 + 1, len - sizeof(*n2));
             huge_size_sum += len;
             huge_node_cnt++;
         }
@@ -538,6 +564,7 @@ public:
         size_t oldsize = mem::n;
         use_hugepage_resize_no_init(this, cap);
         mem::n = oldsize;
+        ASAN_POISON_MEMORY_REGION(mem::p + oldsize, mem::c - oldsize);
     }
 
     void shrink_to_fit() {}
