@@ -2060,20 +2060,27 @@ SplitZpath: {
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
     size_t valpos = AlignSize * (curr + 2 + 256);
-    PatriciaNode lock_curr = a[curr];
-    PatriciaNode curr_locked = lock_curr;
-    lock_curr.meta.b_is_final = false;
-    curr_locked.meta.b_is_final = true;
-    // compare_exchange_weak() is second check for b_is_final
-    if (cas_weak(a[curr], lock_curr, curr_locked)) {
-        init_token_value_mw(-1,-1, -1);
+    while (true) {
+      PatriciaNode lock_curr = a[curr];
+      PatriciaNode curr_locked = lock_curr;
+      lock_curr.meta.b_is_final = false;
+      lock_curr.meta.b_lock = false;
+      curr_locked.meta.b_is_final = true;
+      // compare_exchange_weak() is second check for b_is_final
+      if (cas_weak(a[curr], lock_curr, curr_locked)) {
+        init_token_value_mw(-1, -1, -1);
         lzf->m_n_words += 1;
         lzf->m_stat.n_mark_final += 1;
         lzf->m_adfa_total_words_len += key.size();
         return true;
-    } else {
+      } else if (!a[curr].meta.b_is_final) {
+        // lock bit is set by some child, pause and try again
+        _mm_pause();
+        continue;
+      } else {
         token->m_value = (char*)a->chars + valpos;
         goto HandleDupKey;
+      }
     }
 }
 MarkFinalState: {
