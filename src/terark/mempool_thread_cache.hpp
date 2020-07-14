@@ -8,14 +8,22 @@
 #include <boost/mpl/if.hpp>
 #include <mutex>
 
-#if defined(_MSC_VER) && !defined(__SANITIZE_ADDRESS__)
-#define ASAN_POISON_MEMORY_REGION(addr, size) \
-  ((void)(addr), (void)(size))
-#define ASAN_UNPOISON_MEMORY_REGION(addr, size) \
-  ((void)(addr), (void)(size))
-#else
+#if defined(__SANITIZE_ADDRESS__)
   #include <sanitizer/asan_interface.h>
+#else
+  #define ASAN_POISON_MEMORY_REGION(addr,size)   ((void)(addr), (void)(size))
+  #define ASAN_UNPOISON_MEMORY_REGION(addr,size) ((void)(addr), (void)(size))
 #endif
+
+#if defined(__SANITIZE_MEMORY__)
+  #include <sanitizer/msan_interface.h>
+  #define MSAN_ALLOCATED_MEMORY       __msan_allocated_memory
+  #define MSAN_UNPOISON_MEMORY_REGION __msan_unpoison
+#else
+  #define MSAN_ALLOCATED_MEMORY(addr,size)       ((void)(addr), (void)(size))
+  #define MSAN_UNPOISON_MEMORY_REGION(addr,size) ((void)(addr), (void)(size))
+#endif
+#define MSAN_POISON_MEMORY_REGION MSAN_ALLOCATED_MEMORY
 
 namespace terark {
 
@@ -89,9 +97,11 @@ public:
   #else
     void mptc1t_debug_fill_alloc(void* mem, size_t len) {
         memset(mem, 0xCC, len);
+        MSAN_POISON_MEMORY_REGION(mem, len); // can't read before write
     }
     void mptc1t_debug_fill_free(void* mem, size_t len) {
         memset(mem, 0xDD, len);
+        MSAN_POISON_MEMORY_REGION(mem, len); // can't read before write
     }
   #endif
 
@@ -565,6 +575,7 @@ public:
         use_hugepage_resize_no_init(this, cap);
         mem::n = oldsize;
         ASAN_POISON_MEMORY_REGION(mem::p + oldsize, mem::c - oldsize);
+        MSAN_POISON_MEMORY_REGION(mem::p + oldsize, mem::c - oldsize);
     }
 
     void shrink_to_fit() {}
