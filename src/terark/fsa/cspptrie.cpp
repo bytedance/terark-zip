@@ -1342,8 +1342,21 @@ assert(pos < key.size());
 
 // end search key...
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+#define init_token_value_fail_clean(new1, new2, list, tls) \
+        if (-1 != intptr_t(new1)) {                        \
+          size_t size = node_size(a + new1, valsize);      \
+          free_node<ConLevel>(new1, size, tls);            \
+        }                                                  \
+        if (-1 != intptr_t(new2)) {                        \
+          size_t size = node_size(a + new2, valsize);      \
+          free_node<ConLevel>(new2, size, tls);            \
+        }                                                  \
+        if (-1 != intptr_t(list)) {                        \
+          revoke_list<ConLevel>(a, list, valsize, tls);    \
+        }
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#define init_token_value(newCurr, suffixNode, tls) {           \
+#define init_token_value(new1, new2, list) {                   \
     bool initOk = token->init_value(value, valsize);           \
     if (ConLevel < OneWriteMultiRead) {                        \
         SingleThreadShared_check_for_sync_token_list();        \
@@ -1354,13 +1367,7 @@ assert(pos < key.size());
     tiny_memcpy_align_4(valptr, value, valsize);               \
     if (ConLevel >= OneWriteMultiRead) {                       \
         if (terark_unlikely(!initOk)) {                        \
-            if (-1 != intptr_t(newCurr)) {                     \
-                size_t size = node_size(a + newCurr, valsize); \
-                free_node<ConLevel>(newCurr, size, tls);       \
-            }                                                  \
-            if (-1 != intptr_t(suffixNode)) {                  \
-                revoke_list<ConLevel>(a, suffixNode, valsize, tls); \
-            }                                                  \
+            init_token_value_fail_clean(new1, new2, list, NULL)\
             token->m_value = NULL;                             \
             return true;                                       \
         }                                                      \
@@ -1401,7 +1408,7 @@ assert(pos < key.size());
             token->m_value = NULL;
             return true;
         }
-        init_token_value(newCurr, suffix_node, nullptr);
+        init_token_value(-1, newCurr, suffix_node);
         if (pos + 1 < key.size()) {
             m_zpath_states += zp_states_inc;
         }
@@ -1411,7 +1418,7 @@ assert(pos < key.size());
     {
         assert(a->bytes == m_mempool.data());
         assert(a[curr+2+ch].child == nil_state);
-        init_token_value(-1, suffix_node, nullptr);
+        init_token_value(-1, -1, suffix_node);
         m_total_zpath_len += key.size() - pos - 1;
         if (pos + 1 < key.size()) {
             m_zpath_states += zp_states_inc;
@@ -1448,7 +1455,7 @@ ForkBranch: {
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     assert(state_move(newCurr, key[pos]) == newSuffixNode);
     assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
-    init_token_value(newCurr, newSuffixNode, nullptr);
+    init_token_value(-1, newCurr, newSuffixNode);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
             zp_states_inc++;
@@ -1473,7 +1480,7 @@ SplitZpath: {
         token->m_value = NULL;
         return true;
     }
-    init_token_value(newCurr, -1, nullptr);
+    init_token_value(newCurr, ni.oldSuffixNode, -1);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
             m_zpath_states++;
@@ -1488,7 +1495,7 @@ SplitZpath: {
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
     size_t valpos = AlignSize * (curr + 2 + 256);
-    init_token_value(-1, -1, nullptr);
+    init_token_value(-1, -1, -1);
     m_n_words++;
     m_stat.n_mark_final++;
     m_adfa_total_words_len += key.size();
@@ -1557,6 +1564,7 @@ MarkFinalStateOmitSetNodeInfo:
 
 bool
 MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) {
+    constexpr auto ConLevel = MultiWriteMultiRead;
     assert(MultiWriteMultiRead == m_writing_concurrent_level);
     assert(nullptr != m_token_tail);
     assert(token->m_min_age <= token->m_link.verseq);
@@ -1910,27 +1918,21 @@ assert(pos < key.size());
                     ThisThreadID(), n_retry, curr);
             goto retry;
         }
-#define init_token_value_mw(newCurr, suffixNode, tls) do {             \
-    if (terark_likely(!is_value_inited)) {                             \
-      if (terark_unlikely(!token->init_value(value, valsize))) {       \
-        if (-1 != intptr_t(newCurr)) {                                 \
-          size_t size = node_size(a + newCurr, valsize);               \
-          free_node<OneWriteMultiRead>(newCurr, size, tls);            \
-        }                                                              \
-        if (-1 != intptr_t(suffixNode)) {                              \
-          revoke_list<OneWriteMultiRead>(a, suffixNode, valsize, tls); \
-        }                                                              \
-        token->m_value = NULL;                                         \
-        return true;                                                   \
-      }                                                                \
-      is_value_inited = true;                                          \
-    }                                                                  \
-    auto valptr = a->bytes + valpos;                                   \
-    tiny_memcpy_align_4(valptr, value, valsize);                       \
-    token->m_value = valptr;                                           \
+#define init_token_value_mw(new1, new2, list) do {               \
+    if (terark_likely(!is_value_inited)) {                       \
+      if (terark_unlikely(!token->init_value(value, valsize))) { \
+        init_token_value_fail_clean(new1, new2, list, lzf)       \
+        token->m_value = NULL;                                   \
+        return true;                                             \
+      }                                                          \
+      is_value_inited = true;                                    \
+    }                                                            \
+    auto valptr = a->bytes + valpos;                             \
+    tiny_memcpy_align_4(valptr, value, valsize);                 \
+    token->m_value = valptr;                                     \
 } while (0)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-        init_token_value_mw(newCurr, suffix_node, lzf);
+        init_token_value_mw(-1, newCurr, suffix_node);
         if (pos + 1 < key.size()) {
             lzf->m_zpath_states += zp_states_inc;
         }
@@ -1954,7 +1956,7 @@ assert(pos < key.size());
             lzf->m_zpath_states += zp_states_inc;
         }
         maximize(lzf->m_max_word_len, key.size());
-        init_token_value_mw(-1, suffix_node, lzf);
+        init_token_value_mw(-1, -1, suffix_node);
         return true;
     }
     else { // curr has updated by other threads
@@ -2004,7 +2006,7 @@ ForkBranch: {
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     assert(state_move(newCurr, key[pos]) == newSuffixNode);
     assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
-    init_token_value_mw(newCurr, newSuffixNode, lzf);
+    init_token_value_mw(-1, newCurr, newSuffixNode);
     update_curr_ptr(newCurr, 1 + chainLen);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
@@ -2032,6 +2034,8 @@ SplitZpath: {
         token->m_value = NULL; // fail flag
         return true;
     }
+    // ni.oldSuffixNode is the copy of curr with zpath updated to suffix_str
+    // curr may be lazy_freed or locked when we copy it
     if (a[ni.oldSuffixNode].meta.b_lazy_free || a[ni.oldSuffixNode].meta.b_lock) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
@@ -2041,7 +2045,7 @@ SplitZpath: {
                 ThisThreadID(), n_retry, curr);
         goto retry;
     }
-    init_token_value_mw(newCurr, -1, lzf);
+    init_token_value_mw(newCurr, ni.oldSuffixNode,-1);
     update_curr_ptr(newCurr, 1);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
@@ -2062,7 +2066,7 @@ MarkFinalStateOnFastNode: {
     curr_locked.meta.b_is_final = true;
     // compare_exchange_weak() is second check for b_is_final
     if (cas_weak(a[curr], lock_curr, curr_locked)) {
-        init_token_value_mw(-1, -1, lzf);
+        init_token_value_mw(-1,-1, -1);
         lzf->m_n_words += 1;
         lzf->m_stat.n_mark_final += 1;
         lzf->m_adfa_total_words_len += key.size();
@@ -2099,7 +2103,7 @@ MarkFinalStateOmitSetNodeInfo:
                 ThisThreadID(), n_retry, curr);
         goto retry;
     }
-    init_token_value_mw(newcur, -1, lzf);
+    init_token_value_mw(newcur, -1, -1);
     a[newcur].meta.b_is_final = true;
     update_curr_ptr(newcur, 0);
     lzf->m_stat.n_mark_final += 1;
