@@ -1557,7 +1557,6 @@ MarkFinalStateOmitSetNodeInfo:
 
 bool
 MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) {
-    constexpr auto ConLevel = MultiWriteMultiRead;
     assert(MultiWriteMultiRead == m_writing_concurrent_level);
     assert(nullptr != m_token_tail);
     assert(token->m_min_age <= token->m_link.verseq);
@@ -1605,6 +1604,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
         n_retry++;
         lzf->m_n_retry++;
     }
+    bool is_value_inited = false;
     size_t parent = size_t(-1);
     size_t curr_slot = size_t(-1);
     size_t curr = initial_state;
@@ -1910,7 +1910,27 @@ assert(pos < key.size());
                     ThisThreadID(), n_retry, curr);
             goto retry;
         }
-        init_token_value(newCurr, suffix_node, lzf);
+#define init_token_value_mw(newCurr, suffixNode, tls) do {             \
+    if (terark_likely(!is_value_inited)) {                             \
+      if (terark_unlikely(!token->init_value(value, valsize))) {       \
+        if (-1 != intptr_t(newCurr)) {                                 \
+          size_t size = node_size(a + newCurr, valsize);               \
+          free_node<OneWriteMultiRead>(newCurr, size, tls);            \
+        }                                                              \
+        if (-1 != intptr_t(suffixNode)) {                              \
+          revoke_list<OneWriteMultiRead>(a, suffixNode, valsize, tls); \
+        }                                                              \
+        token->m_value = NULL;                                         \
+        return true;                                                   \
+      }                                                                \
+      is_value_inited = true;                                          \
+    }                                                                  \
+    auto valptr = a->bytes + valpos;                                   \
+    tiny_memcpy_align_4(valptr, value, valsize);                       \
+    token->m_value = valptr;                                           \
+} while (0)
+//~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+        init_token_value_mw(newCurr, suffix_node, lzf);
         if (pos + 1 < key.size()) {
             lzf->m_zpath_states += zp_states_inc;
         }
@@ -1934,7 +1954,7 @@ assert(pos < key.size());
             lzf->m_zpath_states += zp_states_inc;
         }
         maximize(lzf->m_max_word_len, key.size());
-        init_token_value(-1, suffix_node, lzf);
+        init_token_value_mw(-1, suffix_node, lzf);
         return true;
     }
     else { // curr has updated by other threads
@@ -1984,7 +2004,7 @@ ForkBranch: {
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     assert(state_move(newCurr, key[pos]) == newSuffixNode);
     assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
-    init_token_value(newCurr, newSuffixNode, lzf);
+    init_token_value_mw(newCurr, newSuffixNode, lzf);
     update_curr_ptr(newCurr, 1 + chainLen);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
@@ -2021,7 +2041,7 @@ SplitZpath: {
                 ThisThreadID(), n_retry, curr);
         goto retry;
     }
-    init_token_value(newCurr, -1, lzf);
+    init_token_value_mw(newCurr, -1, lzf);
     update_curr_ptr(newCurr, 1);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
@@ -2042,7 +2062,7 @@ MarkFinalStateOnFastNode: {
     curr_locked.meta.b_is_final = true;
     // compare_exchange_weak() is second check for b_is_final
     if (cas_weak(a[curr], lock_curr, curr_locked)) {
-        init_token_value(-1, -1, lzf);
+        init_token_value_mw(-1, -1, lzf);
         lzf->m_n_words += 1;
         lzf->m_stat.n_mark_final += 1;
         lzf->m_adfa_total_words_len += key.size();
@@ -2079,14 +2099,15 @@ MarkFinalStateOmitSetNodeInfo:
                 ThisThreadID(), n_retry, curr);
         goto retry;
     }
-    init_token_value(newcur, -1, lzf);
+    init_token_value_mw(newcur, -1, lzf);
     a[newcur].meta.b_is_final = true;
     update_curr_ptr(newcur, 0);
     lzf->m_stat.n_mark_final += 1;
     return true;
 }
 HandleDupKey: {
-    if (terark_unlikely(n_retry > 0)) {
+    if (terark_unlikely(is_value_inited)) {
+        assert(n_retry > 0);
         token->destroy_value(value, valsize);
     }
     return false;
