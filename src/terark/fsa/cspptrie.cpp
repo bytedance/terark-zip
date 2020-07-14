@@ -1455,7 +1455,7 @@ ForkBranch: {
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     assert(state_move(newCurr, key[pos]) == newSuffixNode);
     assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
-    init_token_value(-1, newCurr, newSuffixNode);
+    init_token_value(newCurr, ni.oldSuffixNode, newSuffixNode);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
             zp_states_inc++;
@@ -2006,7 +2006,7 @@ ForkBranch: {
     size_t zp_states_inc = SuffixZpathStates(chainLen, pos, key.n);
     assert(state_move(newCurr, key[pos]) == newSuffixNode);
     assert(state_move(newCurr, ni.zpath[zidx]) == ni.oldSuffixNode);
-    init_token_value_mw(-1, newCurr, newSuffixNode);
+    init_token_value_mw(newCurr, ni.oldSuffixNode, newSuffixNode);
     update_curr_ptr(newCurr, 1 + chainLen);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
