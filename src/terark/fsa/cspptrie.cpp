@@ -47,6 +47,10 @@
 #endif
 namespace terark {
 
+static constexpr uint08_t FLAG_final     = 0x1 << 4;
+static constexpr uint08_t FLAG_lazy_free = 0x1 << 5;
+static constexpr uint08_t FLAG_lock      = 0x1 << 7;
+
 #undef prefetch
 #define prefetch(ptr) _mm_prefetch((const char*)(ptr), _MM_HINT_T0)
 
@@ -1672,7 +1676,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     }
     else { // parent has been lazy freed or updated by other threads
       RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
-      RaceCondition1: as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
+      RaceCondition1: as_atomic(a[parent].flags).fetch_and(~FLAG_lock, std::memory_order_release);
       RaceCondition2:
         size_t min_age = (size_t)token->m_min_age;
         size_t age = (size_t)token->m_link.verseq;
@@ -1993,7 +1997,7 @@ ForkBranch: {
         token->m_value = NULL; // fail flag
         return true;
     }
-    if (a[ni.oldSuffixNode].meta.b_lazy_free || a[ni.oldSuffixNode].meta.b_lock) {
+    if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
@@ -2060,28 +2064,23 @@ SplitZpath: {
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
     size_t valpos = AlignSize * (curr + 2 + 256);
-    while (true) {
-      PatriciaNode lock_curr = a[curr];
-      PatriciaNode curr_locked = lock_curr;
-      lock_curr.meta.b_is_final = false;
-      lock_curr.meta.b_lock = false;
-      curr_locked.meta.b_is_final = true;
-      // compare_exchange_weak() is second check for b_is_final
-      if (cas_weak(a[curr], lock_curr, curr_locked)) {
-        init_token_value_mw(-1, -1, -1);
-        lzf->m_n_words += 1;
-        lzf->m_stat.n_mark_final += 1;
-        lzf->m_adfa_total_words_len += key.size();
-        return true;
-      } else if (!a[curr].meta.b_is_final) {
-        // lock bit is set by some child, pause and try again
-        _mm_pause();
-        n_retry++;
-        continue;
-      } else {
-        token->m_value = (char*)a->chars + valpos;
-        goto HandleDupKey;
-      }
+    PatriciaNode lock_curr = a[curr];
+    PatriciaNode curr_locked = lock_curr;
+    lock_curr.meta.b_is_final = false;
+    lock_curr.meta.b_lock = false;
+    curr_locked.meta.b_is_final = true;
+    // compare_exchange_weak() is second check for b_is_final
+    uint08_t oldflags = as_atomic(a[curr].flags)
+         .fetch_or(FLAG_final, std::memory_order_acq_rel);
+    if (oldflags & FLAG_final) {
+      token->m_value = (char*)a->chars + valpos;
+      goto HandleDupKey;
+    } else {
+      init_token_value_mw(-1, -1, -1);
+      lzf->m_n_words += 1;
+      lzf->m_stat.n_mark_final += 1;
+      lzf->m_adfa_total_words_len += key.size();
+      return true;
     }
 }
 MarkFinalState: {

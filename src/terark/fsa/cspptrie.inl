@@ -55,6 +55,7 @@ union PatriciaNode {
         uint16_t  n_children;
     };
     MetaInfo  meta;
+    uint08_t  flags; // for meta flags
     BigCount  big;
     uint32_t  child;
     uint08_t  bytes[4];
