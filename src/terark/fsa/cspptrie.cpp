@@ -431,6 +431,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       fprintf(stderr, "}\n");
     }
   }
+  return m_stat;
 }
 
 template<size_t Align>
@@ -1689,7 +1690,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     }
     else { // parent has been lazy freed or updated by other threads
       RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
-      RaceCondition1: as_atomic(a[parent].flags).fetch_and(~FLAG_lock, std::memory_order_release);
+      RaceCondition1: as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
       RaceCondition2:
         size_t min_age = (size_t)token->m_min_age;
         size_t age = (size_t)token->m_link.verseq;
@@ -2053,7 +2054,7 @@ SplitZpath: {
     }
     // ni.oldSuffixNode is the copy of curr with zpath updated to suffix_str
     // curr may be lazy_freed or locked when we copy it
-    if (a[ni.oldSuffixNode].meta.b_lazy_free || a[ni.oldSuffixNode].meta.b_lock) {
+    if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         if (debugConcurrent >= 3)
@@ -2062,7 +2063,7 @@ SplitZpath: {
                 ThisThreadID(), n_retry, curr);
         goto retry;
     }
-    init_token_value_mw(newCurr, ni.oldSuffixNode,-1);
+    init_token_value_mw(newCurr, ni.oldSuffixNode, -1);
     update_curr_ptr(newCurr, 1);
     if (terark_likely(1 != ni.zpath.n)) {
         if (0 != zidx && zidx + 1 != size_t(ni.zpath.n))
@@ -2077,11 +2078,6 @@ SplitZpath: {
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
     size_t valpos = AlignSize * (curr + 2 + 256);
-    PatriciaNode lock_curr = a[curr];
-    PatriciaNode curr_locked = lock_curr;
-    lock_curr.meta.b_is_final = false;
-    lock_curr.meta.b_lock = false;
-    curr_locked.meta.b_is_final = true;
     // compare_exchange_weak() is second check for b_is_final
     uint08_t oldflags = as_atomic(a[curr].flags)
          .fetch_or(FLAG_final, std::memory_order_acq_rel);
