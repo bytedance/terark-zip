@@ -31,6 +31,7 @@ rdir:=${BUILD_ROOT}/rls
 adir:=${BUILD_ROOT}/afr
 
 TERARK_ROOT:=${PWD}
+COMMON_C_FLAGS  += -fdiagnostics-color
 COMMON_C_FLAGS  += -Wformat=2 -Wcomment
 COMMON_C_FLAGS  += -Wall -Wextra
 COMMON_C_FLAGS  += -Wno-unused-parameter
