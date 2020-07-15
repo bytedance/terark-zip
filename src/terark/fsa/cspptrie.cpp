@@ -369,80 +369,93 @@ void PatriciaMem<Align>::set_readonly() {
     if (NoWriteReadOnly == m_writing_concurrent_level) {
         return; // fail over on release
     }
-    if (MultiWriteMultiRead == m_writing_concurrent_level) {
-        long long sum_wait = 0;
-        size_t sum_retry = 0;
-        size_t uni_retry = 0;
-        size_t thread_nth = 0;
-        std::map<size_t, size_t> retry_histgram;
-        auto sync = [&](TCMemPoolOneThread<AlignSize>* tc) {
-            auto lzf = static_cast<LazyFreeListTLS*>(tc);
-            assert(this == lzf->m_trie);
-            lzf->sync_no_atomic(this);
-            lzf->reset_zero();
+    sync_stat();
+    mempool_set_readonly();
+}
 
-            this->m_adfa_total_words_len += lzf->m_adfa_total_words_len;
-            this->m_total_zpath_len += lzf->m_total_zpath_len;
-            this->m_zpath_states += lzf->m_zpath_states;
-            lzf->m_adfa_total_words_len = 0;
-            lzf->m_total_zpath_len = 0;
-            lzf->m_zpath_states = 0;
+template<size_t Align>
+const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
+  if (MultiWriteMultiRead == m_writing_concurrent_level) {
+    long long sum_wait = 0;
+    size_t sum_retry = 0;
+    size_t uni_retry = 0;
+    size_t thread_nth = 0;
+    std::map<size_t, size_t> retry_histgram;
+    auto sync = [&](TCMemPoolOneThread<AlignSize>* tc) {
+      auto lzf = static_cast<LazyFreeListTLS*>(tc);
+      assert(this == lzf->m_trie);
+      lzf->sync_no_atomic(this);
+      lzf->reset_zero();
 
-            sum_retry += lzf->m_n_retry;
-            if (debugConcurrent >= 1) {
-                sum_wait += lzf->m_race_wait;
-                fprintf(stderr,
-                        "PatriciaMW: thread_nth = %3zd, tls_retry = %8zd, wait = %10.6f sec\n",
-                        thread_nth, lzf->m_n_retry, g_pf.sf(0, lzf->m_race_wait));
-            }
-            if (debugConcurrent >= 2) {
-                for (auto& kv : lzf->m_retry_histgram) {
-                    uni_retry += kv.second;
-                    retry_histgram[kv.first] += kv.second;
-                }
-            }
-            thread_nth++;
-        };
-        m_counter_mutex.lock();
-        m_mempool_lock_free.alltls().for_each_tls(sync);
-        m_counter_mutex.unlock();
-        m_mempool_lock_free.sync_frag_size();
-        if (debugConcurrent >= 1 && m_n_words) {
-            fprintf(stderr,
-                    "PatriciaMW: thread_num = %3zd, sum_retry = %8zd, wait = %10.6f sec, retry/total = %f\n",
-                    thread_nth, sum_retry, g_pf.sf(0, sum_wait), double(sum_retry)/m_n_words);
+      this->m_adfa_total_words_len += lzf->m_adfa_total_words_len;
+      this->m_total_zpath_len += lzf->m_total_zpath_len;
+      this->m_zpath_states += lzf->m_zpath_states;
+      lzf->m_adfa_total_words_len = 0;
+      lzf->m_total_zpath_len = 0;
+      lzf->m_zpath_states = 0;
+
+      sum_retry += lzf->m_n_retry;
+      if (debugConcurrent >= 1) {
+        sum_wait += lzf->m_race_wait;
+        fprintf(stderr,
+                "PatriciaMW: thread_nth = %3zd, tls_retry = %8zd, wait = %10.6f sec\n",
+                thread_nth, lzf->m_n_retry, g_pf.sf(0, lzf->m_race_wait));
+        lzf->m_race_wait = 0;
+      }
+      lzf->m_n_retry = 0;
+      if (debugConcurrent >= 2) {
+        for (auto& kv : lzf->m_retry_histgram) {
+          uni_retry += kv.second;
+          retry_histgram[kv.first] += kv.second;
+          kv.second = 0;
         }
-        if (debugConcurrent >= 2 && m_n_words) {
-            fprintf(stderr
-                , "PatriciaMW: uni_retry[num = %zd, ratio = %f], retry_hist = {\n"
-                , uni_retry, double(uni_retry)/m_n_words);
-            for (auto& kv : retry_histgram) {
-                fprintf(stderr, "\t%5zd %5zd\n", kv.first, kv.second);
-            }
-            fprintf(stderr, "}\n");
-        }
+      }
+      thread_nth++;
+    };
+    m_counter_mutex.lock();
+    m_mempool_lock_free.alltls().for_each_tls(sync);
+    m_counter_mutex.unlock();
+    m_mempool_lock_free.sync_frag_size();
+    if (debugConcurrent >= 1 && m_n_words) {
+      fprintf(stderr,
+              "PatriciaMW: thread_num = %3zd, sum_retry = %8zd, wait = %10.6f sec, retry/total = %f\n",
+              thread_nth, sum_retry, g_pf.sf(0, sum_wait), double(sum_retry)/m_n_words);
     }
-    if (m_is_virtual_alloc && mmap_base) {
-        assert(-1 != m_fd);
-        // file based
-        get_stat(const_cast<DFA_MmapHeader*>(this->mmap_base));
-        auto base = (byte_t*)mmap_base;
-        assert(m_mempool.data() == (byte_t*)(mmap_base + 1));
-        size_t realsize = sizeof(DFA_MmapHeader) + m_mempool.size();
-      #if defined(_MSC_VER)
-        FlushViewOfFile(base, realsize); // this flush is async
+    if (debugConcurrent >= 2 && m_n_words) {
+      fprintf(stderr
+          , "PatriciaMW: uni_retry[num = %zd, ratio = %f], retry_hist = {\n"
+          , uni_retry, double(uni_retry)/m_n_words);
+      for (auto& kv : retry_histgram) {
+        fprintf(stderr, "\t%5zd %5zd\n", kv.first, kv.second);
+      }
+      fprintf(stderr, "}\n");
+    }
+  }
+}
+
+template<size_t Align>
+void PatriciaMem<Align>::mempool_set_readonly() {
+  if (m_is_virtual_alloc && mmap_base) {
+    assert(-1 != m_fd);
+    // file based
+    get_stat(const_cast<DFA_MmapHeader*>(this->mmap_base));
+    auto base = (byte_t*)mmap_base;
+    assert(m_mempool.data() == (byte_t*)(mmap_base + 1));
+    size_t realsize = sizeof(DFA_MmapHeader) + m_mempool.size();
+#if defined(_MSC_VER)
+    FlushViewOfFile(base, realsize); // this flush is async
         // windows can not unmap unused address range
-      #else
-        size_t filesize = sizeof(DFA_MmapHeader) + m_mempool.capacity();
-        size_t alignedsize = pow2_align_up(realsize, 4*1024);
-        msync(base, realsize, MS_ASYNC);
-        munmap(base + alignedsize, filesize - alignedsize);
-        ftruncate(m_fd, realsize);
-        m_mempool.risk_set_capacity(m_mempool.size());
-      #endif
-    }
-    m_insert = (insert_func_t)&PatriciaMem::insert_readonly_throw;
-    m_writing_concurrent_level = NoWriteReadOnly;
+#else
+    size_t filesize = sizeof(DFA_MmapHeader) + m_mempool.capacity();
+    size_t alignedsize = pow2_align_up(realsize, 4*1024);
+    msync(base, realsize, MS_ASYNC);
+    munmap(base + alignedsize, filesize - alignedsize);
+    ftruncate(m_fd, realsize);
+    m_mempool.risk_set_capacity(m_mempool.size());
+#endif
+  }
+  m_insert = (insert_func_t)&PatriciaMem::insert_readonly_throw;
+  m_writing_concurrent_level = NoWriteReadOnly;
 }
 
 void MainPatricia::set_insert_func(ConcurrentLevel conLevel) {

@@ -230,6 +230,7 @@ public:
     void mem_get_stat(MemStat*) const final;
 
     const Stat& trie_stat() const final { return m_stat; }
+    const Stat& sync_stat() final;
     size_t num_words() const final { return m_n_words; }
 
     void* alloc_appdata(size_t len);
@@ -245,6 +246,7 @@ public:
     }
 
     void mempool_tc_populate(size_t) override;
+    void mempool_set_readonly();
 };
 
 // Patricia is an interface
