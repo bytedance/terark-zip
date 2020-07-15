@@ -67,6 +67,19 @@ int main() {
   DO_INSERT("aaaabbbbccc"); assert(ret_ok);
   assert(trie->trie_stat().n_split == 4);
 
+  DO_INSERT("bb"); assert(ret_ok);
+  assert(trie->trie_stat().n_add_state_move == 4);
+  size_t i = 0;
+  for (char ch : fstring("0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ+-*/")) {
+    char buf[16];
+    snprintf(buf, sizeof(buf), "bb%c", ch);
+    const char* dup = strdup(buf); // intentional leak memory
+    DO_INSERT(dup); assert(ret_ok);
+    TERARK_VERIFY_F(trie->trie_stat().n_add_state_move == 5 + i, "%zd %zd",
+                    trie->trie_stat().n_add_state_move ,  5 + i);
+    i++;
+  }
+
   wtok->release();
   iter->dispose();
 
