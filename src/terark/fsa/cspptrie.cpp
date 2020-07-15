@@ -1927,7 +1927,7 @@ assert(pos < key.size());
             token->m_value = NULL; // fail flag
             return true;
         }
-        if (a[newCurr].meta.b_lazy_free || a[newCurr].meta.b_lock) {
+        if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
             free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
             if (debugConcurrent >= 3)
