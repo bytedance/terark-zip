@@ -13,16 +13,29 @@ int main() {
   const char* val_obj = NULL;
   const char* val_got = NULL;
   auto val_of = [&](const char* x) { val_obj = x; return &val_obj; };
+  //auto rtok = trie->tls_reader_token();
   auto wtok = trie->tls_writer_token_nn();
+  auto iter = trie->new_iter();
+
+  auto check_all = [&]() {
+    if (iter->seek_begin()) {
+      do {
+        auto ki = aligned_load<const char*>(iter->value());
+        TERARK_VERIFY(iter->word() == ki);
+      } while (iter->incr());
+    }
+    //iter->idle();
+  };
   wtok->acquire(trie.get());
 
 #define DO_INSERT(key) do { \
     ret_ok = trie->insert(key, val_of(key), wtok); \
     val_got = aligned_load<char*>(wtok->value()); \
     assert(val_got == val_obj); \
+    check_all(); \
     trie->sync_stat(); \
   } while (0)
-  
+
   DO_INSERT("aaaabbbbcccc"); assert(ret_ok);
   assert(trie->trie_stat().n_add_state_move == 1);
   DO_INSERT("aaaabbbb"); assert(ret_ok); // split
@@ -46,6 +59,7 @@ int main() {
   assert(trie->trie_stat().n_mark_final == 2);
 
   wtok->release();
+  iter->dispose();
 
   return 0;
 }
