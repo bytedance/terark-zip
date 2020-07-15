@@ -1360,7 +1360,7 @@ assert(pos < key.size());
         }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-#define init_token_value(new1, new2, list) {                   \
+#define init_token_value(new1, new2, list) do {                \
     bool initOk = token->init_value(value, valsize);           \
     if (ConLevel < OneWriteMultiRead) {                        \
         SingleThreadShared_check_for_sync_token_list();        \
@@ -1379,7 +1379,7 @@ assert(pos < key.size());
         assert(initOk);                                        \
     }                                                          \
     token->m_value = valptr;                                   \
-}
+} while (0)
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 // insert on curr with a transition to a new child which may has zpath
