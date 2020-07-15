@@ -24,6 +24,7 @@ int main() {
   } while (0)
   
   DO_INSERT("aaaabbbbcccc"); assert(ret_ok);
+  assert(trie->trie_stat().n_add_state_move == 1);
   DO_INSERT("aaaabbbb"); assert(ret_ok); // split
   assert(trie->trie_stat().n_split == 1);
 
@@ -33,10 +34,10 @@ int main() {
   assert(trie->trie_stat().n_fork == 1);
 
   DO_INSERT("aaaad"); assert(ret_ok);
-  assert(trie->trie_stat().n_add_state_move == 1);
+  assert(trie->trie_stat().n_add_state_move == 2);
 
   DO_INSERT("aaaade"); assert(ret_ok);
-  assert(trie->trie_stat().n_add_state_move == 2);
+  assert(trie->trie_stat().n_add_state_move == 3);
 
   DO_INSERT("aaaa"); assert(ret_ok);
   assert(trie->trie_stat().n_mark_final == 1);
