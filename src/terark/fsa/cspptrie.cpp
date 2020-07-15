@@ -1361,15 +1361,15 @@ assert(pos < key.size());
 // end search key...
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 #define init_token_value_fail_clean(new1, new2, list, tls) \
-        if (-1 != intptr_t(new1)) {                        \
+        if (size_t(-1) != size_t(new1)) {                  \
           size_t size = node_size(a + new1, valsize);      \
           free_node<ConLevel>(new1, size, tls);            \
         }                                                  \
-        if (-1 != intptr_t(new2)) {                        \
+        if (size_t(-1) != size_t(new2)) {                  \
           size_t size = node_size(a + new2, valsize);      \
           free_node<ConLevel>(new2, size, tls);            \
         }                                                  \
-        if (-1 != intptr_t(list)) {                        \
+        if (size_t(-1) != size_t(list)) {                  \
           revoke_list<ConLevel>(a, list, valsize, tls);    \
         }
 //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
