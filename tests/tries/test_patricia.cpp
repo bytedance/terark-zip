@@ -2,18 +2,19 @@
 // Created by leipeng on 2020/7/15.
 //
 #include <terark/fsa/cspptrie.hpp>
+#include <set>
 
 using namespace terark;
 
 int main() {
   std::unique_ptr<Patricia> trie(
       Patricia::create(sizeof(void*), 4<<20, Patricia::MultiWriteMultiRead));
-  
+  std::set<std::string> stdset;
   bool ret_ok = false;
   const char* val_obj = NULL;
   const char* val_got = NULL;
   auto val_of = [&](const char* x) { val_obj = x; return &val_obj; };
-  //auto rtok = trie->tls_reader_token();
+  auto rtok = trie->tls_reader_token();
   auto wtok = trie->tls_writer_token_nn();
   auto iter = trie->new_iter();
 
@@ -22,18 +23,29 @@ int main() {
       do {
         auto ki = aligned_load<const char*>(iter->value());
         TERARK_VERIFY(iter->word() == ki);
+        TERARK_VERIFY(stdset.find(ki) != stdset.end());
       } while (iter->incr());
     }
-    //iter->idle();
+    for (const auto& key : stdset) {
+        rtok->acquire(trie.get());
+        TERARK_VERIFY(rtok->lookup(key));
+        TERARK_VERIFY(key == aligned_load<const char*>(rtok->value()));
+        TERARK_VERIFY(iter->seek_lower_bound(key));
+        TERARK_VERIFY(key == aligned_load<const char*>(iter->value()));
+        rtok->release();
+    }
+    iter->idle();
   };
   wtok->acquire(trie.get());
 
 #define DO_INSERT(key) do { \
+    stdset.insert(key); \
     ret_ok = trie->insert(key, val_of(key), wtok); \
     val_got = aligned_load<char*>(wtok->value()); \
     assert(val_got == val_obj); \
-    check_all(); \
     trie->sync_stat(); \
+    assert(stdset.size() == trie->num_words()); \
+    check_all(); \
   } while (0)
 
   DO_INSERT("aaaabbbbcccc"); assert(ret_ok);
