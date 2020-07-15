@@ -308,6 +308,11 @@ PatriciaMem<Align>::LazyFreeListTLS::LazyFreeListTLS(PatriciaMem<Align>* trie)
     m_reader_token.reset(new ReaderToken());
 }
 
+#if !defined(NDEBUG)
+// falseConcurrent for 'ConLevel is MultiWrite but the real writer num is 1'
+// this is just for debug
+static const bool falseConcurrent = getEnvBool("PatriciaMultiWriteFalse", false);
+#endif
 static const long debugConcurrent = getEnvLong("PatriciaMultiWriteDebug", 0);
 
 ///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
@@ -2314,7 +2319,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         break;
     }
   #if !defined(NDEBUG)
-    if (ConLevel != MultiWriteMultiRead)
+    if (ConLevel != MultiWriteMultiRead || falseConcurrent)
     {
         size_t suf2 = state_move(node, ch);
         assert(suf2 == suffix_node);
@@ -2327,6 +2332,8 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         if (a[node].meta.n_zpath_len) {
             assert(get_zpath_data(node) == get_zpath_data(curr));
         }
+        assert(memcmp(a->bytes + get_valpos(a, curr),
+                      a->bytes + get_valpos(a, node), valsize) == 0);
       #if 1 // deep debug
         for(size_t cc = 0; cc < ch; ++cc) {
             size_t t1 = state_move(curr, cc);
