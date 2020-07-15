@@ -58,6 +58,15 @@ int main() {
   DO_INSERT(""); assert(ret_ok);
   assert(trie->trie_stat().n_mark_final == 2);
 
+  DO_INSERT("aaaabb"); assert(ret_ok);
+  assert(trie->trie_stat().n_split == 2);
+
+  DO_INSERT("aaaab"); assert(ret_ok);
+  assert(trie->trie_stat().n_split == 3);
+
+  DO_INSERT("aaaabbbbccc"); assert(ret_ok);
+  assert(trie->trie_stat().n_split == 4);
+
   wtok->release();
   iter->dispose();
 
