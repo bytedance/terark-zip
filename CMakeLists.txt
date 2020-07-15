@@ -1,14 +1,50 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.6)
 PROJECT(terark-core)
 
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=gnu++1y -D_DARWIN_UNLIMITED_SELECT")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 SET(CMAKE_CXX_STANDARD 14)
 
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
-INCLUDE_DIRECTORIES(/usr/local/include)
+
+SET(BUILD_SUFFIX "d")
+IF(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
+  SET(BUILD_SUFFIX "r")
+ENDIF()
+
+INCLUDE(ExternalProject)
+ExternalProject_Add(boost-project
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boost-include
+    CONFIGURE_COMMAND ""
+    BUILD_IN_SOURCE 1
+    BUILD_COMMAND bash bootstrap.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/boost --with-libraries=fiber,context,system,filesystem
+    INSTALL_COMMAND ./b2 "cxxflags=-fPIC -std=gnu++14" -j20 "cflags=-fPIC" threading=multi link=static variant=release)
+
+ADD_LIBRARY(boost-fiber STATIC IMPORTED GLOBAL)
+ADD_DEPENDENCIES(boost-fiber boost-project)
+SET_TARGET_PROPERTIES(boost-fiber PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_fiber.a
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+
+ADD_LIBRARY(boost-context STATIC IMPORTED GLOBAL)
+ADD_DEPENDENCIES(boost-context boost-project)
+SET_TARGET_PROPERTIES(boost-context PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_context.a
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+
+ADD_LIBRARY(boost-system STATIC IMPORTED GLOBAL)
+ADD_DEPENDENCIES(boost-system boost-project)
+SET_TARGET_PROPERTIES(boost-system PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_system.a
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+
+ADD_LIBRARY(boost-filesystem STATIC IMPORTED GLOBAL)
+ADD_DEPENDENCIES(boost-filesystem boost-project)
+SET_TARGET_PROPERTIES(boost-filesystem PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_filesystem.a
+    INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 # CORE LIB
 FILE(GLOB CORE_SRC src/terark/*.cpp
@@ -23,22 +59,17 @@ FILE(GLOB CORE_SRC src/terark/*.cpp
         boost-include/libs/fiber/src/*.cpp
         boost-include/libs/fiber/src/algo/*.cpp
         boost-include/libs/fiber/src/numa/*.cpp
-        boost-include/libs/fiber/examples/*.cpp
-        boost-include/libs/fiber/examples/asio/*.cpp
-        boost-include/libs/fiber/examples/cuda/*.cpp
-        boost-include/libs/fiber/examples/hip/*.cpp
-        boost-include/libs/fiber/examples/numa/*.cpp
+        # boost-include/libs/fiber/examples/*.cpp
+        # boost-include/libs/fiber/examples/asio/*.cpp
+        # boost-include/libs/fiber/examples/cuda/*.cpp
+        # boost-include/libs/fiber/examples/hip/*.cpp
+        # boost-include/libs/fiber/examples/numa/*.cpp
         )
-ADD_LIBRARY(terark-core SHARED ${CORE_SRC})
-
 
 # FSA LIB
 FILE(GLOB FSA_SRC src/terark/fsa/*.cpp)
-ADD_LIBRARY(terark-fsa SHARED ${FSA_SRC})
-TARGET_LINK_LIBRARIES(terark-fsa terark-core)
 
-
-# ZSTD
+# Embbed ZSTD
 FILE(GLOB ZSTD_SRC 3rdparty/zstd/zstd/common/*.c
         3rdparty/zstd/zstd/compress/*.c
         3rdparty/zstd/zstd/decompress/*.c
@@ -50,24 +81,40 @@ FILE(GLOB ZSTD_SRC 3rdparty/zstd/zstd/common/*.c
 FILE(GLOB ZBS_SRC src/terark/entropy/*.cpp
         src/terark/zbs/*.cpp
         ${ZSTD_SRC})
-ADD_LIBRARY(terark-zbs SHARED ${ZBS_SRC})
-TARGET_LINK_LIBRARIES(terark-zbs terark-core terark-fsa)
+
+# IDX LIB
+FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
+
+# Combined all into libterark-core.a
+ADD_LIBRARY(terark-core-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
+TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system aio pthread rt)
+TARGET_INCLUDE_DIRECTORIES(terark-core-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>")
 
 
-# RPC LIB
-# FILE(GLOB RPC_SRC src/terark/inet/*.cpp src/terark/rpc/*.cpp)
-# ADD_LIBRARY(terarkdb-rpc SHARED ${RPC_SRC})
+INSTALL(TARGETS terark-core-${BUILD_SUFFIX}
+        EXPORT terark-core-${BUILD_SUFFIX}-targets
+        ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/terark-core/lib
+        )
 
-# ZIP
-# SET(ZIP_SRC src/terark/io/BzipStream.cpp src/terark/io/GzipStream.cpp)
-# TRBXX
-# SET(TRBXX_SRC src/terark/trb_cxx.cpp)
-# C
-# FILE(GLOB C_SRC src/terark/c/*.c src/terark/c/*.cpp)
+INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/terark-core/cmake)
+
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/terark
+        DESTINATION ${CMAKE_BINARY_DIR}/terark-core/include
+        FILES_MATCHING 
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+)
+
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
+        DESTINATION ${CMAKE_BINARY_DIR}/terark-core/include
+        FILES_MATCHING 
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+)
+
 
 ############## Tests ##############
-
-
 # CMake library under Linux won't accept multiple `main` functions, don't know how to fix it yet.
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # tests
@@ -86,3 +133,6 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
     TARGET_LINK_LIBRARIES(terark-tools terark-zbs terark-fsa terark-core)
 ENDIF ()
+
+############## Examples & Tools  ##############
+# TODO
