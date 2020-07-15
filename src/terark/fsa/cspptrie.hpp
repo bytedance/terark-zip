@@ -119,7 +119,10 @@ protected:
             assert(sizeof(T) == m_trie->m_valsize);
             assert(NULL != m_value);
             assert(size_t(m_value) % m_trie->mem_align_size() == 0);
-            return unaligned_load<T>(m_value);
+            if (sizeof(T) == 4)
+              return   aligned_load<T>(m_value);
+            else
+              return unaligned_load<T>(m_value);
         }
         template<class T>
         T& mutable_value_of() const {
