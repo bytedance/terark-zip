@@ -615,7 +615,7 @@ public:
         return a->bytes + x;
     }
 
-    bool lookup(fstring key, ReaderToken* token) const override final;
+    bool lookup(fstring key, TokenBase* token) const override final;
 
     void set_insert_func(ConcurrentLevel conLevel);
 

@@ -152,6 +152,7 @@ public:
         WriterToken();
         void acquire(Patricia*);
         bool insert(fstring key, void* value);
+        bool lookup(fstring);
     };
     using WriterTokenPtr = std::unique_ptr<WriterToken, DisposeAsDelete>;
 
@@ -195,7 +196,7 @@ public:
         return (this->*m_insert)(key, value, token);
     }
 
-    virtual bool lookup(fstring key, ReaderToken* token) const = 0;
+    virtual bool lookup(fstring key, TokenBase* token) const = 0;
     virtual void set_readonly() = 0;
     virtual bool  is_readonly() const = 0;
     virtual WriterTokenPtr& tls_writer_token() = 0;
@@ -254,5 +255,20 @@ protected:
     bool             m_is_virtual_alloc;
     uint32_t         m_valsize;
 };
+
+terark_forceinline
+bool Patricia::ReaderToken::lookup(fstring key) {
+    return m_trie->lookup(key, this);
+}
+
+terark_forceinline
+bool Patricia::WriterToken::insert(fstring key, void* value) {
+    return m_trie->insert(key, value, this);
+}
+
+terark_forceinline
+bool Patricia::WriterToken::lookup(fstring key) {
+    return m_trie->lookup(key, this);
+}
 
 } // namespace terark

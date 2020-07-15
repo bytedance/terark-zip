@@ -2438,7 +2438,7 @@ static long g_lazy_free_debug_level =
         print("B");
 }
 
-bool MainPatricia::lookup(fstring key, ReaderToken* token) const {
+bool MainPatricia::lookup(fstring key, TokenBase* token) const {
   #if !defined(NDEBUG)
     if (m_writing_concurrent_level >= SingleThreadShared) {
         assert(NULL == mmap_base || -1 != m_fd);
@@ -3622,15 +3622,6 @@ void Patricia::WriterToken::acquire(Patricia* trie1) {
 
 Patricia::WriterToken::~WriterToken() {
     TERARK_VERIFY(DisposeDone == m_flags.state);
-}
-
-bool Patricia::ReaderToken::lookup(fstring key) {
-    return m_trie->lookup(key, this);
-}
-
-terark_flatten
-bool Patricia::WriterToken::insert(fstring key, void* value) {
-    return m_trie->insert(key, value, this);
 }
 
 /// Iterator
