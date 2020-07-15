@@ -1090,11 +1090,11 @@ MainPatricia::fork(size_t parent, size_t zidx,
     if (ConLevel < OneWriteMultiRead) {
         ni->zpath.p = a[parent].chars + ni->zp_offset; // update zpath.p
     }
-    auto dst = a[oldSuffixNode].bytes;
-    dst = small_memcpy_align_4(dst, a + parent, ni->zp_offset);
-    a[oldSuffixNode].meta.n_zpath_len = byte_t(ni->zpath.n - zidx - 1);
     byte_t  oldChar = ni->zpath[zidx];
     fstring oldTail = ni->zpath.substr(zidx+1);
+    auto dst = a[oldSuffixNode].bytes;
+    dst = small_memcpy_align_4(dst, a + parent, ni->zp_offset);
+    a[oldSuffixNode].meta.n_zpath_len = byte_t(oldTail.n);
     dst = small_memcpy_align_1(dst, oldTail.p, oldTail.n);
     dst =  tiny_memset_align_p(dst, 0, AlignSize);
     tiny_memcpy_align_4(dst, a[parent].bytes + ni->va_offset, ni->node_valsize());
