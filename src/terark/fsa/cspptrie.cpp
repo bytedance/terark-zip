@@ -1594,6 +1594,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     constexpr auto ConLevel = MultiWriteMultiRead;
     assert(MultiWriteMultiRead == m_writing_concurrent_level);
     assert(nullptr != m_token_tail);
+    assert(ThisThreadID() == token->m_thread_id);
     assert(token->m_min_age <= token->m_link.verseq);
     assert(token->m_min_age <= m_token_tail->m_link.verseq);
     assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
@@ -1655,24 +1656,11 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     assert(!a[newCurr].meta.b_lazy_free);
     assert(nil_state != ni.node_size);
     //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
-    uint32_t oldcurr = uint32_t(curr);
-    PatriciaNode parent_unlock, parent_locked;
-    PatriciaNode curr_unlock, curr_locked;
-    parent_unlock = as_atomic(a[parent]).load(std::memory_order_relaxed);
-    parent_locked = parent_unlock;
-    parent_unlock.meta.b_lazy_free = 0;
-    parent_unlock.meta.b_lock = 0;
-    parent_locked.meta.b_lock = 1;
-    if (!cas_weak(a[parent], parent_unlock, parent_locked)) {
+    if (as_atomic(a[parent].flags).fetch_or(FLAG_lock, std::memory_order_acq_rel) & (FLAG_lock|FLAG_lazy_free)) {
         goto RaceCondition2;
     }
     // now a[parent] is locked, try lock curr:
-    curr_unlock = as_atomic(a[curr]).load(std::memory_order_relaxed);
-    curr_locked = curr_unlock;
-    curr_unlock.meta.b_lock = 0;
-    curr_unlock.meta.b_lazy_free = 0;
-    curr_locked.meta.b_lazy_free = 1;
-    if (!cas_weak(a[curr], curr_unlock, curr_locked)) {
+    if (as_atomic(a[curr].flags).fetch_or(FLAG_lazy_free, std::memory_order_acq_rel) & (FLAG_lock|FLAG_lazy_free)) {
         goto RaceCondition1;
     }
     // now a[curr] is locked, because --
@@ -1681,8 +1669,8 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     if (!array_eq(backup, &a[curr + ni.n_skip].child, ni.n_children)) {
         goto RaceCondition0;
     }
-    if (cas_weak(a[curr_slot].child, oldcurr, uint32_t(newCurr))) {
-        as_atomic(a[parent]).store(parent_unlock, std::memory_order_release);
+    if (cas_strong(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
+        as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
         uint64_t age = token->m_link.verseq;
         assert(age >= m_dummy.m_min_age);
         maximize(lzf->m_max_word_len, key.size());
@@ -1690,7 +1678,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         lzf->m_n_words += 1;
         lzf->m_adfa_total_words_len += key.size();
         lzf->m_total_zpath_len += key.size() - pos - nodeIncNum;
-        lzf->push_back({ age, oldcurr, ni.node_size });
+        lzf->push_back({ age, uint32_t(curr), ni.node_size });
         lzf->m_mem_size += ni.node_size;
         if (terark_unlikely(n_retry && debugConcurrent >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
@@ -1698,7 +1686,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         return true;
     }
     else { // parent has been lazy freed or updated by other threads
-      RaceCondition0: as_atomic(a[curr]).store(curr_unlock, std::memory_order_release);
+      RaceCondition0: as_atomic(a[curr].flags).fetch_and(uint08_t(~FLAG_lazy_free), std::memory_order_release);
       RaceCondition1: as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
       RaceCondition2:
         size_t min_age = (size_t)token->m_min_age;
@@ -2460,6 +2448,7 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
         assert(token->m_link.verseq >= m_dummy.m_min_age);
     }
     assert(this == token->m_trie);
+    assert(ThisThreadID() == token->m_thread_id);
   #endif
 
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
