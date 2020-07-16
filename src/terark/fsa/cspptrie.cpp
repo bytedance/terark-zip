@@ -308,6 +308,7 @@ PatriciaMem<Align>::LazyFreeListTLS::LazyFreeListTLS(PatriciaMem<Align>* trie)
     m_reader_token.reset(new ReaderToken());
 }
 
+static const bool forceLeakMem = getEnvBool("PatriciaForceLeakMem", false);
 #if !defined(NDEBUG)
 // falseConcurrent for 'ConLevel is MultiWrite but the real writer num is 1'
 // this is just for debug
@@ -961,6 +962,9 @@ template<size_t Align>
 template<Patricia::ConcurrentLevel ConLevel>
 void PatriciaMem<Align>::free_raw(size_t nodePos, size_t nodeSize, LazyFreeListTLS* tls) {
     assert(nodePos < m_mempool.size());
+    if (forceLeakMem) {
+      return;
+    }
     if (ConLevel >= MultiWriteMultiRead)
         m_mempool_lock_free.sfree(nodePos, nodeSize, tls);
     else if (ConLevel == OneWriteMultiRead)
@@ -2319,7 +2323,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         break;
     }
   #if !defined(NDEBUG)
-    if (ConLevel != MultiWriteMultiRead || falseConcurrent)
+    if ((ConLevel != MultiWriteMultiRead || falseConcurrent) && debugConcurrent >= 3)
     {
         size_t suf2 = state_move(node, ch);
         assert(suf2 == suffix_node);
