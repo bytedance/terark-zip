@@ -314,11 +314,11 @@ static const bool forceLeakMem = getEnvBool("PatriciaForceLeakMem", false);
 // this is just for debug
 static const bool falseConcurrent = getEnvBool("PatriciaMultiWriteFalse", false);
 #endif
-static const long debugConcurrent = getEnvLong("PatriciaMultiWriteDebug", 0);
+static const long csppDebugLevel = getEnvLong("PatriciaDebugLevel", 0);
 
 ///@param type: "DEBUG", "INFO", "WARN", "ERROR", "FATAL"
 #define PTrieLog(level, type, fmt, ...) do { \
-    if (debugConcurrent >= level) \
+    if (csppDebugLevel >= level) \
         fprintf(stderr, type ": %s:%d: %s: " fmt, \
             __FILE__, __LINE__, BOOST_CURRENT_FUNCTION, ##__VA_ARGS__); \
     } while (0)
@@ -401,7 +401,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
       lzf->m_zpath_states = 0;
 
       sum_retry += lzf->m_n_retry;
-      if (debugConcurrent >= 1) {
+      if (csppDebugLevel >= 1) {
         sum_wait += lzf->m_race_wait;
         fprintf(stderr,
                 "PatriciaMW: thread_nth = %3zd, tls_retry = %8zd, wait = %10.6f sec\n",
@@ -409,7 +409,7 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
         lzf->m_race_wait = 0;
       }
       lzf->m_n_retry = 0;
-      if (debugConcurrent >= 2) {
+      if (csppDebugLevel >= 2) {
         for (auto& kv : lzf->m_retry_histgram) {
           uni_retry += kv.second;
           retry_histgram[kv.first] += kv.second;
@@ -422,12 +422,12 @@ const Patricia::Stat& PatriciaMem<Align>::sync_stat() {
     m_mempool_lock_free.alltls().for_each_tls(sync);
     m_counter_mutex.unlock();
     m_mempool_lock_free.sync_frag_size();
-    if (debugConcurrent >= 1 && m_n_words) {
+    if (csppDebugLevel >= 1 && m_n_words) {
       fprintf(stderr,
               "PatriciaMW: thread_num = %3zd, sum_retry = %8zd, wait = %10.6f sec, retry/total = %f\n",
               thread_nth, sum_retry, g_pf.sf(0, sum_wait), double(sum_retry)/m_n_words);
     }
-    if (debugConcurrent >= 2 && m_n_words) {
+    if (csppDebugLevel >= 2 && m_n_words) {
       fprintf(stderr
           , "PatriciaMW: uni_retry[num = %zd, ratio = %f], retry_hist = {\n"
           , uni_retry, double(uni_retry)/m_n_words);
@@ -778,7 +778,7 @@ void PatriciaMem<Align>::mem_get_stat(MemStat* ms) const {
     ms->lazy_free_sum = 0;
     int thread_idx = 0;
     auto get_lzf = [&,ms](const LazyFreeList* lzf) {
-        if (debugConcurrent >= 2) {
+        if (csppDebugLevel >= 2) {
             fprintf(stderr
                 , "trie = %p, thread-%03d, lazyfree: cnt = %7zd, sum = %10.6f M, avg = %8.3f\n"
                 , this, thread_idx, lzf->size(), lzf->m_mem_size / 1e6
@@ -1680,7 +1680,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
         lzf->m_total_zpath_len += key.size() - pos - nodeIncNum;
         lzf->push_back({ age, uint32_t(curr), ni.node_size });
         lzf->m_mem_size += ni.node_size;
-        if (terark_unlikely(n_retry && debugConcurrent >= 2)) {
+        if (terark_unlikely(n_retry && csppDebugLevel >= 2)) {
             lzf->m_retry_histgram[n_retry]++;
         }
         return true;
@@ -1691,7 +1691,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
       RaceCondition2:
         size_t min_age = (size_t)token->m_min_age;
         size_t age = (size_t)token->m_link.verseq;
-        if (debugConcurrent >= 3) {
+        if (csppDebugLevel >= 3) {
             if (a[parent].meta.b_lazy_free) {
                 fprintf(stderr,
                         "thread-%08zX: line: %d, age = %zd, min_age = %zd, retry%5zd, "
@@ -1927,7 +1927,7 @@ assert(pos < key.size());
         if (a[newCurr].flags & (FLAG_lazy_free|FLAG_lock)) {
             free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
             revoke_list<MultiWriteMultiRead>(a, suffix_node, valsize, lzf);
-            if (debugConcurrent >= 3)
+            if (csppDebugLevel >= 3)
                 fprintf(stderr,
                     "thread-%08zX: retry %zd, add_state_move confict(curr = %zd)\n",
                     ThisThreadID(), n_retry, curr);
@@ -1976,7 +1976,7 @@ assert(pos < key.size());
     }
     else { // curr has updated by other threads
         free_node<MultiWriteMultiRead>(suffix_node, node_size(a + suffix_node, valsize), lzf);
-        if (debugConcurrent >= 3)
+        if (csppDebugLevel >= 3)
             fprintf(stderr,
                 "thread-%08zX: retry %zd, set root child confict(root(=curr) = %zd)\n",
                 ThisThreadID(), n_retry, curr);
@@ -2012,7 +2012,7 @@ ForkBranch: {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
         revoke_list<MultiWriteMultiRead>(a, newSuffixNode, valsize, lzf);
-        if (debugConcurrent >= 3)
+        if (csppDebugLevel >= 3)
             fprintf(stderr,
                 "thread-%08zX: retry %zd, fork confict(curr = %zd)\n",
                 ThisThreadID(), n_retry, curr);
@@ -2054,7 +2054,7 @@ SplitZpath: {
     if (a[ni.oldSuffixNode].flags & (FLAG_lazy_free|FLAG_lock)) {
         free_node<MultiWriteMultiRead>(newCurr, node_size(a+newCurr, valsize), lzf);
         free_node<MultiWriteMultiRead>(ni.oldSuffixNode, node_size(a+ni.oldSuffixNode, valsize), lzf);
-        if (debugConcurrent >= 3)
+        if (csppDebugLevel >= 3)
             fprintf(stderr,
                 "thread-%08zX: retry %zd, split confict(curr = %zd)\n",
                 ThisThreadID(), n_retry, curr);
@@ -2110,7 +2110,7 @@ MarkFinalStateOmitSetNodeInfo:
                         a->bytes + oldpos, ni.va_offset);
     if (a[newcur].meta.b_lazy_free || a[newcur].meta.b_lock) {
         free_node<MultiWriteMultiRead>(newcur, node_size(a+newcur, valsize), lzf);
-        if (debugConcurrent >= 3)
+        if (csppDebugLevel >= 3)
             fprintf(stderr,
                 "thread-%08zX: retry %zd, mark final confict(curr = %zd)\n",
                 ThisThreadID(), n_retry, curr);
@@ -2311,7 +2311,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         break;
     }
   #if !defined(NDEBUG)
-    if ((ConLevel != MultiWriteMultiRead || falseConcurrent) && debugConcurrent >= 3)
+    if (ConLevel != MultiWriteMultiRead || falseConcurrent)
     {
         size_t suf2 = state_move(node, ch);
         assert(suf2 == suffix_node);
@@ -2328,19 +2328,21 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             assert(memcmp(a->bytes + get_valpos(a, curr),
                           a->bytes + get_valpos(a, node), valsize) == 0);
         }
-      #if 1 // deep debug
-        for(size_t cc = 0; cc < ch; ++cc) {
-            size_t t1 = state_move(curr, cc);
-            size_t t2 = state_move(node, cc);
-            assert(t1 == t2);
+        if (csppDebugLevel >= 2) { // deep debug
+            if (csppDebugLevel >= 3) {
+                for(size_t cc = 0; cc < ch; ++cc) {
+                    size_t t1 = state_move(curr, cc);
+                    size_t t2 = state_move(node, cc);
+                    assert(t1 == t2);
+                }
+                for(size_t cc = ch+1; cc < 256; ++cc) {
+                    size_t t1 = state_move(curr, cc);
+                    size_t t2 = state_move(node, cc);
+                    assert(t1 == t2);
+                }
+            }
+            for_each_move(node, [](size_t child, size_t ch) {});
         }
-        for(size_t cc = ch+1; cc < 256; ++cc) {
-            size_t t1 = state_move(curr, cc);
-            size_t t2 = state_move(node, cc);
-            assert(t1 == t2);
-        }
-        for_each_move(node, [](size_t child, size_t ch) {});
-      #endif
     }
   #endif
     return node;
