@@ -1669,7 +1669,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     if (!array_eq(backup, &a[curr + ni.n_skip].child, ni.n_children)) {
         goto RaceCondition0;
     }
-    if (cas_strong(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
+    if (cas_weak(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
         as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
         uint64_t age = token->m_link.verseq;
         assert(age >= m_dummy.m_min_age);
