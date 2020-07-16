@@ -2332,8 +2332,10 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
         if (a[node].meta.n_zpath_len) {
             assert(get_zpath_data(node) == get_zpath_data(curr));
         }
-        assert(memcmp(a->bytes + get_valpos(a, curr),
-                      a->bytes + get_valpos(a, node), valsize) == 0);
+        if (a[node].meta.b_is_final) {
+            assert(memcmp(a->bytes + get_valpos(a, curr),
+                          a->bytes + get_valpos(a, node), valsize) == 0);
+        }
       #if 1 // deep debug
         for(size_t cc = 0; cc < ch; ++cc) {
             size_t t1 = state_move(curr, cc);
