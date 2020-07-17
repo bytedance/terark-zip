@@ -1191,8 +1191,7 @@ inline static size_t SuffixZpathStates(size_t chainLen, size_t pos, size_t keyle
     }
 }
 
-bool Patricia::insert_readonly_throw(fstring key, void* value,
-                                     WriterToken* token) {
+bool Patricia::insert_readonly_throw(fstring key, void* value, WriterToken*) {
     assert(NoWriteReadOnly == m_writing_concurrent_level);
     THROW_STD(logic_error, "invalid operation: insert to readonly trie");
 }
@@ -1729,26 +1728,6 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
             size_t size = node_size(a + ni.oldSuffixNode, valsize);
             free_node<MultiWriteMultiRead>(ni.oldSuffixNode, size, lzf);
         }
-        //if (terark_unlikely(n_retry >= 8 && n_retry % 8 == 0)) {
-         // auto t1 = std::chrono::steady_clock::now();
-         // auto t1 = g_pf.now();
-         // if (lzf->m_n_nodes) {
-         //     sync_tls();
-         // }
-         // else {
-         //     m_token_mutex.lock();
-         //     token->update_list(this);
-         //     m_max_age++; // crucial!!
-         //     m_token_mutex.unlock();
-         // }
-         // if (terark_unlikely(n_retry >= 256 && n_retry % 256 == 0)) {
-         //     std::this_thread::yield();
-         // }
-         // auto t2 = std::chrono::steady_clock::now();
-         // lzf->m_race_wait += (t2-t1).count();
-         // auto t2 = g_pf.now();
-         // lzf->m_race_wait += t2 - t1;
-        //}
         return false;
     }
 };
@@ -2075,10 +2054,7 @@ SplitZpath: {
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
     size_t valpos = AlignSize * (curr + 2 + 256);
-    // compare_exchange_weak() is second check for b_is_final
-    uint08_t oldflags = as_atomic(a[curr].flags)
-         .fetch_or(FLAG_final, std::memory_order_acq_rel);
-    if (oldflags & FLAG_final) {
+    if (as_atomic(a[curr].flags).fetch_or(FLAG_final, std::memory_order_acq_rel) & FLAG_final) {
       token->m_value = (char*)a->chars + valpos;
       goto HandleDupKey;
     } else {
@@ -2108,16 +2084,16 @@ MarkFinalStateOmitSetNodeInfo:
     cpfore(backup, &a[curr + ni.n_skip].child, ni.n_children);
     tiny_memcpy_align_4(a->bytes + newpos,
                         a->bytes + oldpos, ni.va_offset);
-    if (a[newcur].meta.b_lazy_free || a[newcur].meta.b_lock) {
-        free_node<MultiWriteMultiRead>(newcur, node_size(a+newcur, valsize), lzf);
+    if (a[newcur].flags & (FLAG_lazy_free|FLAG_lock)) {
+        free_node<MultiWriteMultiRead>(newcur, newlen, lzf);
         if (csppDebugLevel >= 3)
             fprintf(stderr,
                 "thread-%08zX: retry %zd, mark final confict(curr = %zd)\n",
                 ThisThreadID(), n_retry, curr);
         goto retry;
     }
-    init_token_value_mw(newcur, -1, -1);
     a[newcur].meta.b_is_final = true;
+    init_token_value_mw(newcur, -1, -1);
     update_curr_ptr(newcur, 0);
     lzf->m_stat.n_mark_final += 1;
     return true;
