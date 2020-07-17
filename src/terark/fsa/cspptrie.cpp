@@ -1207,7 +1207,7 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
     assert(m_writing_concurrent_level >= SingleThreadStrict);
     assert(m_writing_concurrent_level <= OneWriteMultiRead);
     auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
-    size_t valsize = m_valsize;
+    size_t const valsize = m_valsize;
     size_t curr_slot = size_t(-1);
     size_t curr = initial_state;
     size_t pos = 0;
@@ -1602,7 +1602,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
     TERARK_ASSERT_F(token->m_link.verseq >= m_dummy.m_min_age, "%lld %lld",
             llong(token->m_link.verseq), llong(m_dummy.m_min_age));
-    LazyFreeListTLS* lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
+    auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
     assert(AcquireDone == token->m_flags.state);
@@ -1634,9 +1634,9 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
             }
         }
     }
-    auto a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
+    auto const a = reinterpret_cast<PatriciaNode*>(m_mempool.data());
     bool is_value_inited = false;
-    size_t valsize = m_valsize;
+    size_t const valsize = m_valsize;
     size_t n_retry = 0;
     if (0) {
     retry:
