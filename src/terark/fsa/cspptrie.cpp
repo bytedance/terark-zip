@@ -1943,6 +1943,9 @@ assert(pos < key.size());
     //
     assert(a->bytes == m_mempool.data());
     assert(reinterpret_cast<PatriciaNode*>(m_mempool.data()) == a);
+    assert(0 == a[curr].meta.b_lazy_free);
+    assert(0 == a[curr].meta.n_zpath_len);
+    init_token_value_mw(-1, -1, suffix_node); // must before cas set child
     uint32_t nil = nil_state;
     if (cas_weak(a[curr+2+ch].child, nil, uint32_t(suffix_node))) {
         as_atomic(a[curr+1].big.n_children).fetch_add(1, std::memory_order_relaxed);
@@ -1954,7 +1957,6 @@ assert(pos < key.size());
             lzf->m_zpath_states += zp_states_inc;
         }
         maximize(lzf->m_max_word_len, key.size());
-        init_token_value_mw(-1, -1, suffix_node);
         return true;
     }
     else { // curr has updated by other threads
