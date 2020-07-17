@@ -1094,6 +1094,7 @@ MainPatricia::fork(size_t parent, size_t zidx,
     if (ConLevel < OneWriteMultiRead) {
         ni->zpath.p = a[parent].chars + ni->zp_offset; // update zpath.p
     }
+    assert(!a[parent].meta.b_is_final || ni->node_valsize() == m_valsize);
     byte_t  oldChar = ni->zpath[zidx];
     fstring oldTail = ni->zpath.substr(zidx+1);
     auto dst = a[oldSuffixNode].bytes;
@@ -1105,6 +1106,7 @@ MainPatricia::fork(size_t parent, size_t zidx,
     size_t newParentSize = AlignSize*(1 + 2) + zidx; // must not final state
     size_t newParent = alloc_node<ConLevel>(newParentSize, tls);
     if (ConLevel >= OneWriteMultiRead && mem_alloc_fail == newParent) {
+        assert(node_size(a+ oldSuffixNode, m_valsize) == ni->suffix_node_size(zidx));
         free_node<ConLevel>(oldSuffixNode, ni->suffix_node_size(zidx), tls);
         return size_t(-1);
     }
@@ -1152,6 +1154,7 @@ size_t MainPatricia::split_zpath(size_t curr, size_t splitPos,
     if (ConLevel < OneWriteMultiRead) {
         ni->zpath.p = a[curr].chars + ni->zp_offset; // update zpath.p
     }
+    assert(!a[curr].meta.b_is_final || ni->node_valsize() == valsize);
     fstring suffix = ni->zpath.substr(splitPos+1);
     auto dst = a[suffixNode].bytes;
     dst = small_memcpy_align_4(dst, a + curr, ni->zp_offset);
