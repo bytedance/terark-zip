@@ -37,15 +37,19 @@
 namespace terark {
 
 union PatriciaNode {
-    // 1. b_lazy_free can only be set to 1 once
-    // 2. b_set_child is a lock, it can be unlocked
-    // 3. b_set_child and b_lazy_free are exclusive, they are used as lock
-    //    other fields will be never changed during life time
+    // 1. b_lazy_free can only be set to 1 once, it is permanent: once set,
+    //    never clear. b_lazy_free is just for non fast node.
+    // 2. b_set_final is the lock for set fast node's final bit, it's permanent.
+    //    permanent makes a little simple and performance gain.
+    // 3. b_set_final is a optimization, we use it, just because it is an
+    //    unused bit if we don't use it. if we don't use it, b_lock should be
+    //    used for this purpose(in this case, b_lock need to be unlocked thus
+    //    is not permanent).
     struct MetaInfo {
         uint08_t  n_cnt_type  : 4;
         uint08_t  b_is_final  : 1;
         uint08_t  b_lazy_free : 1;
-        uint08_t  b_set_child : 1;
+        uint08_t  b_set_final : 1; // only for fast node set final
         uint08_t  b_lock      : 1;
         uint08_t  n_zpath_len;
         uint08_t  c_label[2];

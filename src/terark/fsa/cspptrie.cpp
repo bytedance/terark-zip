@@ -49,6 +49,7 @@ namespace terark {
 
 static constexpr uint08_t FLAG_final     = 0x1 << 4;
 static constexpr uint08_t FLAG_lazy_free = 0x1 << 5;
+static constexpr uint08_t FLAG_set_final = 0x1 << 6; // fast node set final
 static constexpr uint08_t FLAG_lock      = 0x1 << 7;
 
 #undef prefetch
@@ -2056,12 +2057,22 @@ SplitZpath: {
 
 // FastNode: cnt_type = 15 always has value space
 MarkFinalStateOnFastNode: {
+    assert(0 == a[curr].meta.b_lazy_free);
+    assert(0 == a[curr].meta.n_zpath_len);
     size_t valpos = AlignSize * (curr + 2 + 256);
-    if (as_atomic(a[curr].flags).fetch_or(FLAG_final, std::memory_order_acq_rel) & FLAG_final) {
+    if (as_atomic(a[curr].flags).fetch_or(FLAG_set_final, std::memory_order_acq_rel) & FLAG_set_final) {
+      // very rare: other thread set final
+      // FLAG_set_final is permanent for FastNode: once set, never clear
+      while (!(as_atomic(a[curr].flags).load(std::memory_order_relaxed) & FLAG_final)) {
+          _mm_pause();
+      }
       token->m_value = (char*)a->chars + valpos;
       goto HandleDupKey;
-    } else {
+    }
+    else {
       init_token_value_mw(-1, -1, -1);
+      // value must be set before set FLAG_final
+      as_atomic(a[curr].flags).fetch_or(FLAG_final, std::memory_order_release);
       lzf->m_n_words += 1;
       lzf->m_stat.n_mark_final += 1;
       lzf->m_adfa_total_words_len += key.size();
