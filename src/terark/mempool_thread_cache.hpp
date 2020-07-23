@@ -121,9 +121,9 @@ public:
                         fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
                     m_frag_inc = 0;
                 }
+                ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 list.cnt--;
                 list.head = *(link_size_t*)(base + pos);
-                ASAN_UNPOISON_MEMORY_REGION(base + pos, request);
                 mptc1t_debug_fill_alloc(base + pos, request);
                 return pos;
             }
@@ -142,11 +142,11 @@ public:
                                 fetch_sub(size_t(-m_frag_inc), std::memory_order_relaxed);
                             m_frag_inc = 0;
                         }
+                        ASAN_UNPOISON_MEMORY_REGION(base + pos, 2*request);
                         list2.cnt--;
                         list2.head = *(link_size_t*)(base + pos);
                         // put remain half to 'list'...
                         // list.head must be list_tail
-                        ASAN_UNPOISON_MEMORY_REGION(base + pos, 2*request);
                     //  *(link_size_t*)(base + pos + request) = list.head;
                         *(link_size_t*)(base + pos + request) = list_tail;
                         list.cnt++;
@@ -361,6 +361,7 @@ public:
         assert(len % AlignSize == 0);
         assert(len >= sizeof(link_t));
         if (pos + len == m_hot_pos) {
+            ASAN_POISON_MEMORY_REGION(base + pos, len);
             m_hot_pos = pos;
             return;
         }
@@ -429,6 +430,7 @@ public:
         else {
             if (m_hot_pos < m_hot_end) {
                 size_t large_len = m_hot_end - m_hot_pos;
+                ASAN_UNPOISON_MEMORY_REGION(base + m_hot_pos, large_len);
                 sfree(base, m_hot_pos, large_len);
             }
             else {
