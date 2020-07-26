@@ -89,7 +89,9 @@ FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
 ADD_LIBRARY(terark-core-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
 TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system aio pthread rt)
 TARGET_INCLUDE_DIRECTORIES(terark-core-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
-                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>")
+                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
+                                                              # expose boost headers in case someone need it
+                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boost-include>")
 
 
 INSTALL(TARGETS terark-core-${BUILD_SUFFIX}
