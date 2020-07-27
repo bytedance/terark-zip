@@ -1303,7 +1303,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: TERARK_DIE("Invalid == cnt_type"); break;
+    default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -1806,7 +1806,7 @@ for (;; pos++) {
     byte_t  ch = (byte_t)key.p[pos];
     size_t  cnt_type = p->meta.n_cnt_type;
     switch (cnt_type) {
-    default: TERARK_DIE("Invalid == cnt_type"); break;
+    default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
     case 0: assert(p->meta.b_is_final); goto MatchFail;
     case 2: break_if_match_ch(1, 1); no_break_fallthrough;
     case 1: break_if_match_ch(1, 0); goto MatchFail;
@@ -4122,7 +4122,7 @@ bool MainPatricia::IterImpl::seek_lower_bound_impl(fstring key) {
   #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); e.nth_child = Nth
         switch (cnt_type) {
-        default: TERARK_DIE("Invalid == cnt_type"); break;
+        default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
         case 0:
             assert(p->meta.b_is_final);
             assert(calc_word_len() == m_word.size());
@@ -4369,7 +4369,7 @@ seek_lower_bound_fast:
   #undef  SetNth
   #define SetNth(Skip, Nth) curr = p[Skip+Nth].child; prefetch(a+curr); ip->nth_child = Nth
         switch (cnt_type) {
-        default: TERARK_DIE("Invalid == cnt_type"); break;
+        default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
         case 0:
             assert(p->meta.b_is_final);
             goto RewindStackForNext;
@@ -4566,7 +4566,7 @@ rewind_stack_for_next:
             byte_t* pch = &m_word.back();
             assert (p->meta.n_zpath_len == top.zpath_len);
             switch (cnt_type) {
-            default: TERARK_DIE("Invalid == cnt_type"); break;
+            default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
             case 0:  TERARK_VERIFY(p->meta.b_is_final); break;
             case 1:
                 assert(0 == nth);
@@ -4704,7 +4704,7 @@ bool MainPatricia::IterImpl::incr() {
         size_t  nth_child = m_iter[top].nth_child;
         assert (nth_child < m_iter[top].n_children);
         switch (cnt_type) {
-        default: TERARK_DIE("Invalid == cnt_type"); break;
+        default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
         case 0:  TERARK_DIE("0 == cnt_type"); break;
         case 1:
             assert(nth_child < 1);
@@ -4832,7 +4832,7 @@ bool MainPatricia::IterImpl::decr() {
     size_t  cnt_type = p->meta.n_cnt_type;
     size_t  nth_child = m_iter[top].nth_child;
     switch (cnt_type) {
-    default: TERARK_DIE("Invalid == cnt_type"); break;
+    default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
     case 0:
     case 1:
         assert(nth_child < cnt_type);
@@ -4961,7 +4961,7 @@ size_t MainPatricia::IterImpl::seek_max_prefix(fstring key) {
       //~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
         const auto ch = (byte_t)key[pos];
         switch (cnt_type) {
-        default: TERARK_DIE("Invalid == cnt_type"); break;
+        default: TERARK_DIE("bad cnt_type = %zd", cnt_type); break;
         case 0:  TERARK_DIE("0 == cnt_type"); break;
         case 2: if (ch == p->meta.c_label[1]) { match_nth_char(1, 1); } no_break_fallthrough;
         case 1: if (ch == p->meta.c_label[0]) { match_nth_char(1, 0); }
