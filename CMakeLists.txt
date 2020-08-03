@@ -87,7 +87,12 @@ FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
 
 # Combined all into libterark-core.a
 ADD_LIBRARY(terark-core-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
-TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system aio pthread rt)
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+        # MacOS doesn't need libaio and rt
+        TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system pthread)
+ELSE()
+        TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system aio pthread rt)
+ENDIF()
 TARGET_INCLUDE_DIRECTORIES(terark-core-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
                                                               # expose boost headers in case someone need it
@@ -117,7 +122,6 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
 
 
 ############## Tests ##############
-# CMake library under Linux won't accept multiple `main` functions, don't know how to fix it yet.
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # tests
     FILE(GLOB TESTS_SRC
@@ -125,7 +129,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             tests/tries/*.cpp
             tests/succinct/*.cpp)
     ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
-    TARGET_LINK_LIBRARIES(terark-tests terark-zbs terark-fsa terark-core)
+    TARGET_LINK_LIBRARIES(terark-tests terark-core-${BUILD_SUFFIX})
 
     # tools
     FILE(GLOB TOOLS_SRC
@@ -133,7 +137,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             tools/fsa/*.cpp
             tools/zbs/*.cpp)
     ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
-    TARGET_LINK_LIBRARIES(terark-tools terark-zbs terark-fsa terark-core)
+    TARGET_LINK_LIBRARIES(terark-tools terark-core-${BUILD_SUFFIX})
 ENDIF ()
 
 ############## Examples & Tools  ##############
