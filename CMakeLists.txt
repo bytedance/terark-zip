@@ -101,25 +101,31 @@ TARGET_INCLUDE_DIRECTORIES(terark-core-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE
 
 INSTALL(TARGETS terark-core-${BUILD_SUFFIX}
         EXPORT terark-core-${BUILD_SUFFIX}-targets
-        ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/terark-core/lib
+        ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/lib
         )
 
-INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/terark-core/cmake)
+INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/cmake)
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/terark
-        DESTINATION ${CMAKE_BINARY_DIR}/terark-core/include
+        DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
-        DESTINATION ${CMAKE_BINARY_DIR}/terark-core/include
+        DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
 
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/boost
+        DESTINATION ${CMAKE_BINARY_DIR}/include
+        FILES_MATCHING 
+        PATTERN "*.h"
+        PATTERN "*.hpp"
+)
 
 ############## Tests ##############
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
