@@ -3,6 +3,7 @@ PROJECT(terark-core)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 SET(CMAKE_CXX_STANDARD 14)
+SET(CMAKE_VERBOSE_MAKEFILE ON)
 
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
@@ -53,12 +54,12 @@ FILE(GLOB CORE_SRC src/terark/*.cpp
         src/terark/thread/*.cpp
         src/terark/succinct/*.cpp
         src/terark/c/*.c
-        boost-include/libs/coroutine/src/*.cpp
-        boost-include/libs/coroutine/src/detail/*.cpp
-        boost-include/libs/coroutine/src/posix/*.cpp
-        boost-include/libs/fiber/src/*.cpp
-        boost-include/libs/fiber/src/algo/*.cpp
-        boost-include/libs/fiber/src/numa/*.cpp
+        # boost-include/libs/coroutine/src/*.cpp
+        # boost-include/libs/coroutine/src/detail/*.cpp
+        # boost-include/libs/coroutine/src/posix/*.cpp
+        # boost-include/libs/fiber/src/*.cpp
+        # boost-include/libs/fiber/src/algo/*.cpp
+        # boost-include/libs/fiber/src/numa/*.cpp
         # boost-include/libs/fiber/examples/*.cpp
         # boost-include/libs/fiber/examples/asio/*.cpp
         # boost-include/libs/fiber/examples/cuda/*.cpp
@@ -87,12 +88,7 @@ FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
 
 # Combined all into libterark-core.a
 ADD_LIBRARY(terark-core-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
-IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-        # MacOS doesn't need libaio and rt
-        TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system pthread)
-ELSE()
-        TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system aio pthread rt)
-ENDIF()
+TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system)
 TARGET_INCLUDE_DIRECTORIES(terark-core-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
                                                               # expose boost headers in case someone need it
@@ -104,7 +100,7 @@ INSTALL(TARGETS terark-core-${BUILD_SUFFIX}
         ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/lib
         )
 
-INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/cmake)
+INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake)
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/terark
         DESTINATION ${CMAKE_BINARY_DIR}/include
@@ -121,7 +117,7 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
 )
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/boost
-        DESTINATION ${CMAKE_BINARY_DIR}/include
+  DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"

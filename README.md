@@ -1,5 +1,10 @@
-# Introduction
+# Usage (CMake)
+- use cmake build static library
+ - `cmake -S . -B build && make && make install`
+- install and link `gomp aio pthread rt` to your application with `libterark-core`
 
+
+# Usage (Makefile, Deprecated)
 Terark-Core is the foundation of TerarkDB and TerarkKV, it contains a series of algorithms that support storage engine development:
 
 - Index algorithms
