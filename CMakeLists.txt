@@ -130,16 +130,16 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             tests/core/*.cpp
             tests/tries/*.cpp
             tests/succinct/*.cpp)
-    ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
-    TARGET_LINK_LIBRARIES(terark-tests terark-core-${BUILD_SUFFIX})
+        #ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
+        #TARGET_LINK_LIBRARIES(terark-tests terark-core-${BUILD_SUFFIX})
 
     # tools
     FILE(GLOB TOOLS_SRC
             tools/general/*.cpp
             tools/fsa/*.cpp
             tools/zbs/*.cpp)
-    ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
-    TARGET_LINK_LIBRARIES(terark-tools terark-core-${BUILD_SUFFIX})
+        #ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
+        #TARGET_LINK_LIBRARIES(terark-tools terark-core-${BUILD_SUFFIX})
 ENDIF ()
 
 ############## Examples & Tools  ##############
