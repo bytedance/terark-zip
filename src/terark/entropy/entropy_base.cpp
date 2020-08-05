@@ -6,13 +6,24 @@
 
 namespace terark {
 
+
+uint64_t TerarkContext::capacity_ = 16ull << 20;
+size_t TerarkContext::max_list_size_ = 32;
+
 struct TerarkContext::BufferList {
     BufferList* next;
     size_t c;
 };
 
 ContextBuffer::~ContextBuffer() {
-    if (c_ != nullptr && b_.capacity() >= sizeof(TerarkContext::BufferList) && b_.capacity() < (1ull << 20)) {
+    assert(c_ == nullptr || c_->tls_ == nullptr || c_ == GetTlsTerarkContext());
+    if (c_ != nullptr && c_->list_size_ < TerarkContext::max_list_size_ &&
+        b_.capacity() >= sizeof(TerarkContext::BufferList) &&
+        b_.capacity() < (1ull << 20) &&
+        c_->context_size_ + b_.capacity() < TerarkContext::capacity_) {
+
+        c_->context_size_ += b_.capacity();
+        ++c_->list_size_;
         auto node = reinterpret_cast<TerarkContext::BufferList*>(b_.data());
         node->c = b_.capacity();
         b_.risk_release_ownership();
@@ -30,8 +41,10 @@ TerarkContext::~TerarkContext() {
 }
 
 ContextBuffer TerarkContext::alloc(size_t size) {
+    assert(tls_ == nullptr || this == GetTlsTerarkContext());
     size_t m = std::max(size, sizeof(BufferList));
     if (list_ == nullptr) {
+        assert(list_size_ == 0);
         return ContextBuffer(valvec<byte_t>(size > 0 ? m : 0, valvec_reserve()), this);
     }
     BufferList **node = &list_;
@@ -45,6 +58,9 @@ ContextBuffer TerarkContext::alloc(size_t size) {
         }
     }
     n = *node;
+    assert(list_size_ > 0);
+    --list_size_;
+    context_size_ -= n->c;
     auto next = n->next;
     valvec<byte_t> b;
     b.risk_set_data(reinterpret_cast<byte_t*>(n));
@@ -55,7 +71,8 @@ ContextBuffer TerarkContext::alloc(size_t size) {
 }
 
 TerarkContext* GetTlsTerarkContext() {
-    static thread_local TerarkContext tls_terark_ctx;
+    TerarkContext::TlsTerarkContext tls_flag;
+    static thread_local TerarkContext tls_terark_ctx(tls_flag);
     return &tls_terark_ctx;
 }
 
@@ -77,7 +94,7 @@ EntropyBytes EntropyBitsToBytes(EntropyBits* bits) {
 }
 
 EntropyBits EntropyBytesToBits(fstring bytes) {
-    assert(bytes.size() > 0);
+    assert(!bytes.empty());
     assert(bytes[0] != 0);
     size_t skip = fast_ctz(uint32_t(bytes[0])) + 1;
     return { (byte_t*)bytes.udata(), skip, bytes.size() * 8 - skip, ContextBuffer() };

@@ -26,9 +26,6 @@ private:
     valvec<byte_t> b_;
     TerarkContext *c_;
 
-    ContextBuffer(const ContextBuffer&) = delete;
-    ContextBuffer& operator = (const ContextBuffer&) = delete;
-
 public:
     ContextBuffer() : c_(nullptr) {}
     ContextBuffer(valvec<byte_t> &&b, TerarkContext* c) : b_(std::move(b)), c_(c) {
@@ -43,6 +40,9 @@ public:
         return *this;
     }
     ~ContextBuffer();
+
+    ContextBuffer(const ContextBuffer&) = delete;
+    ContextBuffer& operator = (const ContextBuffer&) = delete;
 
     TerarkContext* owner() const { return c_; }
 
@@ -64,15 +64,29 @@ private:
     friend class ContextBuffer;
     struct BufferList;
     BufferList *list_ = nullptr;
+    TerarkContext* tls_ = nullptr;
+    size_t list_size_ = 0;
+    uint64_t context_size_ = 0;
+
+    static uint64_t capacity_;
+    static size_t max_list_size_;
+public:
+    struct TlsTerarkContext {};
+    explicit TerarkContext(TlsTerarkContext) { tls_ = this; }
+    TerarkContext() = default;
+    ~TerarkContext();
 
     TerarkContext(const ContextBuffer&) = delete;
     TerarkContext(ContextBuffer&&) = delete;
     TerarkContext& operator = (const ContextBuffer&) = delete;
     TerarkContext& operator = (ContextBuffer&&) = delete;
-public:
-    TerarkContext() = default;
-    ~TerarkContext();
+
     ContextBuffer alloc(size_t size = 0);
+
+    static void set_capacity(uint64_t new_capacity, size_t new_list_size) {
+      capacity_ = new_capacity;
+      max_list_size_ = new_list_size;
+    }
 };
 
 class TerarkContext* GetTlsTerarkContext();
