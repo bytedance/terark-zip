@@ -631,32 +631,32 @@ endif
 define COMPILE_CXX
 ${2}/%.o: %.${1}
 	@echo file: $$< "->" $$@
-	@echo TERARK_INC=${TERARK_INC} BOOST_INC=${BOOST_INC} BOOST_SUFFIX=${BOOST_SUFFIX}
+	@echo TERARK_INC=$${TERARK_INC} BOOST_INC=$${BOOST_INC} BOOST_SUFFIX=$${BOOST_SUFFIX}
 	@mkdir -p $$(dir $$@)
-	${CXX} ${CXX_STD} ${CPU} -c ${3} ${CXXFLAGS} ${INCS} $$< -o $$@
+	$${CXX} $${CXX_STD} $${CPU} -c ${3} $${CXXFLAGS} $${INCS} $$< -o $$@
 ${2}/%.s : %.${1}
 	@echo file: $$< "->" $$@
-	${CXX} -S -fverbose-asm ${CXX_STD} ${CPU} ${3} ${CXXFLAGS} ${INCS} $$< -o $$@
+	$${CXX} -S -fverbose-asm $${CXX_STD} $${CPU} ${3} $${CXXFLAGS} $${INCS} $$< -o $$@
 ${2}/%.dep : %.${1}
 	@echo file: $$< "->" $$@
-	@echo INCS = ${INCS}
+	@echo INCS = $${INCS}
 	mkdir -p $$(dir $$@)
-	-${CXX} ${CXX_STD} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+	-$${CXX} $${CXX_STD} ${3} -M -MT $$(basename $$@).o $${INCS} $$< > $$@
 endef
 
 define COMPILE_C
 ${2}/%.o : %.${1}
 	@echo file: $$< "->" $$@
 	mkdir -p $$(dir $$@)
-	${CC} -c ${CPU} ${3} ${CFLAGS} ${INCS} $$< -o $$@
+	$${CC} -c $${CPU} ${3} $${CFLAGS} $${INCS} $$< -o $$@
 ${2}/%.s : %.${1}
 	@echo file: $$< "->" $$@
-	${CC} -S -fverbose-asm ${CPU} ${3} ${CFLAGS} ${INCS} $$< -o $$@
+	$${CC} -S -fverbose-asm $${CPU} ${3} $${CFLAGS} $${INCS} $$< -o $$@
 ${2}/%.dep : %.${1}
 	@echo file: $$< "->" $$@
-	@echo INCS = ${INCS}
+	@echo INCS = $${INCS}
 	mkdir -p $$(dir $$@)
-	-${CC} ${3} -M -MT $$(basename $$@).o ${INCS} $$< > $$@
+	-$${CC} ${3} -M -MT $$(basename $$@).o $${INCS} $$< > $$@
 endef
 
 $(eval $(call COMPILE_CXX,cpp,${ddir},${DBG_FLAGS}))
