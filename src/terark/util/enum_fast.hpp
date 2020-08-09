@@ -96,6 +96,7 @@ fstring enum_direct_find_name(Enum v) {
     return "";
 }
 
+template<class Enum>
 fstring(*)(Enum) s_enum_find_name_func() {
   auto names  = enum_all_names ((Enum*)0);
   auto values = enum_all_values((Enum*)0);
