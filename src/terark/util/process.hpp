@@ -19,7 +19,7 @@ TERARK_DLL_EXPORT int system_vfork(const char*);
 
 TERARK_DLL_EXPORT
 void vfork_cmd(fstring cmd, fstring stdinData,
-                function<void(std::string&& stdoutData, std::exception*)>,
+                function<void(std::string&& stdoutData, const std::exception*)>,
                 fstring tmpFilePrefix = "");
 
 TERARK_DLL_EXPORT

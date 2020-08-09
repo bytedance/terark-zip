@@ -295,7 +295,7 @@ struct VforkCmdPromise {
     std::shared_ptr<std::promise<std::string> > promise
         = std::make_shared<std::promise<std::string>>();
 
-    void operator()(std::string&& stdoutData, std::exception* ex) {
+    void operator()(std::string&& stdoutData, const std::exception* ex) {
     //  fprintf(stderr, "INFO: VforkCmdPromise.set(%s)\n", stdoutData.c_str());
         promise->set_value(std::move(stdoutData));
         if (ex) {
@@ -380,7 +380,7 @@ struct VforkCmdImpl {
 
 void
 vfork_cmd(fstring cmd, fstring stdinData,
-          function<void(std::string&&, std::exception*)> onFinish,
+          function<void(std::string&&, const std::exception*)> onFinish,
           fstring tmpFilePrefix)
 {
     auto share = std::make_shared<VforkCmdImpl>(cmd, tmpFilePrefix);
@@ -400,7 +400,7 @@ vfork_cmd(fstring cmd, fstring stdinData,
                 onFinish(share->read_stdout(), &ex);
             }
         }
-        catch (std::exception ex) {
+        catch (const std::exception& ex) {
             onFinish(std::string(""), &ex);
         }
     });
