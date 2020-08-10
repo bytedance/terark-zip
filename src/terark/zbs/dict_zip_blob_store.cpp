@@ -558,6 +558,11 @@ public:
 			if (m_opt.kNoEntropy == m_opt.entropyAlgo) {
 				m_xxhash64.update(m_dio.begin(), m_dio.tell());
 			}
+            if (m_onFinishEachValue) {
+                fstring raw(rData, rSize);
+                fstring zip(m_dio.begin(), m_dio.tell());
+                m_onFinishEachValue(raw, zip);
+            }
             m_fpWriter.ensureWrite(m_dio.begin(), m_dio.tell());
 		}
         if (m_freq_hist) {
@@ -800,11 +805,21 @@ MyWriteStage::process(int tno, PipelineQueueItem* item) {
 	MyTask* task = static_cast<MyTask*>(item->task);
 	auto builder = task->builder;
 	auto taskOffsets   = task->offsets.data();
+	auto taskZipData = task->obuf.begin();
 	size_t taskZipSize = task->obuf.tell();
 	size_t baseZipSize = builder->m_zipDataSize;
 	assert(0 == tno);
 	assert(task->offsets.size() == task->ibuf.size());
     auto taskRecNum = task->offsets.size();
+    if (builder->m_onFinishEachValue) {
+        for(size_t off0 = 0, i = 0; i < taskRecNum; ++i) {
+            size_t off1 = taskOffsets[i];
+            fstring raw = task->ibuf[i];
+            fstring zip(taskZipData + off0, off1 - off0);
+            builder->m_onFinishEachValue(raw, zip);
+            off0 = off1;
+        }
+    }
 	if (byte* ebase = builder->m_entropyZipDataBase) {
 		assert(builder->m_opt.kNoEntropy != builder->m_opt.entropyAlgo);
 		memcpy(ebase + baseZipSize, task->obuf.begin(), taskZipSize);
