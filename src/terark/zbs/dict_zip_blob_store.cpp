@@ -948,7 +948,7 @@ DictZipBlobStoreBuilder::zipRecord(const byte* rData, size_t rSize,
 		dio << crc;
 	}
 
-	g_dataThroughBytes += rSize;
+	g_dataThroughBytes.fetch_add(rSize, std::memory_order_relaxed);
 }
 
 template<uint32_t LowerBytes>
@@ -1535,7 +1535,7 @@ void DictZipBlobStoreBuilder::prepare(size_t records, FileMemIO& mem) {
     m_zipDataSize = 0;
     m_entropyZipDataBase = nullptr;
     m_dictZipStartTime = g_pf.now();
-    m_dataThroughBytesAtBegin = g_dataThroughBytes;
+    m_dataThroughBytesAtBegin = g_dataThroughBytes.load(std::memory_order_relaxed);
     prepareZip();
 }
 
@@ -1583,7 +1583,7 @@ void DictZipBlobStoreBuilder::prepare(size_t records, fstring fpath, size_t offs
     m_zipDataSize = 0;
     m_entropyZipDataBase = nullptr;
     m_dictZipStartTime = g_pf.now();
-    m_dataThroughBytesAtBegin = g_dataThroughBytes;
+    m_dataThroughBytesAtBegin = g_dataThroughBytes.load(std::memory_order_relaxed);
     prepareZip();
 }
 
@@ -2044,7 +2044,7 @@ void DictZipBlobStoreBuilder::EmbedDict(std::unique_ptr<terark::DictZipBlobStore
 
 void DictZipBlobStoreBuilder::finish(int flag) {
 	finishZip();
-	m_zipStat.pipelineThroughBytes = g_dataThroughBytes - m_dataThroughBytesAtBegin;
+	m_zipStat.pipelineThroughBytes = g_dataThroughBytes.load(std::memory_order_relaxed) - m_dataThroughBytesAtBegin;
 	ullong t1 = g_pf.now();
 	std::unique_ptr<DictZipBlobStore> store(new DictZipBlobStore());
     if (flag & DictZipBlobStoreBuilder::FinishFreeDict) {
