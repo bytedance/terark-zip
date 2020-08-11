@@ -102,7 +102,7 @@ public:
 		valvec<byte_t> zp_data;
 		for(size_t i = 0; i < d2t.size(); ++i) {
 			size_t j = d2t[i];
-			this->states[i].m_zp_offset = zp_data.size();
+			this->states[i].m_zp_offset = uint32_t(zp_data.size());
 			this->states[i].m_map_state = uint32_t(j);
 			if (j < size && trie->is_pzip(j)) {
 				zp_data.append(trie->get_zpath_data(j, &mctx));

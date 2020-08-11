@@ -323,7 +323,7 @@ public:
 					size_t w = unaligned_load<size_t>(mylabel_bm + i*8);
 					size_t ch = i * 64;
 					for (; w; child++) {
-						int ctz = fast_ctz(w);
+						auto ctz = fast_ctz(w);
 						ch += ctz;
 						assert(ch < 256);
 						op(child, byte_t(ch));
