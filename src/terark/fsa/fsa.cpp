@@ -819,7 +819,12 @@ BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
 	if (MAP_FAILED == base) {
 		THROW_STD(runtime_error, "mmap(PROT_READ, fd=%d) = %s", fd, strerror(errno));
 	}
+	size_t fsize = st.st_size;
 #endif
+	if (fsize < base->file_size) {
+		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
+			, (long long)fsize, (long long)base->file_size);
+	}
 	BaseDFA* dfa = load_mmap_fmt(base);
 	dfa->m_mmap_type = DFA_MmapType::is_mmap;
 	return dfa;
