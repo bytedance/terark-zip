@@ -123,8 +123,8 @@ public:
 	using MinMemIO::flush;
 
 	MemIO() { m_end = NULL; }
-	MemIO(void* buf, size_t size) { set(buf, size); }
-	MemIO(void* beg, void* end) { set(beg, end); }
+	MemIO(const void* buf, size_t size) { set(buf, size); }
+	MemIO(const void* beg, const void* end) { set(beg, end); }
 
 	MemIO(const std::pair<byte*, byte*>& range) {
 		m_pos = range.first;
@@ -152,11 +152,11 @@ public:
 		m_end = (byte*)range.second;
 	}
 
-	void set(void* buf, size_t size) {
+	void set(const void* buf, size_t size) {
 		m_pos = (byte*)buf;
 		m_end = (byte*)buf + size;
 	}
-	void set(void* beg, void* end) {
+	void set(const void* beg, const void* end) {
 		m_pos = (byte*)beg;
 		m_end = (byte*)end;
 	}

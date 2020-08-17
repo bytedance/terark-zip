@@ -220,6 +220,21 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #	define TERARK_VERIFY(expr) TERARK_VERIFY_F_IMP(expr, "")
 #endif
 
+// sample fmt: "%zd %zd"
+#define TERARK_ASSERT_LT(x,y,fmt) TERARK_ASSERT_F(x < y, fmt, x, y)
+#define TERARK_ASSERT_GT(x,y,fmt) TERARK_ASSERT_F(x > y, fmt, x, y)
+#define TERARK_ASSERT_LE(x,y,fmt) TERARK_ASSERT_F(x <= y, fmt, x, y)
+#define TERARK_ASSERT_GE(x,y,fmt) TERARK_ASSERT_F(x >= y, fmt, x, y)
+#define TERARK_ASSERT_EQ(x,y,fmt) TERARK_ASSERT_F(x == y, fmt, x, y)
+#define TERARK_ASSERT_NE(x,y,fmt) TERARK_ASSERT_F(x != y, fmt, x, y)
+
+#define TERARK_VERIFY_LT(x,y,fmt) TERARK_VERIFY_F(x < y, fmt, x, y)
+#define TERARK_VERIFY_GT(x,y,fmt) TERARK_VERIFY_F(x > y, fmt, x, y)
+#define TERARK_VERIFY_LE(x,y,fmt) TERARK_VERIFY_F(x <= y, fmt, x, y)
+#define TERARK_VERIFY_GE(x,y,fmt) TERARK_VERIFY_F(x >= y, fmt, x, y)
+#define TERARK_VERIFY_EQ(x,y,fmt) TERARK_VERIFY_F(x == y, fmt, x, y)
+#define TERARK_VERIFY_NE(x,y,fmt) TERARK_VERIFY_F(x != y, fmt, x, y)
+
 } // namespace terark
 
 template<class T>
