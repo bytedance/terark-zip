@@ -100,7 +100,7 @@ INSTALL(TARGETS terark-core-${BUILD_SUFFIX}
         ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/lib
         )
 
-INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_INSTALL_PREFIX}/cmake)
+INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/cmake)
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/terark
         DESTINATION ${CMAKE_BINARY_DIR}/include
@@ -117,12 +117,20 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
 )
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/boost
-  DESTINATION ${CMAKE_BINARY_DIR}/include
+        DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
 
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib
+        DESTINATION ${CMAKE_BINARY_DIR}
+        FILES_MATCHING
+        PATTERN "libboost_fiber.a"
+        PATTERN "libboost_context.a"
+        PATTERN "libboost_system.a"
+        PATTERN "libboost_filesystem.a"
+)
 ############## Tests ##############
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # tests
