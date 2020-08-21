@@ -20,7 +20,7 @@ ExternalProject_Add(boost-project
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boost-include
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE 1
-    BUILD_COMMAND bash bootstrap.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/boost --with-libraries=fiber,context,system,filesystem
+    BUILD_COMMAND bash bootstrap.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/boost --with-libraries=fiber,context,system,filesystem,thread
     INSTALL_COMMAND ./b2 "cxxflags=-fPIC -std=gnu++14" -j20 "cflags=-fPIC" threading=multi link=static variant=release)
 
 ADD_LIBRARY(boost-fiber STATIC IMPORTED GLOBAL)
@@ -45,6 +45,12 @@ ADD_LIBRARY(boost-filesystem STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-filesystem boost-project)
 SET_TARGET_PROPERTIES(boost-filesystem PROPERTIES
     IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_filesystem.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+
+ADD_LIBRARY(boost-thread STATIC IMPORTED GLOBAL)
+ADD_DEPENDENCIES(boost-thread boost-project)
+SET_TARGET_PROPERTIES(boost-thread PROPERTIES
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_thread.a
     INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
 
 # CORE LIB
