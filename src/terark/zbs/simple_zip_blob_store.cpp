@@ -92,7 +92,7 @@ SimpleZipBlobStore::build_from(SortableStrVec& strVec, const NestLoudsTrieConfig
 		}
 		records.push_back(subStrNode.size());
 	}
-	strVec.build_subkeys(subStrNode);
+	strVec.build_subkeys(conf.speedupNestTrieBuild, subStrNode);
 	strVec.compress_strpool(1);
 	strVec.sort_by_seq_id();
 	int lenBits = terark_bsr_u32(uint32_t(maxLen)) + 1;
