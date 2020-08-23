@@ -84,9 +84,27 @@ void IOBufferBase::update_pos(size_t inc) {
 	; // empty for non-seekable
 }
 
+// the memory is managed by user
+void IOBufferBase::risk_release_ownership() {
+  m_capacity = 0;
+  m_beg = m_end = m_pos = NULL;
+}
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 //
+void InputBuffer::setMemory(const void* mem, size_t len) {
+  if (m_beg) {
+    free(m_beg); // user should ensure m_beg is malloc'ed or NULL
+    // user can call risk_release_ownership() to release user allocated
+    // memory before calling this function
+  }
+  m_beg = m_pos = (byte_t*)mem;
+  m_end = m_beg + len;
+  m_capacity = len;
+  m_is = NULL;
+}
+
 //! @return retval is 0, or in range[min_length, max_length]
 size_t InputBuffer::read_min_max(void* vbuf, size_t min_length, size_t max_length)
 {
@@ -402,6 +420,21 @@ size_t OutputBufferBase<BaseClass>::do_flush_and_write(const void* vbuf, size_t 
 	assert(length != 0);
 	assert(m_pos + length > m_end);
 
+	if (terark_unlikely((IOutputStream*)(-1) == m_os)) { // memory mode
+	  // enlarge buffer on memory mode
+	  using namespace std;
+	  size_t min_cap = (m_pos - m_beg) + length;
+	  size_t enlarge_cap = m_capacity * 103 / 64; // ~ < 1.618
+	  size_t new_cap = align_up(max(min_cap, enlarge_cap), 4096);
+	  this->set_bufsize(new_cap);
+	  assert(new_cap == m_capacity);
+	  m_end = m_beg + new_cap;
+	  assert(m_pos + length <= m_end);
+	  memcpy(m_pos, vbuf, length);
+	  m_pos += length;
+	  return length;
+	}
+
 	if (terark_unlikely(0 == m_os))
 	{
 		std::string msg;
@@ -504,6 +537,21 @@ size_t OutputBufferBase<BaseClass>::vprintf(const char* format, va_list ap)
 			this->set_bufsize(align_up(size, m_capacity));
 	}
 }
+
+void OutputBuffer::setMemoryMode(size_t cap) {
+  m_os = (IOutputStream*)(-1);
+  if (m_beg) {
+    free(m_beg); // user should ensure m_beg is malloc'ed or NULL
+    // user can call risk_release_ownership() to release user allocated
+    // memory before calling this function
+  }
+  m_beg = m_end = m_pos = NULL;
+  m_capacity = 0;
+  set_bufsize(cap);
+  m_pos = m_beg;
+  m_end = m_beg + cap;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 

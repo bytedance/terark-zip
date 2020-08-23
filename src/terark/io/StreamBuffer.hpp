@@ -86,6 +86,9 @@ public:
 	   	m_pos = m_beg + pos;
    	}
 
+	// the memory is managed by user
+	void risk_release_ownership();
+
 	//! set buffer eof
 	//!
 	//! most for m_is/m_os == 0
@@ -130,6 +133,12 @@ public:
 	{
 		m_is = stream;
 	}
+
+	// free existing memory and set new mem
+	// it is user's responsibility to risk_release_ownership() later or
+	// keep the memory auto free'ed finally by InputBuffer::~InputBuffer()
+	// also detach stream m_is
+	void setMemory(const void* mem, size_t len);
 
 	IInputStream* getInputStream() const { return m_is; }
 
@@ -310,6 +319,11 @@ public:
 	{ }
 
 	#include "var_int_declare_write.hpp"
+
+	// in memory mode, there is no underlying OutputStream, and -
+	// if buffer is full, enlarge the buffer, similar to AutoGrownMemIO,
+	// but AutoGrownMemIO is preferred if possible
+	void setMemoryMode(size_t cap);
 };
 
 template<class BaseClass>
