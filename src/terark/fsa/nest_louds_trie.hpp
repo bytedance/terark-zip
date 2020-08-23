@@ -60,6 +60,8 @@ public:
 
 	bool useMixedCoreLink;
 
+	bool speedupNestTrieBuild;
+
 	NestLoudsTrieConfig();
 	~NestLoudsTrieConfig();
 	void initFromEnv();

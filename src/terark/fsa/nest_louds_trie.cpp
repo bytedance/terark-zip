@@ -65,6 +65,7 @@ NestLoudsTrieConfig::NestLoudsTrieConfig() {
 	nestScale = 8;
 	useMixedCoreLink = true;
 	enableQueueCompression = true;
+	speedupNestTrieBuild = false;
 }
 
 NestLoudsTrieConfig::~NestLoudsTrieConfig() {
@@ -129,6 +130,7 @@ void NestLoudsTrieConfig::initFromEnv() {
 	}
 	enableQueueCompression = getEnvBool("NestLoudsTrie_enableQueueCompression", true);
 	useMixedCoreLink = getEnvBool("NestLoudsTrie_useMixedCoreLink", true);
+	speedupNestTrieBuild = getEnvBool("NestLoudsTrie_speedupNestTrieBuild", false);
 	if (debugLevel >= 1) {
 		fprintf(stderr, "debugLevel            = %d\n", debugLevel);
 		fprintf(stderr, "optSearchDelimForward = %d\n", flags[optSearchDelimForward]);
@@ -143,6 +145,7 @@ void NestLoudsTrieConfig::initFromEnv() {
 		fprintf(stderr, "isInputSorted         = %d\n", isInputSorted);
 		fprintf(stderr, "enableQueueCompression= %d\n", enableQueueCompression);
 		fprintf(stderr, "useMixedCoreLink      = %d\n", useMixedCoreLink);
+		fprintf(stderr, "speedupNestTrieBuild  = %d\n", speedupNestTrieBuild);
 	}
 }
 
@@ -180,7 +183,7 @@ static int getRealTmpLevel(int tmpLevel, size_t strnum, size_t poolsize) {
 	assert(strnum > 0);
 	if (0 == tmpLevel) {
 		size_t avglen = poolsize / strnum;
-		// adjust tmpLevel for linkVec, wihch is proportional to num of keys
+		// adjust tmpLevel for linkVec, which is proportional to num of keys
 		if (avglen <= 50) {
 			// not need any mem in BFS, instead 8G file of 4G mem (linkVec)
 			// this reduce 10% peak mem when avg keylen is 24 bytes
@@ -2426,7 +2429,7 @@ else
 	assert(nestStrVec.m_index.data() == nullptr);
 	nestStrVec.m_index.risk_set_data(pSEntry, olvec.size());
 	olvec.risk_release_ownership();
-	nestStrVec.build_subkeys();
+	nestStrVec.build_subkeys(conf.speedupNestTrieBuild);
 }
 //	m_total_zpath_len = nestStrVec.sync_real_str_size();
 	m_total_zpath_len = nestStrVec.str_size();

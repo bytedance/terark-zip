@@ -191,16 +191,16 @@ void SortableStrVec::sort_by_seq_id() {
 }
 
 // m_index point to a subset of m_strpool
-void SortableStrVec::build_subkeys() {
+void SortableStrVec::build_subkeys(bool speed) {
 	valvec<SEntry> subkeys;
 	subkeys.swap(m_index);
-	build_subkeys(subkeys);
+	build_subkeys(speed, subkeys);
 }
 
-void SortableStrVec::build_subkeys(valvec<SEntry>& subkeys) {
+void SortableStrVec::build_subkeys(bool speed, valvec<SEntry>& subkeys) {
 	assert(&subkeys != &m_index);
 	byte* base = m_strpool.data();
-	if (MemType::Malloc == m_strpool_mem_type) {
+	if (MemType::Malloc == m_strpool_mem_type && !speed) {
 		// to reuse m_strpool, must sort by offset
 		std::sort(subkeys.begin(), subkeys.end(), CompareBy_offset());
 		size_t offset = 0;

@@ -84,8 +84,8 @@ public:
 	void sort_by_offset();
 	void sort_by_seq_id();
 	void clear();
-	void build_subkeys();
-	void build_subkeys(valvec<SEntry>& subkeys);
+	void build_subkeys(bool speed);
+	void build_subkeys(bool speed, valvec<SEntry>& subkeys);
 	void compact();
 	void compress_strpool(int compressLevel);
 	void make_ascending_offset();
