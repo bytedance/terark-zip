@@ -185,16 +185,10 @@ struct basic_fstring {
 	basic_fstring(const std::pair<const Char*, const Char*>& rng) : p(rng.first), n(rng.second - rng.first) { assert(n >= 0); }
 
 	template<class CharVec>
-	basic_fstring(const CharVec& chvec, typename CharVec::const_iterator** =NULL) {
-		BOOST_STATIC_ASSERT(sizeof(*chvec.begin()) == sizeof(Char));
-		p = (const Char*)&*chvec.begin();
+	basic_fstring(const CharVec& chvec, decltype(chvec.data()) = nullptr) {
+		BOOST_STATIC_ASSERT(sizeof(*chvec.data()) == sizeof(Char));
+		p = (const Char*)&*chvec.data();
 		n = chvec.size();
-	#if !defined(NDEBUG) && 0
-		if (chvec.size() > 1) {
-		   	assert(&chvec[0]+1 == &chvec[1]);
-		   	assert(&chvec[0]+n-1 == &chvec[n-1]);
-	   	}
-	#endif
 	}
 
 	const std::pair<const Char*, const Char*> range() const { return std::make_pair(p, p+n); }
