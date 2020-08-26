@@ -199,6 +199,7 @@ public:
         return (this->*m_insert)(key, value, token);
     }
 
+    ConcurrentLevel concurrent_level() const { return m_writing_concurrent_level; }
     virtual bool lookup(fstring key, TokenBase* token) const = 0;
     virtual void set_readonly() = 0;
     virtual bool  is_readonly() const = 0;
