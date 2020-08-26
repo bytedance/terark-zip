@@ -227,6 +227,11 @@ public:
         auto a = reinterpret_cast<byte_t*>(m_mempool.data());
         return a + loc * AlignSize;
     }
+    const void* mem_get(size_t loc) const {
+        assert(loc < total_states());
+        auto a = reinterpret_cast<const byte_t*>(m_mempool.data());
+        return a + loc * AlignSize;
+    }
 
     size_t mem_align_size() const final { return AlignSize; }
     size_t mem_frag_size() const final { return m_mempool.frag_size(); }

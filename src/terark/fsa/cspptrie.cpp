@@ -3978,6 +3978,11 @@ void MainPatricia::IterImpl::reset(const BaseDFA* dfa, size_t root) {
         else if (NULL == m_trie) {
             ReaderToken::acquire(const_cast<MainPatricia*>(trie));
         }
+        else if (trie->m_mempool_concurrent_level <= SingleThreadStrict) {
+            ReaderToken::release();
+            m_trie = NULL;
+            ReaderToken::acquire(const_cast<MainPatricia*>(trie));
+        }
         else {
             TERARK_THROW(std::invalid_argument
                 , "Can not reset for different trie: old = %p, new = %p"
