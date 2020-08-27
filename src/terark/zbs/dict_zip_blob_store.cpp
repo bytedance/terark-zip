@@ -2260,7 +2260,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 	// old format will fail
 		TERARK_VERIFY_EQ(m_offsets.mem_size(), size_t(mmapBase->offsetArrayBytes), "%zd %zd");
 	}
-    TERARK_VERIFY(!mmapBase->isNewRefEncoding);
+    TERARK_VERIFY(mmapBase->isNewRefEncoding);
 	m_checksumLevel = mmapBase->crc32cLevel;
 	TERARK_VERIFY(m_offsets.mem_size() % 16 == 0);
 	TERARK_VERIFY(sizeof(FileHeader)
