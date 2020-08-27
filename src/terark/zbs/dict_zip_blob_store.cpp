@@ -2231,13 +2231,11 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 	auto mmapBase = (const FileHeader*)base;
     m_mmapBase = mmapBase;
 
-#ifndef NDEBUG
 	size_t size2 = mmapBase->computeFileSize();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
-        assert(size2 == size);
+        TERARK_VERIFY_EQ(size2, size, "%zd %zd");
     }
-	assert(mmapBase->ptrListBytes % 16 == 0);
-#endif
+	TERARK_VERIFY(mmapBase->ptrListBytes % 16 == 0);
 	m_unzipSize = mmapBase->unzipSize;
 	m_numRecords = mmapBase->records;
 	m_ptrList.risk_set_data((byte*)(mmapBase + 1) , mmapBase->ptrListBytes);
@@ -2250,8 +2248,8 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 		new(&m_zOffsets)SortedUintVec();
 		m_zOffsets.risk_set_data((byte*)(mmapBase + 1) + mmapBase->ptrListBytes
 							, mmapBase->offsetArrayBytes);
-		assert(m_zOffsets.mem_size() == mmapBase->offsetArrayBytes);
-		assert(m_zOffsets.size() == mmapBase->records + 1);
+		TERARK_VERIFY_EQ(m_zOffsets.mem_size(), size_t(mmapBase->offsetArrayBytes), "%zd %zd");
+		TERARK_VERIFY_EQ(m_zOffsets.size(), size_t(mmapBase->records + 1), "%zd %zd");
 	}
 	else {
 		new(&m_offsets)UintVecMin0();
@@ -2260,14 +2258,12 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 						   , mmapBase->offsetsUintBits);
 	// allowing read old data format??
 	// old format will fail
-		assert(m_offsets.mem_size() == mmapBase->offsetArrayBytes);
+		TERARK_VERIFY_EQ(m_offsets.mem_size(), size_t(mmapBase->offsetArrayBytes), "%zd %zd");
 	}
-    if (terark_unlikely(!mmapBase->isNewRefEncoding)) {
-        THROW_STD(logic_error, "isNewRefEncoding must be true, but is false");
-    }
+    TERARK_VERIFY(!mmapBase->isNewRefEncoding);
 	m_checksumLevel = mmapBase->crc32cLevel;
-	assert(m_offsets.mem_size() % 16 == 0);
-	assert(sizeof(FileHeader)
+	TERARK_VERIFY(m_offsets.mem_size() % 16 == 0);
+	TERARK_VERIFY(sizeof(FileHeader)
 		 + m_offsets.mem_size() + mmapBase->ptrListBytes <= size);
 
 	if (m_checksumLevel >= 1 && isChecksumVerifyEnabled()) {
@@ -2407,7 +2403,7 @@ void DictZipBlobStore::save_mmap(fstring fpath) const {
         dictFp.cat(oldDictFname);
     }
     FileStream fp(fpath, "wb");
-    assert(nullptr != m_mmapBase);
+    TERARK_VERIFY(nullptr != m_mmapBase);
     fp.ensureWrite(m_mmapBase, m_mmapBase->fileSize);
 }
 
@@ -2439,16 +2435,16 @@ void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
 }
 
 void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
-    assert(!m_isDetachMeta);
-    assert(blocks.size() >= 2);
+    TERARK_VERIFY(!m_isDetachMeta);
+    TERARK_VERIFY_GE(blocks.size(), 2, "%zd %d");
     fstring dict_mem,offset_mem;
     dict_mem = blocks.front();
     if (blocks.size()==2) {
         offset_mem = blocks.back();
     }
     else {
-        assert(blocks.size() == 3);
-        assert(m_huffman_decoder != nullptr);
+        TERARK_VERIFY_EQ(blocks.size(), 3, "%zd %d");
+        TERARK_VERIFY(m_huffman_decoder != nullptr);
         auto mmapBase = (const FileHeader*)m_mmapBase;
         if(!mmapBase || !mmapBase->entropyTableNoCompress) {
             delete m_huffman_decoder;
@@ -2457,8 +2453,8 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
         m_huffman_decoder =
             reinterpret_cast<const Huffman::decoder_o1*>(blocks.back().data());
     }
-    assert(dict_mem.size() == m_strDict.size());
-    assert(offset_mem.size() == m_offsets.mem_size());
+    TERARK_VERIFY_EQ(dict_mem.size(), m_strDict.size(), "%zd %zd");
+    TERARK_VERIFY_EQ(offset_mem.size(), m_offsets.mem_size(), "%zd %zd");
     switch (m_dictCloseType) {
     case MemoryCloseType::Clear:
         m_strDict.clear();
@@ -2588,9 +2584,7 @@ DictZipBlobStore::pread_record_append_tpl(LruReadonlyCache* cache,
                                           valvec<byte_t>* recData,
                                           valvec<byte_t>* rdbuf)
 const {
-    if (terark_unlikely(fd < 0)) {
-        THROW_STD(invalid_argument, "bad fd = %zd", fd);
-    }
+    TERARK_VERIFY_F(fd >= 0, "bad fd = %zd", fd);
     if (cache) {
         LruCachePosRead readRaw(rdbuf);
         readRaw.cache      = cache;
