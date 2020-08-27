@@ -1613,10 +1613,10 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
         size_t hig = terark::align_down(size_t(addr) + len, 4096);
         if (low < hig) {
             size_t size = hig - low;
-#ifdef POSIX_MADV_DONTNEED
-            posix_madvise((void*)low, size, POSIX_MADV_DONTNEED);
+#ifdef MADV_DONTNEED
+            madvise((void*)low, size, MADV_DONTNEED);
 #elif defined(_MSC_VER) // defined(_WIN32) || defined(_WIN64)
-            //VirtualFree((void*)low, size, MEM_DECOMMIT);
+            VirtualUnlock((void*)low, size);
 #endif
         }
     };
