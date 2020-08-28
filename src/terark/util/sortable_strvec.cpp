@@ -1,6 +1,7 @@
 #include "sortable_strvec.hpp"
 #include <terark/radix_sort.hpp>
 #include <terark/gold_hash_map.hpp>
+#include <terark/io/DataIO_Basic.hpp>
 
 #if defined(__GNUC__) && !defined(__CYGWIN__) && !defined(__clang__)
 #include <parallel/algorithm>
@@ -1012,12 +1013,6 @@ size_t SortThinStrVec::max_strlen() const {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-FixedLenStrVec::FixedLenStrVec(size_t fixlen) {
-    m_fixlen = fixlen;
-    m_size = 0;
-	m_strpool_mem_type = MemType::Malloc;
-}
-
 FixedLenStrVec::~FixedLenStrVec() {
 	m_strpool.risk_destroy(m_strpool_mem_type);
 }
@@ -1220,6 +1215,117 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 			hi = mid_idx;
 	}
 	return lo;
+}
+
+static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
+                                     size_t lo, size_t hi, const void* key) {
+	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
+	assert(lo <= hi);
+	assert(hi <= sv->m_size);
+	auto fixlen = sv->m_fixlen;
+	auto data = sv->m_strpool.data();
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		size_t mid_pos = fixlen * mid_idx;
+		if (memcmp(data + mid_pos, key, fixlen) < 0)
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
+}
+
+static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
+                                     size_t lo, size_t hi, const void* key) {
+	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
+	assert(lo <= hi);
+	assert(hi <= sv->m_size);
+	auto fixlen = sv->m_fixlen;
+	auto data = sv->m_strpool.data();
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		size_t mid_pos = fixlen * mid_idx;
+		if (memcmp(data + mid_pos, key, fixlen) <= 0)
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
+}
+
+
+template<class Uint>
+static size_t Fixed_lower_bound(const FixedLenStrVec* sv,
+                                size_t lo, size_t hi, const void* key) {
+  assert(sizeof(Uint) == sv->m_fixlen);
+	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
+	assert(lo <= hi);
+	assert(hi <= sv->m_size);
+	assert(size_t(sv->m_strpool.data()) % sizeof(Uint) == 0);
+	Uint ukey = unaligned_load<Uint>(key);
+	auto data = (const Uint*)sv->m_strpool.data();
+	BYTE_SWAP_IF_LITTLE_ENDIAN(ukey);
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		Uint   mid_val = data[mid_idx];
+		BYTE_SWAP_IF_LITTLE_ENDIAN(mid_val);
+		if (mid_val < ukey)
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
+}
+
+template<class Uint>
+static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
+                                size_t lo, size_t hi, const void* key) {
+  assert(sizeof(Uint) == sv->m_fixlen);
+	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
+	assert(lo <= hi);
+	assert(hi <= sv->m_size);
+	assert(size_t(sv->m_strpool.data()) % sizeof(Uint) == 0);
+	Uint ukey = unaligned_load<Uint>(key);
+	auto data = (const Uint*)sv->m_strpool.data();
+	BYTE_SWAP_IF_LITTLE_ENDIAN(ukey);
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		Uint   mid_val = data[mid_idx];
+		BYTE_SWAP_IF_LITTLE_ENDIAN(mid_val);
+		if (mid_val <= ukey)
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
+}
+
+FixedLenStrVec::FixedLenStrVec(size_t fixlen) {
+    m_lower_bound_fixed = &Fixed_lower_bound_slow;
+    m_upper_bound_fixed = &Fixed_upper_bound_slow;
+    m_fixlen = fixlen;
+    m_size = 0;
+    m_strpool_mem_type = MemType::Malloc;
+}
+
+void FixedLenStrVec::optimize_func() {
+    switch (m_fixlen) {
+    default:
+        m_lower_bound_fixed = &Fixed_lower_bound_slow;
+        m_upper_bound_fixed = &Fixed_upper_bound_slow;
+        break;
+#define SetFuncPtr(Uint) \
+    case sizeof(Uint): \
+        m_lower_bound_fixed = &Fixed_lower_bound<Uint>; \
+        m_upper_bound_fixed = &Fixed_upper_bound<Uint>; \
+        break
+//----------------------------------------------------------
+        SetFuncPtr(uint08_t);
+        SetFuncPtr(uint16_t);
+        SetFuncPtr(uint32_t);
+        SetFuncPtr(uint64_t);
+#undef  SetFuncPtr
+    }
 }
 
 ///////////////////////////////////////////////////////////////////////////////

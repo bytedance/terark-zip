@@ -99,7 +99,7 @@ class TERARK_DLL_EXPORT ZReorderMap {
             , seq_length_(0)
             , sign_(sign)
             , size_(size) {
-            assert(sign == 1 || sign == -1);
+            TERARK_VERIFY_F(sign == 1 || sign == -1, "real: %d", sign);
             file_.disbuf();
             writer_ << size << sign_;
         }
