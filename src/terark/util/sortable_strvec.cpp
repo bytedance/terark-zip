@@ -1171,18 +1171,7 @@ size_t FixedLenStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte
     return lo;
 }
 
-size_t FixedLenStrVec::lower_bound(fstring key) const {
-    assert(m_fixlen * m_size == m_strpool.size());
-    return lower_bound(0, m_size, key);
-//  return lower_bound_0<const FixedLenStrVec&>(*this, m_size, key);
-}
-
-size_t FixedLenStrVec::upper_bound(fstring key) const {
-    assert(m_fixlen * m_size == m_strpool.size());
-    return upper_bound(0, m_size, key);
-//  return upper_bound_0<const FixedLenStrVec&>(*this, m_size, key);
-}
-
+terark_flatten
 size_t FixedLenStrVec::lower_bound(size_t lo, size_t hi, fstring key) const {
 	assert(m_fixlen * m_size == m_strpool.size());
 	assert(lo <= hi);
@@ -1200,6 +1189,7 @@ size_t FixedLenStrVec::lower_bound(size_t lo, size_t hi, fstring key) const {
 	return lo;
 }
 
+terark_flatten
 size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 	assert(m_fixlen * m_size == m_strpool.size());
 	assert(lo <= hi);
@@ -1217,6 +1207,7 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 	return lo;
 }
 
+terark_flatten
 static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
                                      size_t lo, size_t hi, const void* key) {
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
@@ -1235,6 +1226,7 @@ static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
 	return lo;
 }
 
+terark_flatten
 static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
                                      size_t lo, size_t hi, const void* key) {
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
@@ -1255,6 +1247,7 @@ static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
 
 
 template<class Uint>
+terark_flatten
 static size_t Fixed_lower_bound(const FixedLenStrVec* sv,
                                 size_t lo, size_t hi, const void* key) {
   assert(sizeof(Uint) == sv->m_fixlen);
@@ -1278,6 +1271,7 @@ static size_t Fixed_lower_bound(const FixedLenStrVec* sv,
 }
 
 template<class Uint>
+terark_flatten
 static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
                                 size_t lo, size_t hi, const void* key) {
   assert(sizeof(Uint) == sv->m_fixlen);
@@ -1364,7 +1358,7 @@ void SortedStrVec::swap(SortedStrVec& y) {
 }
 
 void SortedStrVec::push_back(fstring str) {
-    if (m_strpool.size() + str.size() > m_offsets.uintmask()) {
+    if (terark_unlikely(m_strpool.size() + str.size() > m_offsets.uintmask())) {
         THROW_STD(length_error,
             "exceeding offset domain(bits=%zd)", m_offsets.uintbits());
     }
@@ -1441,14 +1435,17 @@ void SortedStrVec::clear() {
     m_strpool.risk_destroy(m_strpool_mem_type);
 }
 
+terark_flatten
 size_t SortedStrVec::lower_bound_by_offset(size_t offset) const {
     return lower_bound_0<const UintVecMin0&>(m_offsets, m_offsets.size()-1, offset);
 }
 
+terark_flatten
 size_t SortedStrVec::upper_bound_by_offset(size_t offset) const {
     return upper_bound_0<const UintVecMin0&>(m_offsets, m_offsets.size()-1, offset);
 }
 
+terark_flatten
 size_t SortedStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
     assert(m_offsets.size() >= 1);
     assert(lo < hi);
@@ -1477,24 +1474,52 @@ size_t SortedStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t
     return lo;
 }
 
-size_t SortedStrVec::lower_bound(fstring key) const {
-    return lower_bound_0<const SortedStrVec&>(*this, m_offsets.size()-1, key);
-}
-
-size_t SortedStrVec::upper_bound(fstring key) const {
-    return upper_bound_0<const SortedStrVec&>(*this, m_offsets.size()-1, key);
-}
-
-size_t SortedStrVec::lower_bound(fstring key, size_t start, size_t end) const {
+terark_flatten
+size_t SortedStrVec::lower_bound(size_t start, size_t end, fstring key) const {
     assert(start <= end);
     assert(end <= m_offsets.size()-1);
-    return lower_bound_n<const SortedStrVec&>(*this, start, end, key);
+//	return lower_bound_n<const SortedStrVec&>(*this, start, end, key);
+    const auto pool = m_strpool.data();
+	const auto data = m_offsets.data();
+	const auto bits = m_offsets.uintbits();
+	const auto mask = m_offsets.uintmask();
+	size_t lo = start, hi = end;
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		size_t mid_beg = UintVecMin0::fast_get(data, bits, mask, mid_idx);
+		size_t mid_end = UintVecMin0::fast_get(data, bits, mask, mid_idx+1);
+		size_t mid_len = mid_end - mid_beg;
+		assert(mid_beg <= mid_end);
+		if (str_less(pool + mid_beg, mid_len, key.p, key.n))
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
 }
 
-size_t SortedStrVec::upper_bound(fstring key, size_t start, size_t end) const {
+terark_flatten
+size_t SortedStrVec::upper_bound(size_t start, size_t end, fstring key) const {
     assert(start <= end);
     assert(end <= m_offsets.size()-1);
-    return upper_bound_n<const SortedStrVec&>(*this, start, end, key);
+//  return upper_bound_n<const SortedStrVec&>(*this, start, end, key);
+	const auto pool = m_strpool.data();
+	const auto data = m_offsets.data();
+	const auto bits = m_offsets.uintbits();
+	const auto mask = m_offsets.uintmask();
+	size_t lo = start, hi = end;
+	while (lo < hi) {
+		size_t mid_idx = (lo + hi) / 2;
+		size_t mid_beg = UintVecMin0::fast_get(data, bits, mask, mid_idx);
+		size_t mid_end = UintVecMin0::fast_get(data, bits, mask, mid_idx+1);
+		size_t mid_len = mid_end - mid_beg;
+		assert(mid_beg <= mid_end);
+		if (!str_less(key.p, key.n, pool + mid_beg, mid_len)) // mid <= key
+			lo = mid_idx + 1;
+		else
+			hi = mid_idx;
+	}
+	return lo;
 }
 
 size_t SortedStrVec::max_strlen() const {
@@ -1608,37 +1633,40 @@ void SortedStrVecUintTpl<UintXX>::clear() {
 }
 
 template<class UintXX>
+terark_flatten
 size_t SortedStrVecUintTpl<UintXX>::lower_bound_by_offset(size_t offset) const {
     return lower_bound_0(m_offsets.begin(), m_offsets.size()-1, offset);
 }
 
 template<class UintXX>
+terark_flatten
 size_t SortedStrVecUintTpl<UintXX>::upper_bound_by_offset(size_t offset) const {
     return upper_bound_0(m_offsets.begin(), m_offsets.size()-1, offset);
 }
 
 template<class UintXX>
+terark_flatten
 size_t SortedStrVecUintTpl<UintXX>::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
-    assert(m_offsets.size() >= 1);
-    assert(lo < hi);
-    assert(hi <= m_offsets.size()-1);
-    const UintXX* odata = m_offsets.data();
-    const byte_t* s = m_strpool.data();
+    TERARK_ASSERT_GE(m_offsets.size(), 2, "%zd %d");
+    TERARK_ASSERT_LE(lo, hi, "%zd %zd");
+    TERARK_ASSERT_LE(hi, m_offsets.size()-1, "%zd %zd");
+    const UintXX* data = m_offsets.data();
+    const byte_t* pool = m_strpool.data();
 #if !defined(NDEBUG)
-    const byte_t kh = s[odata[lo] + pos];
+    const byte_t kh = pool[data[lo] + pos];
     assert(kh == ch);
     for (size_t i = lo; i < hi; ++i) {
         fstring s = (*this)[i];
-        assert(pos < s.size());
+        TERARK_ASSERT_LT(pos, s.size(), "%zd %zd");
     }
 #endif
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
-        assert(pos < this->nth_size(mid));
-		StrVec_prefetch(true, odata + (lo+mid)/2);
-		StrVec_prefetch(true, odata + (hi+mid)/2);
-        size_t offset = odata[mid];
-        if (s[offset + pos] <= ch)
+        TERARK_ASSERT_LT(pos, this->nth_size(mid), "%zd %zd");
+		StrVec_prefetch(true, data + (lo + mid)/2);
+		StrVec_prefetch(true, data + (hi + mid)/2);
+        size_t offset = data[mid];
+        if (pool[offset + pos] <= ch)
             lo = mid + 1;
         else
             hi = mid;
@@ -1647,26 +1675,18 @@ size_t SortedStrVecUintTpl<UintXX>::upper_bound_at_pos(size_t lo, size_t hi, siz
 }
 
 template<class UintXX>
-size_t SortedStrVecUintTpl<UintXX>::lower_bound(fstring key) const {
-    return lower_bound_0<const SortedStrVecUintTpl<UintXX>&>(*this, m_offsets.size()-1, key);
-}
-
-template<class UintXX>
-size_t SortedStrVecUintTpl<UintXX>::upper_bound(fstring key) const {
-    return upper_bound_0<const SortedStrVecUintTpl<UintXX>&>(*this, m_offsets.size()-1, key);
-}
-
-template<class UintXX>
-size_t SortedStrVecUintTpl<UintXX>::lower_bound(fstring key, size_t start, size_t end) const {
-    assert(start <= end);
-    assert(end <= m_offsets.size()-1);
+terark_flatten
+size_t SortedStrVecUintTpl<UintXX>::lower_bound(size_t start, size_t end, fstring key) const {
+    TERARK_ASSERT_LE(start, end, "%zd %zd");
+    TERARK_ASSERT_LE(end, m_offsets.size()-1, "%zd %zd");
     return lower_bound_n<const SortedStrVecUintTpl<UintXX>&>(*this, start, end, key);
 }
 
 template<class UintXX>
-size_t SortedStrVecUintTpl<UintXX>::upper_bound(fstring key, size_t start, size_t end) const {
-    assert(start <= end);
-    assert(end <= m_offsets.size()-1);
+terark_flatten
+size_t SortedStrVecUintTpl<UintXX>::upper_bound(size_t start, size_t end, fstring key) const {
+    TERARK_ASSERT_LE(start, end, "%zd %zd");
+    TERARK_ASSERT_LE(end, m_offsets.size()-1, "%zd %zd");
     return upper_bound_n<const SortedStrVecUintTpl<UintXX>&>(*this, start, end, key);
 }
 
@@ -1687,6 +1707,8 @@ size_t SortedStrVecUintTpl<UintXX>::max_strlen() const {
 
 template class SortedStrVecUintTpl<uint32_t>;
 template class SortedStrVecUintTpl<uint64_t>;
+
+/////////////////////////////////////////////////////////////////////////////
 
 } // namespace terark
 

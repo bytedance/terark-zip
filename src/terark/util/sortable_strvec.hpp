@@ -383,6 +383,7 @@ fstring SortThinStrVec::operator[](size_t idx) const {
     assert(offset + length <= m_strpool.size());
 	return fstring(m_strpool.data() + offset, length);
 }
+
 class TERARK_DLL_EXPORT FixedLenStrVec {
     size_t (*m_lower_bound_fixed)(const FixedLenStrVec*, size_t, size_t, const void*);
     size_t (*m_upper_bound_fixed)(const FixedLenStrVec*, size_t, size_t, const void*);
@@ -432,15 +433,15 @@ public:
     size_t lower_bound_by_offset(size_t offset) const;
     size_t upper_bound_by_offset(size_t offset) const;
     size_t upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const;
-    size_t lower_bound(fstring) const;
-    size_t upper_bound(fstring) const;
+    size_t lower_bound(fstring k) const { return lower_bound(0, m_size, k); }
+    size_t upper_bound(fstring k) const { return upper_bound(0, m_size, k); }
     size_t lower_bound(size_t lo, size_t hi, fstring) const;
     size_t upper_bound(size_t lo, size_t hi, fstring) const;
     ///@{ user should ensure k len is same as m_fixlen
     size_t lower_bound_fixed(const void* k) const { return m_lower_bound_fixed(this, 0, m_size, k); }
     size_t upper_bound_fixed(const void* k) const { return m_upper_bound_fixed(this, 0, m_size, k); }
-    size_t lower_bound_fixed(const void* k, size_t lo, size_t hi) const { return m_lower_bound_fixed(this, lo, hi, k); }
-    size_t upper_bound_fixed(const void* k, size_t lo, size_t hi) const { return m_upper_bound_fixed(this, lo, hi, k); }
+    size_t lower_bound_fixed(size_t lo, size_t hi, const void* k) const { return m_lower_bound_fixed(this, lo, hi, k); }
+    size_t upper_bound_fixed(size_t lo, size_t hi, const void* k) const { return m_upper_bound_fixed(this, lo, hi, k); }
     ///@}
     size_t max_strlen() const { return m_fixlen; }
 };
@@ -494,10 +495,10 @@ public:
     size_t lower_bound_by_offset(size_t offset) const;
     size_t upper_bound_by_offset(size_t offset) const;
     size_t upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const;
-    size_t lower_bound(fstring) const;
-    size_t upper_bound(fstring) const;
-    size_t lower_bound(fstring, size_t start, size_t end) const;
-    size_t upper_bound(fstring, size_t start, size_t end) const;
+    size_t lower_bound(fstring k) const { return lower_bound(0, size(), k); }
+    size_t upper_bound(fstring k) const { return upper_bound(0, size(), k); }
+    size_t lower_bound(size_t start, size_t end, fstring) const;
+    size_t upper_bound(size_t start, size_t end, fstring) const;
     size_t max_strlen() const;
 };
 
@@ -553,10 +554,10 @@ public:
     size_t lower_bound_by_offset(size_t offset) const;
     size_t upper_bound_by_offset(size_t offset) const;
     size_t upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const;
-    size_t lower_bound(fstring) const;
-    size_t upper_bound(fstring) const;
-    size_t lower_bound(fstring, size_t start, size_t end) const;
-    size_t upper_bound(fstring, size_t start, size_t end) const;
+    size_t lower_bound(fstring k) const { return lower_bound(0, size(), k); }
+    size_t upper_bound(fstring k) const { return upper_bound(0, size(), k); }
+    size_t lower_bound(size_t start, size_t end, fstring) const;
+    size_t upper_bound(size_t start, size_t end, fstring) const;
     size_t max_strlen() const;
 };
 
