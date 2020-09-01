@@ -484,8 +484,10 @@ private:
     }
 
 public:
-    void ensure_unused(size_t unused_cap) {
-        ensure_capacity(n + unused_cap);
+    T* ensure_unused(size_t unused_cap) {
+        size_t oldsize = n;
+        ensure_capacity(oldsize + unused_cap);
+        return p + oldsize;
     }
     void ensure_capacity(size_t min_cap) {
         if (terark_likely(min_cap <= c)) {
