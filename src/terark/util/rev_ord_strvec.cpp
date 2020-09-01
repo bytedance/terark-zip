@@ -562,6 +562,7 @@ size_t RevOrdStrVec::max_strlen() const {
 
 template<class UintXX>
 RevOrdStrVecUintTpl<UintXX>::RevOrdStrVecUintTpl(size_t delim_len) {
+	m_offsets.push_back(0);
 	m_delim_len = delim_len;
 	m_offsets_mem_type = MemType::Malloc;
 	m_strpool_mem_type = MemType::Malloc;
@@ -581,9 +582,6 @@ void RevOrdStrVecUintTpl<UintXX>::reserve(size_t strNum, size_t maxStrPool) {
 
 template<class UintXX>
 void RevOrdStrVecUintTpl<UintXX>::shrink_to_fit() {
-    if (terark_unlikely(0 == m_offsets.size())){
-        m_offsets.push_back(0);
-    }
     m_strpool.shrink_to_fit();
     m_offsets.shrink_to_fit();
 }
@@ -599,9 +597,6 @@ void RevOrdStrVecUintTpl<UintXX>::swap(RevOrdStrVecUintTpl& y) {
 
 template<class UintXX>
 void RevOrdStrVecUintTpl<UintXX>::push_back(fstring str) {
-    if (terark_unlikely(m_offsets.size() == 0)) {
-        m_offsets.push_back(0);
-    }
     m_strpool.append(str.data(), str.size());
     m_offsets.push_back(m_strpool.size());
 	m_offsets.push_n(m_delim_len, '\0');
