@@ -300,6 +300,12 @@ struct basic_fstring {
 		return minlen;
 	}
 
+	///@{ to compatible with other similar class such as Slice ...
+	bool starts_with(basic_fstring x) const { return startsWith(x); }
+	bool ends_with(basic_fstring x) const { return endsWith(x); }
+	size_t difference_offset(basic_fstring x) { return commonPrefixLen(x); }
+	//@}
+
 	template<class StrClass>
 	void append_to(StrClass* str) const { str->append(p, n); }
 
