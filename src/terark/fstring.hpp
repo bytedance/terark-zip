@@ -137,7 +137,7 @@ inline
 size_t commonPrefixLen(const Str& x, const Str& y) {
 	size_t xn = x.size(), yn = y.size();
 	size_t minlen = xn < yn ? xn : yn;
-	return unmatchPos(&*x.begin(), &*y.begin(), 0, minlen);
+	return unmatchPos(x.data(), y.data(), 0, minlen);
 }
 
 template<class Char>
@@ -509,7 +509,7 @@ struct fstring_func {
 			else
 				return int(x.n - y.n); // length diff couldn't exceed INT_MAX
 		}
-		prefix_compare3(ptrdiff_t prelen) : plen(prelen) {}
+		explicit prefix_compare3(ptrdiff_t prelen) : plen(prelen) {}
 	};
 
 	// 3-way compare
@@ -674,7 +674,6 @@ struct fstring_func {
 #endif // SP_ALIGN
 };
 
-TERARK_DLL_EXPORT extern unsigned char gtab_ascii_tolower[256];
 TERARK_DLL_EXPORT extern unsigned char gtab_ascii_tolower[256];
 
 TERARK_DLL_EXPORT bool getEnvBool(const char* envName, bool Default = false);
