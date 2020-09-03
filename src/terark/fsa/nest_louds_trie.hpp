@@ -33,6 +33,7 @@ public:
 	mutable std::unique_ptr<class SuffixTrieCacheDFA> suffixTrie;
 	mutable uint16_t* bestZipLenArr;
 
+	std::string commonPrefix;
 	std::string tmpDir;
 
 	/// taking effect only when tmpDir is not empty
