@@ -89,8 +89,9 @@ AbstractBlobStore::load_from_mmap(fstring fpath, bool mmapPopulate) {
     }
     std::unique_ptr<AbstractBlobStore> store(find->second());
     store->set_fpath(fpath);
-    store->init_from_memory({(const char*)fmmap.base, (ptrdiff_t)fmmap.size}, Dictionary());
+    store->init_from_memory({(const char*)fmmap.base, (ptrdiff_t)header->fileSize}, Dictionary());
     fmmap.base = nullptr;
+    fmmap.size = 0;
     store->m_isMmapData = true;
     store->m_isUserMem = true;
     return store.release();
@@ -125,10 +126,12 @@ AbstractBlobStore::load_from_user_memory(fstring dataMem, Dictionary dict) {
   const auto& map = g_getFactroyMap();
   auto find = map.find(header->className);
   if (find != map.end()) {
-    if (header->fileSize != size_t(dataMem.n)) {
+    if (align_up(header->fileSize, 64) != size_t(dataMem.n)) {
       THROW_STD(invalid_argument,
-        "User Memory: %p bad memory header or size\n", dataMem.p);
+        "User Memory: %p bad memory header or size: header=%zd, data=%zd\n",
+        dataMem.p, size_t(header->fileSize), dataMem.n);
     }
+    dataMem.n = header->fileSize;
     std::unique_ptr<AbstractBlobStore> store(find->second());
     store->init_from_memory(dataMem, dict);
     store->m_isMmapData = false;
