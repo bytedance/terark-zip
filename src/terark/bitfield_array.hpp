@@ -130,7 +130,8 @@ public:
 		m_bytes.risk_release_ownership();
 		m_size = 0;
 	}
-	void risk_set_data(byte_t* data, size_t num_tuples) {
+	void risk_set_data(const void* vdata, size_t num_tuples) {
+		byte_t* data = (byte_t*)vdata;
 		m_bytes.risk_set_data(data, compute_mem_size(num_tuples));
 		m_size = num_tuples;
 	}
