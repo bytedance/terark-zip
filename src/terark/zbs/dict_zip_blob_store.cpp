@@ -43,6 +43,7 @@
 #else
 #   include <unistd.h> // for usleep
 #endif
+#include <inttypes.h>
 
 namespace terark {
 
@@ -2235,7 +2236,7 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         TERARK_VERIFY_EQ(size2, size, "%zd %zd");
     }
-	TERARK_VERIFY(mmapBase->ptrListBytes % 16 == 0);
+	TERARK_VERIFY_AL(mmapBase->ptrListBytes, 16, "%" PRIu64);
 	m_unzipSize = mmapBase->unzipSize;
 	m_numRecords = mmapBase->records;
 	m_ptrList.risk_set_data((byte*)(mmapBase + 1) , mmapBase->ptrListBytes);
@@ -2262,9 +2263,9 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 	}
     TERARK_VERIFY(mmapBase->isNewRefEncoding);
 	m_checksumLevel = mmapBase->crc32cLevel;
-	TERARK_VERIFY(m_offsets.mem_size() % 16 == 0);
-	TERARK_VERIFY(sizeof(FileHeader)
-		 + m_offsets.mem_size() + mmapBase->ptrListBytes <= size);
+	TERARK_VERIFY_AL(m_offsets.mem_size(), 16, "%zd");
+	TERARK_VERIFY_LE(sizeof(FileHeader)
+		 + m_offsets.mem_size() + mmapBase->ptrListBytes, size, "%" PRIu64 " %zd");
 
 	if (m_checksumLevel >= 1 && isChecksumVerifyEnabled()) {
 		uint32_t hCRC = Crc32c_update(0, base, sizeof(FileHeader)-4);

@@ -228,12 +228,28 @@ inline IntX ceiled_div(IntX x, IntY y) { return (x + y - 1) / y; }
 #define TERARK_ASSERT_EQ(x,y,fmt) TERARK_ASSERT_F(x == y, fmt, x, y)
 #define TERARK_ASSERT_NE(x,y,fmt) TERARK_ASSERT_F(x != y, fmt, x, y)
 
+// _EZ: Equal To Zero, NZ: Not Equal To Zero
+#define TERARK_ASSERT_EZ(x,  fmt) TERARK_ASSERT_F(x == 0, fmt, x)
+#define TERARK_ASSERT_NZ(x,  fmt) TERARK_ASSERT_F(x != 0, fmt, x)
+
+// _AL: Align, _NA: Not Align
+#define TERARK_ASSERT_AL(x,a,fmt) TERARK_ASSERT_F(x % a == 0, "%zd : " fmt, size_t(x % a), x)
+#define TERARK_ASSERT_NA(x,a,fmt) TERARK_ASSERT_F(x % a != 0, fmt, x)
+
 #define TERARK_VERIFY_LT(x,y,fmt) TERARK_VERIFY_F(x < y, fmt, x, y)
 #define TERARK_VERIFY_GT(x,y,fmt) TERARK_VERIFY_F(x > y, fmt, x, y)
 #define TERARK_VERIFY_LE(x,y,fmt) TERARK_VERIFY_F(x <= y, fmt, x, y)
 #define TERARK_VERIFY_GE(x,y,fmt) TERARK_VERIFY_F(x >= y, fmt, x, y)
 #define TERARK_VERIFY_EQ(x,y,fmt) TERARK_VERIFY_F(x == y, fmt, x, y)
 #define TERARK_VERIFY_NE(x,y,fmt) TERARK_VERIFY_F(x != y, fmt, x, y)
+
+// _EZ: Equal To Zero, NZ: Not Equal To Zero
+#define TERARK_VERIFY_EZ(x,  fmt) TERARK_VERIFY_F(x == 0, fmt, x)
+#define TERARK_VERIFY_NZ(x,  fmt) TERARK_VERIFY_F(x != 0, fmt, x)
+
+// _AL: Align, _NA: Not Align
+#define TERARK_VERIFY_AL(x,a,fmt) TERARK_VERIFY_F(x % a == 0, "%zd : " fmt, size_t(x % a), x)
+#define TERARK_VERIFY_NA(x,a,fmt) TERARK_VERIFY_F(x % a != 0, fmt, x)
 
 } // namespace terark
 
