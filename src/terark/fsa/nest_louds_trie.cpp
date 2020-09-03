@@ -2090,8 +2090,8 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
                     size_t curNestLevel,
                     const NestLoudsTrieConfig& conf)
 {
-	assert(strVec.size() > 0);
-	assert(label.empty());
+	TERARK_VERIFY(strVec.size() > 0);
+	TERARK_VERIFY_EZ(label.size(), "%zd"); // NOLINT
 	if (sizeof(index_t) == 4 && strVec.str_size() > 0x1E0000000) { // 7.5G
 		THROW_STD(length_error
 			, "strVec is too large: size = %zd str_size = %zd"
@@ -2130,7 +2130,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		, strVec.size(), strVec.str_size(), strVec.avg_size()
 		);
 	}
-	assert(minFragLen1 <= maxFragLen1);
+	TERARK_VERIFY_LE(minFragLen1, maxFragLen1, "%zd %zd");
 	maxFragLen1 = std::min<size_t>(maxFragLen1, 253);
 	maxFragLen2 = std::min<size_t>(maxFragLen2, 253);
 	maxFragLen3 = std::min<size_t>(maxFragLen3, 253);
@@ -2375,9 +2375,9 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 			assert(linkVec[i] < m_is_link.size());
 		}
 	}
-	assert(m_is_link.size() == labelStore->size());
-	assert(m_louds.size() == 2 * m_is_link.size() + 1);
 #endif
+	TERARK_VERIFY_EQ(m_is_link.size(), labelStore->size(), "%zd %zd");
+	TERARK_VERIFY_EQ(m_louds.size(), 2 * m_is_link.size() + 1, "%zd %zd");
 	if (nestStrPoolFile) {
 		nestStrPoolFile->complete_write();
 		nestStrVec.clear();
@@ -2426,7 +2426,7 @@ else
 		pSEntry[i].length = ol.length;
 		pSEntry[i].seq_id = i; // now set seq_id
 	}
-	assert(nestStrVec.m_index.data() == nullptr);
+	TERARK_VERIFY(nestStrVec.m_index.data() == nullptr);
 	nestStrVec.m_index.risk_set_data(pSEntry, olvec.size());
 	olvec.risk_release_ownership();
 	nestStrVec.build_subkeys(conf.speedupNestTrieBuild);
@@ -2434,11 +2434,11 @@ else
 //	m_total_zpath_len = nestStrVec.sync_real_str_size();
 	m_total_zpath_len = nestStrVec.str_size();
 	m_is_link.build_cache(0, 0);
-	assert(m_is_link.max_rank1() == nestStrVec.size());
+	TERARK_VERIFY_EQ(m_is_link.max_rank1(), nestStrVec.size(), "%zd %zd");
 	if (linkVecStore) {
 		linkVecStore->read_all(&linkVec);
 		linkVecStore.reset();
-		assert(!linkSeqStore);
+		TERARK_VERIFY(!linkSeqStore);
 	}
 	else if (linkSeqStore) {
 		linkSeqStore->complete_write();
