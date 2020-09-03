@@ -69,6 +69,10 @@ AbstractBlobStore::Builder::getPreBuilder() const {
     return nullptr;
 }
 
+static bool RelaxedSizeCheck(ullong header, ullong mem) {
+  return align_up(header, 64) == align_up(mem, 64) && header <= mem;
+}
+
 AbstractBlobStore*
 AbstractBlobStore::load_from_mmap(fstring fpath, bool mmapPopulate) {
   const bool writable = false;
@@ -81,7 +85,7 @@ AbstractBlobStore::load_from_mmap(fstring fpath, bool mmapPopulate) {
   const auto& map = g_getFactroyMap();
   auto find = map.find(header->className);
   if (find != map.end()) {
-    if (header->fileSize > fmmap.size) {
+    if (!RelaxedSizeCheck(header->fileSize, fmmap.size)) {
       THROW_STD(invalid_argument,
         "AbstractBlobStore File: %s bad file header or size: header->fileSize = %lld, mmap.size = %lld\n"
 		, fpath.c_str(), (llong)header->fileSize, (llong)fmmap.size
@@ -126,7 +130,7 @@ AbstractBlobStore::load_from_user_memory(fstring dataMem, Dictionary dict) {
   const auto& map = g_getFactroyMap();
   auto find = map.find(header->className);
   if (find != map.end()) {
-    if (align_up(header->fileSize, 64) != size_t(dataMem.n)) {
+    if (!RelaxedSizeCheck(header->fileSize, dataMem.n)) {
       THROW_STD(invalid_argument,
         "User Memory: %p bad memory header or size: header=%zd, data=%zd\n",
         dataMem.p, size_t(header->fileSize), dataMem.n);
