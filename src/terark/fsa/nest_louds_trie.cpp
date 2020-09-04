@@ -2591,7 +2591,8 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 		fprintf(stderr, "build_core: maxIdx=%d maxLen=%d minLen=%d lenBits=%d data: %.*s\n"
 				, maxIdx, maxLen, minLen, lenBits, maxLen, strVec.nth_data(maxIdx));
 	}
-	TERARK_VERIFY_GE(strVec.m_strpool.size(), 3, "%zd %d");
+    // this verify may fail if commonPrefix is set, disable it!
+	//TERARK_VERIFY_GE(strVec.m_strpool.size(), 3, "%zd %d");
 	compress_core(strVec, conf);
 	typedef typename std::conditional<FastLabel,uint64_t,index_t>::type link_uint_t;
 	valvec<link_uint_t> linkVec(strVec.size(), valvec_no_init());
@@ -2603,8 +2604,8 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 		//	assert(seq_id == j);
 			auto val = ullong(offset) << lenBits | ullong(keylen - minLen);
 			if (sizeof(index_t) == 4 &&
-                    (  FastLabel && (val >> 0) > UINT32_MAX ||
-                      !FastLabel && (val >> 8) > UINT32_MAX ) ) {
+                    ( ( FastLabel && (val >> 0) > UINT32_MAX ) ||
+                      (!FastLabel && (val >> 8) > UINT32_MAX ) ) ) {
 				fprintf(stderr,
 					"FATAL: %s: lenBits=%d, (val >> %d) = 0x%llX\n"
 					"   Please try greater numTries!\n"
