@@ -1448,12 +1448,14 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
     SortableStrVec coreStrVec;
     size_t coreStrLen = 0;
     size_t coreStrNum = 0;
+    size_t minLen = size_t(-1);
     for(size_t i = 0, n = strVec.size(); i < n; ++i) {
         size_t l = strVec.nth_size(i);
         if (l <= MaxShortStrLen) {
             isShort.set1(strVec.m_index[i].seq_id);
             coreStrLen += l;
             coreStrNum += 1;
+            minLen = std::min(minLen, l);
         }
     }
     if (coreStrNum) {
@@ -1473,7 +1475,6 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
         compress_core(coreStrVec, conf);
         coreStrVec.make_ascending_seq_id();
         coreLinkVec.resize_no_init(coreStrVec.size());
-        const size_t minLen = MaxShortStrLen - 1;
         const size_t lenBits = 1;
         for(size_t i = 0; i < coreStrVec.size(); ++i) {
             size_t offset = coreStrVec.m_index[i].offset;
@@ -1481,7 +1482,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
             size_t val = (offset << lenBits) | (keylen - minLen);
             coreLinkVec[i] = index_t(val);
         }
-        assert(label.size() == m_is_link.size());
+        TERARK_VERIFY_EQ(label.size(), m_is_link.size(), "%zd %zd");
         coreStrVec.m_index.clear(); // free memory earlier
         label.reserve(label.size() + coreStrVec.str_size()); // alloc exact
         label.append(coreStrVec.m_strpool);
