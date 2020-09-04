@@ -2231,7 +2231,6 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
                            : 0;
     if (prefixLen && conf.nestLevel == int(curNestLevel)) {
         m_max_strlen += prefixLen;
-        // reserve a node for common prefix
         fstring pref = conf.commonPrefix;
         while (pref.size() >= 253) {
             appendPrefix(pref.substr(0, 253));
@@ -2251,7 +2250,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
             TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length), "%zd");
         }
         sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
-        size_t strIncSize = prefixLen - prefixNum;
+        size_t strIncSize = prefixLen - (FastLabel ? prefixNum : 0);
         nestStrVec.m_strpool.ensure_unused(strIncSize);
         byte_t* data = nestStrVec.m_strpool.data();
         memmove(data + strIncSize, data, nestStrVec.m_strpool.size());
@@ -2274,8 +2273,10 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         auto& x = nestStrVec.m_index[prefixNum-1];
         x.offset = offset;
         x.length = uint32_t(pref.size() - 1);
-        memcpy(data + offset, pref.p+1, pref.n-1);
-        TERARK_VERIFY_EQ(offset + pref.size() - 1, strIncSize, "%zd %zd");
+        if (FastLabel)
+            memcpy(data+offset, pref.p+1, pref.n-1), x.length=pref.size()-1;
+        else
+            memcpy(data+offset, pref.p+0, pref.n-0), x.length=pref.size()-0;
         for (size_t i = prefixNum; i < nestStrVecSize; i++) {
             nestStrVec.m_index[i].offset += strIncSize;
         }
