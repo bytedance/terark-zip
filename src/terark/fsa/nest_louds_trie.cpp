@@ -2272,7 +2272,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         TERARK_VERIFY_LT(pref.size(), 253, "%zd %d");
         auto& x = nestStrVec.m_index[prefixNum-1];
         x.offset = offset;
-        x.length = uint32_t(pref.size() - 1);
+        x.length = uint32_t(pref.size() - (FastLabel ? 1 : 0));
         if (FastLabel)
             memcpy(data+offset, pref.p+1, pref.n-1), x.length=pref.size()-1;
         else
