@@ -2584,7 +2584,7 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 		fprintf(stderr, "build_core: maxIdx=%d maxLen=%d minLen=%d lenBits=%d data: %.*s\n"
 				, maxIdx, maxLen, minLen, lenBits, maxLen, strVec.nth_data(maxIdx));
 	}
-	assert(strVec.m_strpool.size() >= 3);
+	TERARK_VERIFY_GE(strVec.m_strpool.size(), 3, "%zd %d");
 	compress_core(strVec, conf);
 	typedef typename std::conditional<FastLabel,uint64_t,index_t>::type link_uint_t;
 	valvec<link_uint_t> linkVec(strVec.size(), valvec_no_init());
@@ -2614,7 +2614,7 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 			j++;
 		}
 	}
-	assert(label.size() == m_is_link.size());
+	TERARK_VERIFY_EQ(label.size(), m_is_link.size(), "%zd %zd");
 	label.append(strVec.m_strpool);
 	m_core_size = strVec.m_strpool.size();
 	m_core_data = label.data() + m_is_link.size();
@@ -2750,12 +2750,12 @@ load_mmap_debug_check(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie
 			uint64_t linkVal = trie->get_link_val(j);
 			if (linkVal >= trie->m_core_max_link_val) {
 				size_t link_id = size_t(linkVal - trie->m_core_max_link_val);
-				assert(link_id < next_node_num);
+				TERARK_ASSERT_LT(link_id, next_node_num, "%zd %zd");
 			}
 			else {
 				size_t offset = size_t(linkVal >> trie->m_core_len_bits);
 				size_t length = size_t(linkVal &  trie->m_core_len_mask) + trie->m_core_min_len;
-				assert(offset + length <= trie->m_core_size);
+				TERARK_ASSERT_LE(offset + length, trie->m_core_size, "%zd %zd");
 			}
 		}
 	}
