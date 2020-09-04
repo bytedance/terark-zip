@@ -2207,7 +2207,10 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
             nestStrVecSize++;
             nestStrPoolSize += pref.size()-1;
             if (nestStrPoolFile) {
-                nestStrPoolFile->oTmpBuf << pref.substr(1);
+                if (FastLabel)
+                  nestStrPoolFile->oTmpBuf << pref.substr(1);
+                else
+                  nestStrPoolFile->oTmpBuf << pref;
             } else { // reserve for change/patch later
                 nextStrVecStore->push_back({0,0});
             }
@@ -2259,10 +2262,12 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
             TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i, "%zd %zd");
             auto& x = nestStrVec.m_index[i];
             x.offset = offset;
-            x.length = 252;
-            memcpy(data + offset, pref.p+1, 252);
+            if (FastLabel)
+                memcpy(data+offset, pref.p+1, 252), x.length=252, offset+=252;
+            else
+                memcpy(data+offset, pref.p+0, 253), x.length=253, offset+=253;
+
             pref = pref.substr(253);
-            offset += 252;
         }
         TERARK_VERIFY_GT(pref.size(),   1, "%zd %d");
         TERARK_VERIFY_LT(pref.size(), 253, "%zd %d");
