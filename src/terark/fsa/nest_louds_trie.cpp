@@ -2227,6 +2227,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
                            ? prefixLen/253 + (prefixLen%253 > 1)
                            : 0;
     if (prefixNum) {
+        m_max_strlen += prefixLen - prefixNum;
         // reserve a node for common prefix
         fstring pref = conf.commonPrefix;
         while (pref.size() >= 253) {
