@@ -2226,7 +2226,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
     const size_t prefixNum = conf.nestLevel == int(curNestLevel)
                            ? prefixLen/253 + (prefixLen%253 > 1)
                            : 0;
-    if (prefixNum) {
+    if (prefixLen && conf.nestLevel == int(curNestLevel)) {
         m_max_strlen += prefixLen;
         // reserve a node for common prefix
         fstring pref = conf.commonPrefix;
