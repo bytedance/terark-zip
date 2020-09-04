@@ -2600,14 +2600,16 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 			size_t keylen = strVec.m_index[j].length;
 		//	size_t seq_id = strVec.m_index[j].seq_id;
 		//	assert(seq_id == j);
-			long long val = (long long)(offset) << lenBits | (keylen - minLen);
-			if (sizeof(index_t) == 4 && (val >> 8) > UINT32_MAX) {
+			auto val = ullong(offset) << lenBits | ullong(keylen - minLen);
+			if (sizeof(index_t) == 4 &&
+                    (  FastLabel && (val >> 0) > UINT32_MAX ||
+                      !FastLabel && (val >> 8) > UINT32_MAX ) ) {
 				fprintf(stderr,
-					"FATAL: %s: lenBits=%d, (val >> 8) = 0x%llX\n"
+					"FATAL: %s: lenBits=%d, (val >> %d) = 0x%llX\n"
 					"   Please try greater numTries!\n"
 					, BOOST_CURRENT_FUNCTION
-					, lenBits
-					, val >> 8
+					, lenBits, (FastLabel ? 0 : 8)
+					, val  >>  (FastLabel ? 0 : 8)
 					);
 				abort(); // can not continue
 			}
