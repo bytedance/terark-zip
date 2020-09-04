@@ -2240,27 +2240,39 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         TERARK_VERIFY(nullptr == nestStrPoolFile); // NOLINT
         if (0 == prefixNum)
             return;
+        TERARK_VERIFY_EQ(nestStrVec.size(), nestStrVecSize, "%zd %zd");
         for (size_t i = 0; i < prefixNum; ++i) {
             TERARK_VERIFY_LT(size_t(nestStrVec.m_index[i].seq_id), prefixNum, "%zd %zd");
             TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].offset), "%zd");
             TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length), "%zd");
         }
         sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
+        size_t strIncSize = prefixLen - prefixNum;
+        nestStrVec.m_strpool.ensure_unused(strIncSize);
+        byte_t* data = nestStrVec.m_strpool.data();
+        memmove(data + strIncSize, data, nestStrVec.m_strpool.size());
+        nestStrVec.m_strpool.grow_no_init(strIncSize);
         fstring pref = conf.commonPrefix;
+        size_t offset = 0;
         for (size_t i = 0; i + 1 < prefixNum; ++i) {
             TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i, "%zd %zd");
             auto& x = nestStrVec.m_index[i];
-            x.offset = uint64_t(nestStrVec.m_strpool.size());
+            x.offset = offset;
             x.length = 252;
-            nestStrVec.m_strpool.append(pref.substr(1, 252));
+            memcpy(data + offset, pref.p+1, 252);
             pref = pref.substr(253);
+            offset += 252;
         }
         TERARK_VERIFY_GT(pref.size(),   1, "%zd %d");
         TERARK_VERIFY_LT(pref.size(), 253, "%zd %d");
         auto& x = nestStrVec.m_index[prefixNum-1];
-        x.offset = uint64_t(nestStrVec.m_strpool.size());
+        x.offset = offset;
         x.length = uint32_t(pref.size() - 1);
-        nestStrVec.m_strpool.append(pref.substr(1));
+        memcpy(data + offset, pref.p+1, pref.n-1);
+        TERARK_VERIFY_EQ(offset + pref.size() - 1, strIncSize, "%zd %zd");
+        for (size_t i = prefixNum; i < nestStrVecSize; i++) {
+            nestStrVec.m_index[i].offset += strIncSize;
+        }
     };
 	const byte_t* strBase = strVec.m_strpool.data();
 	while (!q1->empty()) {
