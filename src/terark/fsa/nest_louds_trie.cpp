@@ -2125,7 +2125,8 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	size_t minFragLen1 = std::max<long>(4, conf.minFragLen);
 	if (conf.debugLevel >= 1) {
 		fprintf(stderr
-		, "build_self_trie: q=%f cur=%zd frag=(%f %f) cnt=%zd len=%zd avglen=%f\n"
+		, "build_self_trie: prefix=%s q=%f cur=%zd frag=(%f %f) cnt=%zd len=%zd avglen=%f\n"
+        , conf.commonPrefix.c_str()
 		, q, curNestLevel, fmaxFragLen1, fmaxFragLen2
 		, strVec.size(), strVec.str_size(), strVec.avg_size()
 		);
@@ -2198,6 +2199,69 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	m_louds.push_back(true);
 	m_louds.push_back(false);
 	labelStore->push_back(0); // reserve unused
+
+    auto appendPrefix = [&](fstring pref) {
+        m_louds.push_back(true);
+        m_louds.push_back(false);
+        if (pref.size() > 1) {
+            nestStrVecSize++;
+            nestStrPoolSize += pref.size()-1;
+            if (nestStrPoolFile) {
+                nestStrPoolFile->oTmpBuf << pref.substr(1);
+            } else { // reserve for change/patch later
+                nextStrVecStore->push_back({0,0});
+            }
+            if (FastLabel) {
+                labelStore->push_back(pref[0]);
+            } else {
+                labelStore->push_back(0); // reserved for latter use
+            }
+            m_is_link.push_back(true);
+        } else {
+            labelStore->push_back(pref[0]);
+            m_is_link.push_back(false);
+        }
+    };
+    const size_t prefixLen = conf.commonPrefix.size(); // whole prefix len
+    const size_t prefixNum = conf.nestLevel == int(curNestLevel)
+                           ? prefixLen/253 + (prefixLen%253 > 1)
+                           : 0;
+    if (prefixNum) {
+        // reserve a node for common prefix
+        fstring pref = conf.commonPrefix;
+        while (pref.size() >= 253) {
+            appendPrefix(pref.substr(0, 253));
+            pref = pref.substr(253);
+        }
+        if (!pref.empty())
+            appendPrefix(pref);
+    }
+    auto patchNestStrVec = [&]() {
+        TERARK_VERIFY(nullptr == nestStrPoolFile); // NOLINT
+        if (0 == prefixNum)
+            return;
+        for (size_t i = 0; i < prefixNum; ++i) {
+            TERARK_VERIFY_LT(size_t(nestStrVec.m_index[i].seq_id), prefixNum, "%zd %zd");
+            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].offset), "%zd");
+            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length), "%zd");
+        }
+        sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
+        fstring pref = conf.commonPrefix;
+        for (size_t i = 0; i + 1 < prefixNum; ++i) {
+            TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i, "%zd %zd");
+            auto& x = nestStrVec.m_index[i];
+            x.offset = uint64_t(nestStrVec.m_strpool.size());
+            x.length = 252;
+            nestStrVec.m_strpool.append(pref.substr(1, 252));
+            pref = pref.substr(253);
+        }
+        TERARK_VERIFY_GT(pref.size(),   1, "%zd %d");
+        TERARK_VERIFY_LT(pref.size(), 253, "%zd %d");
+        auto& x = nestStrVec.m_index[prefixNum-1];
+        x.offset = uint64_t(nestStrVec.m_strpool.size());
+        x.length = uint32_t(pref.size() - 1);
+        nestStrVec.m_strpool.append(pref.substr(1));
+    };
 	const byte_t* strBase = strVec.m_strpool.data();
 	while (!q1->empty()) {
 		while (!q1->empty()) {
@@ -2430,6 +2494,7 @@ else
 	nestStrVec.m_index.risk_set_data(pSEntry, olvec.size());
 	olvec.risk_release_ownership();
 	nestStrVec.build_subkeys(conf.speedupNestTrieBuild);
+    patchNestStrVec();
 }
 //	m_total_zpath_len = nestStrVec.sync_real_str_size();
 	m_total_zpath_len = nestStrVec.str_size();

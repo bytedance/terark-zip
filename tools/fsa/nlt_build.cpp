@@ -33,6 +33,7 @@ Options:
     -s indicate that input is sorted, the top level sort will be omitted
     -B Input is binary(bson) data
     -6 Input is base64 encoded data
+    -p CommonPrefix
     -U StrVecType, can be one of:
          t: SortThinStrVec, this is the default
          x: SortableStrVec,
@@ -102,7 +103,7 @@ int main(int argc, char* argv[]) {
 	conf.initFromEnv();
 	const char* rank_select_impl = "m-xl-256";
 	for (;;) {
-		int opt = getopt(argc, argv, "Bb:w:ghd:M:mn:o:R:T:U:s6F:");
+		int opt = getopt(argc, argv, "Bb:w:ghd:M:mn:o:R:T:U:s6F:p:");
 		switch (opt) {
 		case -1:
 			goto GetoptDone;
@@ -139,6 +140,9 @@ int main(int argc, char* argv[]) {
 		case 'o':
 			rlouds_trie_fname = optarg;
 			break;
+        case 'p':
+            conf.commonPrefix = optarg;
+            break;
 		case 'R':
 			rank_select_impl = optarg;
 			break;
