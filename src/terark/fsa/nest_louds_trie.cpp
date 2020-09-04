@@ -679,7 +679,7 @@ getZpathFixed(size_t node_id, byte_t* buf, size_t cap) const {
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
-        assert(length >= 2);
+        //assert(length >= 2); // can be 1 if conf.commonPrefix.size() == 2
         if (FastLabel) {
             const byte_t* src = m_core_data + offset;
             size_t cnt = length;
@@ -698,7 +698,7 @@ getZpathFixed(size_t node_id, byte_t* buf, size_t cap) const {
         size_t nest_id = size_t(linkVal - m_core_max_link_val);
         fixed_vec<byte_t> zbuf(buf, cap);
         m_next_trie->tpl_restore_string_loop(nest_id, &zbuf);
-        assert(zbuf.size() >= 2);
+        //assert(zbuf.size() >= 2); // can be 1 if conf.commonPrefix.size() == 2
         if (FastLabel)
             return zbuf.size();
         else {
