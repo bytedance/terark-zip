@@ -725,7 +725,7 @@ matchZpath(size_t node_id, const byte_t* str, size_t slen) const {
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
-        assert(length >= 2);
+        //assert(length >= 2); // may be false if commonPrefix is set
         if (!FastLabel) {
             length--;
         }
