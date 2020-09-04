@@ -212,8 +212,9 @@ void SortableStrVec::build_subkeys(bool speed, valvec<SEntry>& subkeys) {
 			offset += s.length;
 		}
 		assert(offset <= m_strpool.size());
-		m_strpool.risk_set_size(offset);
+		m_strpool.resize_no_init(offset + 4096); // 4096 for candidate common prefix
 		m_strpool.shrink_to_fit();
+		m_strpool.risk_set_size(offset); // now, correct size
 	}
 	else {
 		valvec<byte_t> subpool;
@@ -223,7 +224,7 @@ void SortableStrVec::build_subkeys(bool speed, valvec<SEntry>& subkeys) {
 		for(size_t i = 0; i < subnum; ++i) {
 			offset += subptr[i].length;
 		}
-		subpool.resize_no_init(offset);
+		subpool.resize_no_init(offset + 4096); // 4096 for candidate common prefix
 		offset = 0;
 		for(size_t i = 0; i < subnum; ++i) {
 			SEntry s = subptr[i];
@@ -233,6 +234,7 @@ void SortableStrVec::build_subkeys(bool speed, valvec<SEntry>& subkeys) {
 			subptr[i].offset = offset;
 			offset += l;
 		}
+		subpool.risk_set_size(offset); // now, correct size
 		m_strpool.risk_destroy(m_strpool_mem_type);
 		m_strpool.swap(subpool);
 		m_strpool_mem_type = MemType::Malloc;
