@@ -2234,9 +2234,9 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 
 	size_t size2 = mmapBase->computeFileSize();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
-        TERARK_VERIFY_EQ(size2, size, "%zd %zd");
+        TERARK_VERIFY_EQ(size2, size);
     }
-	TERARK_VERIFY_AL(mmapBase->ptrListBytes, 16, "%" PRIu64);
+	TERARK_VERIFY_AL(mmapBase->ptrListBytes, 16);
 	m_unzipSize = mmapBase->unzipSize;
 	m_numRecords = mmapBase->records;
 	m_ptrList.risk_set_data((byte*)(mmapBase + 1) , mmapBase->ptrListBytes);
@@ -2249,8 +2249,8 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 		new(&m_zOffsets)SortedUintVec();
 		m_zOffsets.risk_set_data((byte*)(mmapBase + 1) + mmapBase->ptrListBytes
 							, mmapBase->offsetArrayBytes);
-		TERARK_VERIFY_EQ(m_zOffsets.mem_size(), size_t(mmapBase->offsetArrayBytes), "%zd %zd");
-		TERARK_VERIFY_EQ(m_zOffsets.size(), size_t(mmapBase->records + 1), "%zd %zd");
+		TERARK_VERIFY_EQ(m_zOffsets.mem_size(), size_t(mmapBase->offsetArrayBytes));
+		TERARK_VERIFY_EQ(m_zOffsets.size(), size_t(mmapBase->records + 1));
 	}
 	else {
 		new(&m_offsets)UintVecMin0();
@@ -2259,13 +2259,12 @@ void DictZipBlobStore::setDataMemory(const void* base, size_t size) {
 						   , mmapBase->offsetsUintBits);
 	// allowing read old data format??
 	// old format will fail
-		TERARK_VERIFY_EQ(m_offsets.mem_size(), size_t(mmapBase->offsetArrayBytes), "%zd %zd");
+		TERARK_VERIFY_EQ(m_offsets.mem_size(), size_t(mmapBase->offsetArrayBytes));
 	}
     TERARK_VERIFY(mmapBase->isNewRefEncoding);
 	m_checksumLevel = mmapBase->crc32cLevel;
-	TERARK_VERIFY_AL(m_offsets.mem_size(), 16, "%zd");
-	TERARK_VERIFY_LE(sizeof(FileHeader)
-		 + m_offsets.mem_size() + mmapBase->ptrListBytes, size, "%" PRIu64 " %zd");
+	TERARK_VERIFY_AL(m_offsets.mem_size(), 16);
+	TERARK_VERIFY_LE(sizeof(FileHeader) + m_offsets.mem_size() + mmapBase->ptrListBytes, size);
 
 	if (m_checksumLevel >= 1 && isChecksumVerifyEnabled()) {
 		uint32_t hCRC = Crc32c_update(0, base, sizeof(FileHeader)-4);
@@ -2437,14 +2436,14 @@ void DictZipBlobStore::get_data_blocks(valvec<fstring>* blocks) const {
 
 void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
     TERARK_VERIFY(!m_isDetachMeta);
-    TERARK_VERIFY_GE(blocks.size(), 2, "%zd %d");
+    TERARK_VERIFY_GE(blocks.size(), 2);
     fstring dict_mem,offset_mem;
     dict_mem = blocks.front();
     if (blocks.size()==2) {
         offset_mem = blocks.back();
     }
     else {
-        TERARK_VERIFY_EQ(blocks.size(), 3, "%zd %d");
+        TERARK_VERIFY_EQ(blocks.size(), 3);
         TERARK_VERIFY(m_huffman_decoder != nullptr);
         auto mmapBase = (const FileHeader*)m_mmapBase;
         if(!mmapBase || !mmapBase->entropyTableNoCompress) {
@@ -2454,8 +2453,8 @@ void DictZipBlobStore::detach_meta_blocks(const valvec<fstring>& blocks) {
         m_huffman_decoder =
             reinterpret_cast<const Huffman::decoder_o1*>(blocks.back().data());
     }
-    TERARK_VERIFY_EQ(dict_mem.size(), m_strDict.size(), "%zd %zd");
-    TERARK_VERIFY_EQ(offset_mem.size(), m_offsets.mem_size(), "%zd %zd");
+    TERARK_VERIFY_EQ(dict_mem.size(), m_strDict.size());
+    TERARK_VERIFY_EQ(offset_mem.size(), m_offsets.mem_size());
     switch (m_dictCloseType) {
     case MemoryCloseType::Clear:
         m_strDict.clear();

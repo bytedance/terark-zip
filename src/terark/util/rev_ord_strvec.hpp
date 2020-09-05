@@ -36,24 +36,24 @@ public:
     const byte_t* data() const { return m_strpool.data(); }
     byte_t* data() { return m_strpool.data(); }
     byte_t* mutable_nth_data(size_t idx) {
-        TERARK_ASSERT_LT(idx, m_size, "%zd %zd");
+        TERARK_ASSERT_LT(idx, m_size);
         idx = m_size - 1 - idx;
         return m_strpool.data() + m_fixlen * idx;
     }
     const byte_t* nth_data(size_t idx) const {
-        TERARK_ASSERT_LT(idx, m_size, "%zd %zd");
+        TERARK_ASSERT_LT(idx, m_size);
         idx = m_size - 1 - idx;
         return m_strpool.data() + m_fixlen * idx;
     }
     size_t  nth_size(size_t /*idx*/) const { return m_fixlen; }
     size_t  nth_offset(size_t idx) const {
-        TERARK_ASSERT_LT(idx, m_size, "%zd %zd");
+        TERARK_ASSERT_LT(idx, m_size);
         idx = m_size - 1 - idx;
         return m_fixlen * idx;
     }
     size_t  nth_seq_id(size_t idx) const { return m_size - 1 - idx; }
     size_t  nth_endpos(size_t idx) const {
-        TERARK_ASSERT_LT(idx, m_size, "%zd %zd");
+        TERARK_ASSERT_LT(idx, m_size);
         idx = m_size - 1 - idx;
         return m_fixlen * (idx + 1);
     }

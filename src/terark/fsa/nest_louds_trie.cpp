@@ -1482,7 +1482,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
             size_t val = (offset << lenBits) | (keylen - minLen);
             coreLinkVec[i] = index_t(val);
         }
-        TERARK_VERIFY_EQ(label.size(), m_is_link.size(), "%zd %zd");
+        TERARK_VERIFY_EQ(label.size(), m_is_link.size());
         coreStrVec.m_index.clear(); // free memory earlier
         label.reserve(label.size() + coreStrVec.str_size()); // alloc exact
         label.append(coreStrVec.m_strpool);
@@ -2092,7 +2092,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
                     const NestLoudsTrieConfig& conf)
 {
 	TERARK_VERIFY(strVec.size() > 0);
-	TERARK_VERIFY_EZ(label.size(), "%zd"); // NOLINT
+	TERARK_VERIFY_EZ(label.size()); // NOLINT
 	if (sizeof(index_t) == 4 && strVec.str_size() > 0x1E0000000) { // 7.5G
 		THROW_STD(length_error
 			, "strVec is too large: size = %zd str_size = %zd"
@@ -2132,7 +2132,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		, strVec.size(), strVec.str_size(), strVec.avg_size()
 		);
 	}
-	TERARK_VERIFY_LE(minFragLen1, maxFragLen1, "%zd %zd");
+	TERARK_VERIFY_LE(minFragLen1, maxFragLen1);
 	maxFragLen1 = std::min<size_t>(maxFragLen1, 253);
 	maxFragLen2 = std::min<size_t>(maxFragLen2, 253);
 	maxFragLen3 = std::min<size_t>(maxFragLen3, 253);
@@ -2244,11 +2244,11 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         TERARK_VERIFY(nullptr == nestStrPoolFile); // NOLINT
         if (0 == prefixNum)
             return;
-        TERARK_VERIFY_EQ(nestStrVec.size(), nestStrVecSize, "%zd %zd");
+        TERARK_VERIFY_EQ(nestStrVec.size(), nestStrVecSize);
         for (size_t i = 0; i < prefixNum; ++i) {
-            TERARK_VERIFY_LT(size_t(nestStrVec.m_index[i].seq_id), prefixNum, "%zd %zd");
-            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].offset), "%zd");
-            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length), "%zd");
+            TERARK_VERIFY_LT(size_t(nestStrVec.m_index[i].seq_id), prefixNum);
+            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].offset));
+            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length));
         }
         sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
         size_t strIncSize = prefixLen - (FastLabel ? prefixNum : 0);
@@ -2259,7 +2259,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         fstring pref = conf.commonPrefix;
         size_t offset = 0;
         for (size_t i = 0; i + 1 < prefixNum; ++i) {
-            TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i, "%zd %zd");
+            TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i);
             auto& x = nestStrVec.m_index[i];
             x.offset = offset;
             if (FastLabel)
@@ -2269,8 +2269,8 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 
             pref = pref.substr(253);
         }
-        TERARK_VERIFY_GT(pref.size(),   1, "%zd %d");
-        TERARK_VERIFY_LT(pref.size(), 253, "%zd %d");
+        TERARK_VERIFY_GT(pref.size(),   1);
+        TERARK_VERIFY_LT(pref.size(), 253);
         auto& x = nestStrVec.m_index[prefixNum-1];
         x.offset = offset;
         x.length = uint32_t(pref.size() - (FastLabel ? 1 : 0));
@@ -2460,8 +2460,8 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 		}
 	}
 #endif
-	TERARK_VERIFY_EQ(m_is_link.size(), labelStore->size(), "%zd %zd");
-	TERARK_VERIFY_EQ(m_louds.size(), 2 * m_is_link.size() + 1, "%zd %zd");
+	TERARK_VERIFY_EQ(m_is_link.size(), labelStore->size());
+	TERARK_VERIFY_EQ(m_louds.size(), 2 * m_is_link.size() + 1);
 	if (nestStrPoolFile) {
 		nestStrPoolFile->complete_write();
 		nestStrVec.clear();
@@ -2519,7 +2519,7 @@ else
 //	m_total_zpath_len = nestStrVec.sync_real_str_size();
 	m_total_zpath_len = nestStrVec.str_size();
 	m_is_link.build_cache(0, 0);
-	TERARK_VERIFY_EQ(m_is_link.max_rank1(), nestStrVec.size(), "%zd %zd");
+	TERARK_VERIFY_EQ(m_is_link.max_rank1(), nestStrVec.size());
 	if (linkVecStore) {
 		linkVecStore->read_all(&linkVec);
 		linkVecStore.reset();
@@ -2592,7 +2592,7 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 				, maxIdx, maxLen, minLen, lenBits, maxLen, strVec.nth_data(maxIdx));
 	}
     // this verify may fail if commonPrefix is set, disable it!
-	//TERARK_VERIFY_GE(strVec.m_strpool.size(), 3, "%zd %d");
+	//TERARK_VERIFY_GE(strVec.m_strpool.size(), 3);
 	compress_core(strVec, conf);
 	typedef typename std::conditional<FastLabel,uint64_t,index_t>::type link_uint_t;
 	valvec<link_uint_t> linkVec(strVec.size(), valvec_no_init());
@@ -2624,7 +2624,7 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 			j++;
 		}
 	}
-	TERARK_VERIFY_EQ(label.size(), m_is_link.size(), "%zd %zd");
+	TERARK_VERIFY_EQ(label.size(), m_is_link.size());
 	label.append(strVec.m_strpool);
 	m_core_size = strVec.m_strpool.size();
 	m_core_data = label.data() + m_is_link.size();
@@ -2760,12 +2760,12 @@ load_mmap_debug_check(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie
 			uint64_t linkVal = trie->get_link_val(j);
 			if (linkVal >= trie->m_core_max_link_val) {
 				size_t link_id = size_t(linkVal - trie->m_core_max_link_val);
-				TERARK_ASSERT_LT(link_id, next_node_num, "%zd %zd");
+				TERARK_ASSERT_LT(link_id, next_node_num);
 			}
 			else {
 				size_t offset = size_t(linkVal >> trie->m_core_len_bits);
 				size_t length = size_t(linkVal &  trie->m_core_len_mask) + trie->m_core_min_len;
-				TERARK_ASSERT_LE(offset + length, trie->m_core_size, "%zd %zd");
+				TERARK_ASSERT_LE(offset + length, trie->m_core_size);
 			}
 		}
 	}

@@ -477,12 +477,12 @@ size_t RevOrdStrVec::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t
     assert(kh == ch);
     for (size_t i = lo; i < hi; ++i) {
         fstring s = (*this)[i];
-        TERARK_ASSERT_LT(pos, s.size(), "%zd %zd");
+        TERARK_ASSERT_LT(pos, s.size());
     }
 #endif
     while (lo < hi) {
         size_t mid = (lo + hi) / 2;
-        TERARK_ASSERT_LT(pos, this->nth_size(mid), "%zd %zd");
+        TERARK_ASSERT_LT(pos, this->nth_size(mid));
         size_t offset = UintVecMin0::fast_get(data, bits, mask, imax - mid);
         if (pool[offset + pos] <= ch)
             lo = mid + 1;
@@ -508,7 +508,7 @@ size_t RevOrdStrVec::lower_bound(size_t start, size_t end, fstring key) const {
 		size_t mid_beg = UintVecMin0::fast_get(data, bits, mask, mid_rev);
 		size_t mid_end = UintVecMin0::fast_get(data, bits, mask, mid_rev+1);
 		size_t mid_len = mid_end - mid_beg;
-		TERARK_ASSERT_LE(mid_beg, mid_end, "%zd %zd");
+		TERARK_ASSERT_LE(mid_beg, mid_end);
 		if (str_less(pool + mid_beg, mid_len, key.p, key.n))
 			lo = mid_idx + 1;
 		else
@@ -533,7 +533,7 @@ size_t RevOrdStrVec::upper_bound(size_t start, size_t end, fstring key) const {
 		size_t mid_beg = UintVecMin0::fast_get(data, bits, mask, mid_rev);
 		size_t mid_end = UintVecMin0::fast_get(data, bits, mask, mid_rev+1);
 		size_t mid_len = mid_end - mid_beg;
-		TERARK_ASSERT_LE(mid_beg, mid_end, "%zd %zd");
+		TERARK_ASSERT_LE(mid_beg, mid_end);
 		if (!str_less(key.p, key.n, pool + mid_beg, mid_len))
 			lo = mid_idx + 1;
 		else
@@ -662,9 +662,9 @@ size_t RevOrdStrVecUintTpl<UintXX>::upper_bound_by_offset(size_t offset) const {
 template<class UintXX>
 terark_flatten
 size_t RevOrdStrVecUintTpl<UintXX>::upper_bound_at_pos(size_t lo, size_t hi, size_t pos, byte_t ch) const {
-    TERARK_ASSERT_GE(m_offsets.size(), 2, "%zd %d");
-    TERARK_ASSERT_LE(lo, hi, "%zd %zd");
-    TERARK_ASSERT_LE(hi, m_offsets.size()-1, "%zd %zd");
+    TERARK_ASSERT_GE(m_offsets.size(), 2);
+    TERARK_ASSERT_LE(lo, hi);
+    TERARK_ASSERT_LE(hi, m_offsets.size()-1);
     const UintXX* data = m_offsets.data();
     const byte_t* pool = m_strpool.data();
     const size_t  imax = m_offsets.size() - 2;
@@ -673,13 +673,13 @@ size_t RevOrdStrVecUintTpl<UintXX>::upper_bound_at_pos(size_t lo, size_t hi, siz
     assert(kh == ch);
     for (size_t i = lo; i < hi; ++i) {
         fstring s = (*this)[i];
-        TERARK_ASSERT_LT(pos, s.size(), "%zd %zd");
+        TERARK_ASSERT_LT(pos, s.size());
     }
 #endif
     while (lo < hi) {
         size_t mid_idx = (lo + hi) / 2;
         size_t mid_rev = imax - mid_idx;
-        TERARK_ASSERT_LT(pos, this->nth_size(mid_idx), "%zd %zd");
+        TERARK_ASSERT_LT(pos, this->nth_size(mid_idx));
 		StrVec_prefetch(true, data + (lo + mid_rev)/2);
 		StrVec_prefetch(true, data + (hi + mid_rev)/2);
         size_t offset = data[mid_rev];
@@ -694,16 +694,16 @@ size_t RevOrdStrVecUintTpl<UintXX>::upper_bound_at_pos(size_t lo, size_t hi, siz
 template<class UintXX>
 terark_flatten
 size_t RevOrdStrVecUintTpl<UintXX>::lower_bound(size_t start, size_t end, fstring key) const {
-    TERARK_ASSERT_LE(start, end, "%zd %zd");
-    TERARK_ASSERT_LE(end, m_offsets.size()-1, "%zd %zd");
+    TERARK_ASSERT_LE(start, end);
+    TERARK_ASSERT_LE(end, m_offsets.size()-1);
     return lower_bound_n<const RevOrdStrVecUintTpl<UintXX>&>(*this, start, end, key);
 }
 
 template<class UintXX>
 terark_flatten
 size_t RevOrdStrVecUintTpl<UintXX>::upper_bound(size_t start, size_t end, fstring key) const {
-    TERARK_ASSERT_LE(start, end, "%zd %zd");
-    TERARK_ASSERT_LE(end, m_offsets.size()-1, "%zd %zd");
+    TERARK_ASSERT_LE(start, end);
+    TERARK_ASSERT_LE(end, m_offsets.size()-1);
     return upper_bound_n<const RevOrdStrVecUintTpl<UintXX>&>(*this, start, end, key);
 }
 
