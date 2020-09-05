@@ -2201,28 +2201,28 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	m_louds.push_back(false);
 	labelStore->push_back(0); // reserve unused
 
-    auto appendPrefix = [&](fstring pref) {
+    auto writePrefixFrag = [&](fstring frag) {
         m_louds.push_back(true);
         m_louds.push_back(false);
-        if (pref.size() > 1) {
+        if (frag.size() > 1) {
             nestStrVecSize++;
-            nestStrPoolSize += pref.size()-1;
+            nestStrPoolSize += frag.size() - 1;
             if (nestStrPoolFile) {
                 if (FastLabel)
-                  nestStrPoolFile->oTmpBuf << pref.substr(1);
+                  nestStrPoolFile->oTmpBuf << frag.substr(1);
                 else
-                  nestStrPoolFile->oTmpBuf << pref;
+                  nestStrPoolFile->oTmpBuf << frag;
             } else { // reserve for change/patch later
                 nextStrVecStore->push_back({0,0});
             }
             if (FastLabel) {
-                labelStore->push_back(pref[0]);
+                labelStore->push_back(frag[0]);
             } else {
                 labelStore->push_back(0); // reserved for latter use
             }
             m_is_link.push_back(true);
         } else {
-            labelStore->push_back(pref[0]);
+            labelStore->push_back(frag[0]);
             m_is_link.push_back(false);
         }
     };
@@ -2234,11 +2234,11 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         m_max_strlen += prefixLen;
         fstring pref = conf.commonPrefix;
         while (pref.size() >= 253) {
-            appendPrefix(pref.substr(0, 253));
+            writePrefixFrag(pref.substr(0, 253));
             pref = pref.substr(253);
         }
         if (!pref.empty())
-            appendPrefix(pref);
+            writePrefixFrag(pref);
     }
     auto patchNestStrVec = [&]() {
         TERARK_VERIFY(nullptr == nestStrPoolFile); // NOLINT
