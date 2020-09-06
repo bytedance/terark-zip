@@ -2245,11 +2245,16 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
         if (0 == prefixNum)
             return;
         TERARK_VERIFY_EQ(nestStrVec.size(), nestStrVecSize);
+      #if 0
+        // workaround: this code produce error on gcc-6.3, just disable it
+        // src/terark/fsa/nest_louds_trie.cpp:2284:5:
+        // internal compiler error: in maybe_undo_parenthesized_ref, at cp/semantics.c:1694
         for (size_t i = 0; i < prefixNum; ++i) {
             TERARK_VERIFY_LT(size_t(nestStrVec.m_index[i].seq_id), prefixNum);
             TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].offset));
             TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length));
         }
+      #endif
         sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
         size_t strIncSize = prefixLen - (FastLabel ? prefixNum : 0);
         nestStrVec.m_strpool.ensure_unused(strIncSize);
