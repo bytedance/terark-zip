@@ -2691,8 +2691,9 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		mem >> maxLinkVal;
 		trie->m_core_min_len = byte_t(minLen & 255);
 		trie->m_core_max_link_val = maxLinkVal;
+		trie->m_core_len_bits = mem.readByte();
 
-		mem.skip(16); // padding
+		mem.skip(15); // padding, change 16 to 15 for support common prefix
 	}
 
 	trie->m_louds.risk_mmap_from(mem.skip(louds_mem_size), louds_mem_size);
@@ -2878,9 +2879,11 @@ save_mmap_loop(NativeDataOutput<AutoGrownMemIO>& tmpbuf,
 	tmpbuf << index_t(trie->m_next_link.min_val());
 	tmpbuf << trie->m_total_zpath_len;
 	if (version >= 1) {
-		const static byte_t zero[16] = { 0 };
+	  // change zero[16 to 15] for support common prefix
+		const static byte_t zero[15] = { 0 };
 		tmpbuf << index_t(trie->m_core_min_len);
 		tmpbuf << index_t(trie->m_core_max_link_val);
+		tmpbuf << byte_t(trie->m_core_len_bits); // add for common prefix support
 		tmpbuf.ensureWrite(zero, sizeof(zero)); // padding
 	}
 	tmpbuf.ensureWrite(trie->m_louds.data(), trie->m_louds.mem_size());
@@ -2907,6 +2910,7 @@ save_mmap_loop(NativeDataOutput<AutoGrownMemIO>& tmpbuf,
 		save_mmap_loop(tmpbuf, version, trie->m_next_trie, nth_trie+1, bPrintStat);
 }
 
+/*
 template<class Trie> static bool has_mixed(const Trie* trie) {
 	if (NULL == trie)
 		return false;
@@ -2914,6 +2918,8 @@ template<class Trie> static bool has_mixed(const Trie* trie) {
 		return true;
 	return has_mixed(trie->m_next_trie);
 }
+*/
+
 template<class RankSelect, class RankSelect2, bool FastLabel>
 static byte_t*
 save_mmap_s(const NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* self,
@@ -2922,7 +2928,8 @@ save_mmap_s(const NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* self,
 	tmpbuf.resize(8*1024);
 	size_t trieNum = self->nest_level();
 	size_t version = 0;
-	if (has_mixed(self)) {
+	//if (has_mixed(self))
+	{ // now always version 1
 		version = 1;
 	}
 	tmpbuf << uint32_t(trieNum);
