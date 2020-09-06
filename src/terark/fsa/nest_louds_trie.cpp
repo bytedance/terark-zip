@@ -2680,7 +2680,7 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 	mem >> next_link_mem_size;
 	mem >> next_link_min_val;
 	mem >> trie->m_total_zpath_len; // 8 bytes
-	assert(nth_trie == i);
+	TERARK_VERIFY_EQ(nth_trie, i);
 	if (version >= 1) {
 	//	trie->m_core_min_len = mem.template load_as<index_t>() & 255; // false warning in gcc
 	//	trie->m_core_max_link_val = mem.template load_as<index_t>(); // false warning in gcc
@@ -2691,19 +2691,22 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		mem >> maxLinkVal;
 		trie->m_core_min_len = byte_t(minLen & 255);
 		trie->m_core_max_link_val = maxLinkVal;
-		trie->m_core_len_bits = mem.readByte();
-
-		mem.skip(15); // padding, change 16 to 15 for support common prefix
+		if (version >= 2) {
+		    trie->m_core_len_bits = mem.readByte();
+		    mem.skip(15); // padding, change 16 to 15 for support common prefix
+		} else {
+		    mem.skip(16);
+		}
 	}
 
 	trie->m_louds.risk_mmap_from(mem.skip(louds_mem_size), louds_mem_size);
 	trie->m_is_link.risk_mmap_from(mem.skip(is_link_mem_size), is_link_mem_size);
-	assert(trie->m_louds.size()==2*node_num+1);
-	assert(trie->m_is_link.size()==node_num);
+	TERARK_VERIFY_EQ(trie->m_louds.size(), 2*node_num+1);
+	TERARK_VERIFY_EQ(trie->m_is_link.size(), node_num);
 
 	if (core_size && i < trieNum - 1 && nextNodeNum) {
 		// new format: a trie can has both core and nested trie
-		assert(version >= 1);
+		TERARK_VERIFY_GE(version, 1); // can be old version==1, new is 2
 		// nextState=nextNodeNum-1 must be a linked node
 		size_t max_link_val = trie->m_core_max_link_val + (nextNodeNum-1);
 		size_t LowBits = FastLabel ? 0 : 8;
@@ -2717,10 +2720,12 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 			trie->m_is_link.max_rank1(),
 			size_t(next_link_min_val),
 			nextLinkBits);
-		assert(trie->m_next_link.size() == trie->m_is_link.max_rank1());
+		TERARK_VERIFY_EQ(trie->m_next_link.size(), trie->m_is_link.max_rank1());
 		trie->m_label_data = mem.skip((node_num + core_size + 7) & ~7);
 		trie->m_core_data = trie->m_label_data + node_num;
-		trie->m_core_len_bits = 1;
+		if (version == 1) {
+			trie->m_core_len_bits = 1;
+		}
 		trie->m_core_len_mask = (size_t(1) << trie->m_core_len_bits) - 1;
 	}
 	else {
@@ -2750,7 +2755,7 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 				trie->m_is_link.max_rank1(),
 				size_t(next_link_min_val),
 				nextLinkBits);
-			assert(trie->m_next_link.size() == trie->m_is_link.max_rank1());
+			TERARK_VERIFY_EQ(trie->m_next_link.size(), trie->m_is_link.max_rank1());
 			trie->m_label_data = mem.skip((node_num + 7) & ~7);
 			trie->m_core_data = NULL;
 			trie->m_core_len_bits = 0;
@@ -2878,7 +2883,10 @@ save_mmap_loop(NativeDataOutput<AutoGrownMemIO>& tmpbuf,
 	tmpbuf << index_t(trie->m_next_link.mem_size());
 	tmpbuf << index_t(trie->m_next_link.min_val());
 	tmpbuf << trie->m_total_zpath_len;
-	if (version >= 1) {
+	{
+        // now version is 2
+        // arg version is actually not used in curr func
+        TERARK_VERIFY_EQ(version, 2);
 	  // change zero[16 to 15] for support common prefix
 		const static byte_t zero[15] = { 0 };
 		tmpbuf << index_t(trie->m_core_min_len);
@@ -2927,16 +2935,15 @@ save_mmap_s(const NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* self,
 	NativeDataOutput<AutoGrownMemIO> tmpbuf;
 	tmpbuf.resize(8*1024);
 	size_t trieNum = self->nest_level();
-	size_t version = 0;
-	//if (has_mixed(self))
-	{ // now always version 1
-		version = 1;
-	}
+	size_t version = 2; // now version always == 2
 	tmpbuf << uint32_t(trieNum);
 	tmpbuf << uint08_t(GetLastTrie_core_min_len(self));
 	tmpbuf << uint08_t(0); // padding
 	tmpbuf << uint08_t(0); // padding
 	tmpbuf << uint08_t(version);
+
+    // old program can not read new data since version 2,
+    // but version 2 program can read old data
 
 	bool bPrintStat = getEnvBool("LOUDS_DFA_PRINT_STAT");
 	save_mmap_loop(tmpbuf, version, self, 0, bPrintStat);
