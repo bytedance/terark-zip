@@ -1449,6 +1449,7 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
     size_t coreStrLen = 0;
     size_t coreStrNum = 0;
     size_t minLen = size_t(-1);
+    size_t maxLen = 0;
     for(size_t i = 0, n = strVec.size(); i < n; ++i) {
         size_t l = strVec.nth_size(i);
         if (l <= MaxShortStrLen) {
@@ -1456,9 +1457,20 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
             coreStrLen += l;
             coreStrNum += 1;
             minLen = std::min(minLen, l);
+            maxLen = std::max(maxLen, l);
         }
     }
     if (coreStrNum) {
+        size_t lenBits = maxLen == minLen
+              ? 0
+              : terark_bsr_u64(maxLen - minLen) + 1
+              ;
+        if (conf.debugLevel >= 2) {
+          fprintf(stderr
+              , "build_mixed: core: cnt=%zd pool=%zd avg=%f, min=%zd max=%zd lenBits=%zd\n"
+              , strVec.size(), strVec.str_size(), strVec.avg_size()
+              , minLen, maxLen, lenBits);
+        }
         coreStrVec.reserve(coreStrNum, coreStrLen);
         strVec.erase_if2([&](size_t i, fstring str) {
             if (str.size() <= MaxShortStrLen) {
@@ -1475,7 +1487,6 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
         compress_core(coreStrVec, conf);
         coreStrVec.make_ascending_seq_id();
         coreLinkVec.resize_no_init(coreStrVec.size());
-        const size_t lenBits = 1;
         for(size_t i = 0; i < coreStrVec.size(); ++i) {
             size_t offset = coreStrVec.m_index[i].offset;
             size_t keylen = coreStrVec.m_index[i].length;
