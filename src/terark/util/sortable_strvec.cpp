@@ -1180,14 +1180,9 @@ size_t FixedLenStrVec::lower_bound(size_t lo, size_t hi, fstring key) const {
 	assert(lo <= hi);
 	assert(hi <= m_size);
 	auto fixlen = m_fixlen;
-    if (key.size() == fixlen) {
-        return m_lower_bound_fixed(this, lo, hi, key.data());
-    }
-    else if (key.size() < fixlen && fixlen <= 8 && (fixlen & (fixlen-1)) == 0) {
+    if (key.size() <= fixlen) {
         // lower_bound is correct after zero padding key
-        byte_t zero_padded[8] = {0};
-        tiny_memcpy_align_1(zero_padded, key.p, key.n);
-        return m_lower_bound_fixed(this, lo, hi, zero_padded);
+        return m_lower_bound_prefix(this, lo, hi, fixlen, key.data());
     }
     else {
         // lower_bound is wrong after cutoff key, so
@@ -1213,7 +1208,7 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 	auto fixlen = m_fixlen;
     if (key.size() >= fixlen) {
         // upper_bound is correct after cutoff key
-        return m_upper_bound_fixed(this, lo, hi, key.data());
+        return m_upper_bound_fixed(this, lo, hi, fixlen, key.data());
     }
     else {
         // upper_bound is wrong after zero padding key, so
@@ -1231,18 +1226,25 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 	return lo;
 }
 
+template<bool IsFixed>
 terark_flatten
 static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
-                                     size_t lo, size_t hi, const void* key) {
+                                     size_t lo, size_t hi,
+                                     size_t kn, const void* key) {
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
 	auto fixlen = sv->m_fixlen;
 	auto data = sv->m_strpool.data();
+    if (IsFixed) {
+        assert(kn == fixlen);
+    } else {
+        kn = std::min(kn, fixlen);
+    }
 	while (lo < hi) {
 		size_t mid_idx = (lo + hi) / 2;
 		size_t mid_pos = fixlen * mid_idx;
-		if (memcmp(data + mid_pos, key, fixlen) < 0)
+		if (memcmp(data + mid_pos, key, kn) < 0)
 			lo = mid_idx + 1;
 		else
 			hi = mid_idx;
@@ -1250,18 +1252,25 @@ static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
 	return lo;
 }
 
+template<bool IsFixed>
 terark_flatten
 static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
-                                     size_t lo, size_t hi, const void* key) {
+                                     size_t lo, size_t hi,
+                                     size_t kn, const void* key) {
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
 	auto fixlen = sv->m_fixlen;
 	auto data = sv->m_strpool.data();
+    if (IsFixed) {
+        assert(kn == fixlen);
+    } else {
+        kn = std::min(kn, fixlen);
+    }
 	while (lo < hi) {
 		size_t mid_idx = (lo + hi) / 2;
 		size_t mid_pos = fixlen * mid_idx;
-		if (memcmp(data + mid_pos, key, fixlen) <= 0)
+		if (memcmp(data + mid_pos, key, kn) <= 0)
 			lo = mid_idx + 1;
 		else
 			hi = mid_idx;
@@ -1269,17 +1278,24 @@ static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
 	return lo;
 }
 
-
-template<class Uint>
+template<bool IsFixed, class Uint>
 terark_flatten
 static size_t Fixed_lower_bound(const FixedLenStrVec* sv,
-                                size_t lo, size_t hi, const void* key) {
-  assert(sizeof(Uint) == sv->m_fixlen);
+                                size_t lo, size_t hi,
+                                size_t kn, const void* key) {
+	assert(sizeof(Uint) == sv->m_fixlen);
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
 	assert(size_t(sv->m_strpool.data()) % sizeof(Uint) == 0);
-	Uint ukey = unaligned_load<Uint>(key);
+	Uint ukey;
+    if (IsFixed) {
+        assert(kn == sizeof(Uint));
+        ukey = unaligned_load<Uint>(key);
+    } else {
+        ukey = 0;
+        tiny_memcpy_align_1(&ukey, key, std::min(kn, sizeof(Uint)));
+    }
 	auto data = (const Uint*)sv->m_strpool.data();
 	BYTE_SWAP_IF_LITTLE_ENDIAN(ukey);
 	while (lo < hi) {
@@ -1294,16 +1310,24 @@ static size_t Fixed_lower_bound(const FixedLenStrVec* sv,
 	return lo;
 }
 
-template<class Uint>
+template<bool IsFixed, class Uint>
 terark_flatten
 static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
-                                size_t lo, size_t hi, const void* key) {
-  assert(sizeof(Uint) == sv->m_fixlen);
+                                size_t lo, size_t hi,
+                                size_t kn, const void* key) {
+	assert(sizeof(Uint) == sv->m_fixlen);
 	assert(sv->m_fixlen * sv->m_size == sv->m_strpool.size());
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
 	assert(size_t(sv->m_strpool.data()) % sizeof(Uint) == 0);
-	Uint ukey = unaligned_load<Uint>(key);
+	Uint ukey;
+    if (IsFixed) {
+        assert(kn == sizeof(Uint));
+        ukey = unaligned_load<Uint>(key);
+    } else { // upper_bound_prefix is semantically different from upper_bound
+        ukey = Uint(-1); //<- for upper_bound, this is wrong
+        tiny_memcpy_align_1(&ukey, key, std::min(kn, sizeof(Uint)));
+    }
 	auto data = (const Uint*)sv->m_strpool.data();
 	BYTE_SWAP_IF_LITTLE_ENDIAN(ukey);
 	while (lo < hi) {
@@ -1319,8 +1343,10 @@ static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
 }
 
 FixedLenStrVec::FixedLenStrVec(size_t fixlen) {
-    m_lower_bound_fixed = &Fixed_lower_bound_slow;
-    m_upper_bound_fixed = &Fixed_upper_bound_slow;
+    m_lower_bound_fixed = &Fixed_lower_bound_slow<1>;
+    m_upper_bound_fixed = &Fixed_upper_bound_slow<1>;
+    m_lower_bound_prefix = &Fixed_lower_bound_slow<0>;
+    m_upper_bound_prefix = &Fixed_upper_bound_slow<0>;
     m_fixlen = fixlen;
     m_size = 0;
     m_strpool_mem_type = MemType::Malloc;
@@ -1329,13 +1355,17 @@ FixedLenStrVec::FixedLenStrVec(size_t fixlen) {
 void FixedLenStrVec::optimize_func() {
     switch (m_fixlen) {
     default:
-        m_lower_bound_fixed = &Fixed_lower_bound_slow;
-        m_upper_bound_fixed = &Fixed_upper_bound_slow;
+        m_lower_bound_fixed = &Fixed_lower_bound_slow<1>;
+        m_upper_bound_fixed = &Fixed_upper_bound_slow<1>;
+        m_lower_bound_prefix = &Fixed_lower_bound_slow<0>;
+        m_upper_bound_prefix = &Fixed_upper_bound_slow<0>;
         break;
 #define SetFuncPtr(Uint) \
     case sizeof(Uint): \
-        m_lower_bound_fixed = &Fixed_lower_bound<Uint>; \
-        m_upper_bound_fixed = &Fixed_upper_bound<Uint>; \
+        m_lower_bound_fixed = &Fixed_lower_bound<1, Uint>; \
+        m_upper_bound_fixed = &Fixed_upper_bound<1, Uint>; \
+        m_lower_bound_prefix = &Fixed_lower_bound<0, Uint>; \
+        m_upper_bound_prefix = &Fixed_upper_bound<0, Uint>; \
         break
 //----------------------------------------------------------
         SetFuncPtr(uint08_t);

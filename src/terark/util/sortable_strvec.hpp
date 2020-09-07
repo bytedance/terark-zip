@@ -385,8 +385,10 @@ fstring SortThinStrVec::operator[](size_t idx) const {
 }
 
 class TERARK_DLL_EXPORT FixedLenStrVec {
-    size_t (*m_lower_bound_fixed)(const FixedLenStrVec*, size_t, size_t, const void*);
-    size_t (*m_upper_bound_fixed)(const FixedLenStrVec*, size_t, size_t, const void*);
+    size_t (*m_lower_bound_fixed)(const FixedLenStrVec*, size_t, size_t, size_t, const void*);
+    size_t (*m_upper_bound_fixed)(const FixedLenStrVec*, size_t, size_t, size_t, const void*);
+    size_t (*m_lower_bound_prefix)(const FixedLenStrVec*, size_t, size_t, size_t, const void*);
+    size_t (*m_upper_bound_prefix)(const FixedLenStrVec*, size_t, size_t, size_t, const void*);
 public:
     size_t m_fixlen;
     size_t m_size;
@@ -438,11 +440,15 @@ public:
     size_t lower_bound(size_t lo, size_t hi, fstring) const;
     size_t upper_bound(size_t lo, size_t hi, fstring) const;
     ///@{ user should ensure k len is same as m_fixlen
-    size_t lower_bound_fixed(const void* k) const { return m_lower_bound_fixed(this, 0, m_size, k); }
-    size_t upper_bound_fixed(const void* k) const { return m_upper_bound_fixed(this, 0, m_size, k); }
-    size_t lower_bound_fixed(size_t lo, size_t hi, const void* k) const { return m_lower_bound_fixed(this, lo, hi, k); }
-    size_t upper_bound_fixed(size_t lo, size_t hi, const void* k) const { return m_upper_bound_fixed(this, lo, hi, k); }
+    size_t lower_bound_fixed(const void* k) const { return m_lower_bound_fixed(this, 0, m_size, m_fixlen, k); }
+    size_t upper_bound_fixed(const void* k) const { return m_upper_bound_fixed(this, 0, m_size, m_fixlen, k); }
+    size_t lower_bound_fixed(size_t lo, size_t hi, const void* k) const { return m_lower_bound_fixed(this, lo, hi, m_fixlen, k); }
+    size_t upper_bound_fixed(size_t lo, size_t hi, const void* k) const { return m_upper_bound_fixed(this, lo, hi, m_fixlen, k); }
     ///@}
+    size_t lower_bound_prefix(fstring k) const { return m_lower_bound_prefix(this, 0, m_size, k.n, k.p); }
+    size_t upper_bound_prefix(fstring k) const { return m_upper_bound_prefix(this, 0, m_size, k.n, k.p); }
+    size_t lower_bound_prefix(size_t lo, size_t hi, fstring k) const { return m_lower_bound_prefix(this, lo, hi, k.n, k.p); }
+    size_t upper_bound_prefix(size_t lo, size_t hi, fstring k) const { return m_upper_bound_prefix(this, lo, hi, k.n, k.p); }
     size_t max_strlen() const { return m_fixlen; }
 };
 
