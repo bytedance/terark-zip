@@ -1237,7 +1237,7 @@ static size_t Fixed_lower_bound_slow(const FixedLenStrVec* sv,
 	auto fixlen = sv->m_fixlen;
 	auto data = sv->m_strpool.data();
     if (IsFixed) {
-        assert(kn == fixlen);
+        assert(kn <= fixlen);
     } else {
         kn = std::min(kn, fixlen);
     }
@@ -1263,7 +1263,7 @@ static size_t Fixed_upper_bound_slow(const FixedLenStrVec* sv,
 	auto fixlen = sv->m_fixlen;
 	auto data = sv->m_strpool.data();
     if (IsFixed) {
-        assert(kn == fixlen);
+        assert(kn <= fixlen);
     } else {
         kn = std::min(kn, fixlen);
     }
@@ -1320,14 +1320,14 @@ static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
 	assert(lo <= hi);
 	assert(hi <= sv->m_size);
 	assert(size_t(sv->m_strpool.data()) % sizeof(Uint) == 0);
-	Uint ukey;
     if (IsFixed) {
         assert(kn == sizeof(Uint));
-        ukey = unaligned_load<Uint>(key);
-    } else { // upper_bound_prefix is semantically different from upper_bound
-        ukey = Uint(-1); //<- for upper_bound, this is wrong
-        tiny_memcpy_align_1(&ukey, key, std::min(kn, sizeof(Uint)));
     }
+    else if (kn < sizeof(Uint)) {
+        // upper_bound_prefix is semantically different from upper_bound
+        return Fixed_lower_bound_slow<1>(sv, lo, hi, kn, key);
+    }
+    Uint ukey = unaligned_load<Uint>(key);
 	auto data = (const Uint*)sv->m_strpool.data();
 	BYTE_SWAP_IF_LITTLE_ENDIAN(ukey);
 	while (lo < hi) {
