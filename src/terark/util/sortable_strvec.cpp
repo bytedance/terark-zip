@@ -1180,20 +1180,18 @@ size_t FixedLenStrVec::lower_bound(size_t lo, size_t hi, fstring key) const {
 	assert(lo <= hi);
 	assert(hi <= m_size);
 	auto fixlen = m_fixlen;
-    if (fixlen <= 8 && (fixlen & (fixlen-1)) == 0) {
-        if (key.size() == fixlen) {
-            return m_lower_bound_fixed(this, lo, hi, key.data());
-        }
-        else if (key.size() < fixlen) {
-            // lower_bound is correct after zero padding
-            byte_t zero_padded[8] = {0};
-            tiny_memcpy_align_1(zero_padded, key.p, key.n);
-            return m_lower_bound_fixed(this, lo, hi, zero_padded);
-        }
-        else {
-            // lower_bound is wrong after cutoff, so
-            // fall through, run general code
-        }
+    if (key.size() == fixlen) {
+        return m_lower_bound_fixed(this, lo, hi, key.data());
+    }
+    else if (key.size() < fixlen && fixlen <= 8 && (fixlen & (fixlen-1)) == 0) {
+        // lower_bound is correct after zero padding key
+        byte_t zero_padded[8] = {0};
+        tiny_memcpy_align_1(zero_padded, key.p, key.n);
+        return m_lower_bound_fixed(this, lo, hi, zero_padded);
+    }
+    else {
+        // lower_bound is wrong after cutoff key, so
+        // fall through, run general code
     }
 	auto data = m_strpool.data();
 	while (lo < hi) {
@@ -1213,15 +1211,13 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
 	assert(lo <= hi);
 	assert(hi <= m_size);
 	auto fixlen = m_fixlen;
-    if (fixlen <= 8 && (fixlen & (fixlen-1)) == 0) {
-        if (key.size() >= fixlen) {
-            // upper_bound is correct after cutoff
-            return m_upper_bound_fixed(this, lo, hi, key.data());
-        }
-        else {
-            // upper_bound is wrong after zero padding, so
-            // fall through, run general code
-        }
+    if (key.size() >= fixlen) {
+        // upper_bound is correct after cutoff key
+        return m_upper_bound_fixed(this, lo, hi, key.data());
+    }
+    else {
+        // upper_bound is wrong after zero padding key, so
+        // fall through, run general code
     }
 	auto data = m_strpool.data();
 	while (lo < hi) {
