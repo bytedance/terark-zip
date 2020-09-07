@@ -1325,7 +1325,7 @@ static size_t Fixed_upper_bound(const FixedLenStrVec* sv,
     }
     else if (kn < sizeof(Uint)) {
         // upper_bound_prefix is semantically different from upper_bound
-        return Fixed_lower_bound_slow<1>(sv, lo, hi, kn, key);
+        return Fixed_upper_bound_slow<1>(sv, lo, hi, kn, key);
     }
     Uint ukey = unaligned_load<Uint>(key);
 	auto data = (const Uint*)sv->m_strpool.data();
