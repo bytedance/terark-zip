@@ -1182,17 +1182,20 @@ size_t FixedLenStrVec::lower_bound(size_t lo, size_t hi, fstring key) const {
 	auto fixlen = m_fixlen;
     if (key.size() <= fixlen) {
         // lower_bound is correct after zero padding key
-        return m_lower_bound_prefix(this, lo, hi, fixlen, key.data());
+        return m_lower_bound_prefix(this, lo, hi, key.n, key.p);
     }
     else {
         // lower_bound is wrong after cutoff key, so
         // fall through, run general code
     }
+    assert(fixlen < key.size());
 	auto data = m_strpool.data();
 	while (lo < hi) {
 		size_t mid_idx = (lo + hi) / 2;
 		size_t mid_pos = fixlen * mid_idx;
-		if (fstring(data + mid_pos, fixlen) < key)
+		// if memcmp == 0, because fixlen < key.n, so mid < key,
+		// so memcmp <= 0  implies mid < key
+		if (memcmp(data + mid_pos, key.p, fixlen) <= 0)
 			lo = mid_idx + 1;
 		else
 			hi = mid_idx;
@@ -1214,11 +1217,14 @@ size_t FixedLenStrVec::upper_bound(size_t lo, size_t hi, fstring key) const {
         // upper_bound is wrong after zero padding key, so
         // fall through, run general code
     }
+    assert(key.size() < fixlen);
 	auto data = m_strpool.data();
 	while (lo < hi) {
 		size_t mid_idx = (lo + hi) / 2;
 		size_t mid_pos = fixlen * mid_idx;
-		if (fstring(data + mid_pos, fixlen) <= key)
+		// if memcmp == 0, because fixlen > key.n, so mid > key,
+		// so memcmp  < 0  implies mid <= key
+		if (memcmp(data + mid_pos, key.p, key.n) < 0)
 			lo = mid_idx + 1;
 		else
 			hi = mid_idx;
