@@ -2440,9 +2440,9 @@ bool MainPatricia::lookup(fstring key, TokenBase* token) const {
         assert(NULL != m_dummy.m_link.next);
         assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
         assert(token->m_link.verseq >= m_dummy.m_min_age);
+        assert(ThisThreadID() == token->m_thread_id);
     }
     assert(this == token->m_trie);
-    assert(ThisThreadID() == token->m_thread_id);
   #endif
 
     auto a = reinterpret_cast<const PatriciaNode*>(m_mempool.data());
