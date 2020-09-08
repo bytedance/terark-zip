@@ -144,6 +144,16 @@ public:
         bool lookup(fstring);
     };
     using ReaderTokenPtr = std::unique_ptr<ReaderToken, DisposeAsDelete>;
+    class SingleReaderToken : public terark::Patricia::TokenBase {
+    public:
+        explicit SingleReaderToken(Patricia* trie) {
+            assert(trie->concurrent_level() <= SingleThreadStrict);
+            m_flags.state = AcquireDone;
+        }
+        ~SingleReaderToken() override {
+            this->m_flags.state = DisposeDone;
+        }
+    };
 
     class TERARK_DLL_EXPORT WriterToken : public TokenBase {
         TERARK_friend_class_Patricia;
