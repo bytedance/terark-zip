@@ -148,6 +148,7 @@ public:
     public:
         explicit SingleReaderToken(Patricia* trie) {
             assert(trie->concurrent_level() <= SingleThreadStrict);
+            m_trie = trie;
             m_flags.state = AcquireDone;
         }
         ~SingleReaderToken() override {
