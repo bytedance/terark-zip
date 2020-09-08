@@ -2785,6 +2785,7 @@ void PatriciaMem<Align>::finish_load_mmap(const DFA_MmapHeader* base) {
     m_valsize = base->louds_dfa_min_cross_dst; // use as m_valsize
     m_n_nodes = base->transition_num + 1;
     m_n_words = base->dawg_num_words;
+    m_max_word_len = base->dfa_cluster_num;
     m_appdata_offset = size_t(base->louds_dfa_min_zpath_id) * AlignSize;
     m_appdata_length = size_t(base->louds_dfa_cache_states) * AlignSize;
 }
@@ -2799,6 +2800,7 @@ long PatriciaMem<Align>::prepare_save_mmap(DFA_MmapHeader* header,
     header->dawg_num_words          = this->m_n_words;
     header->louds_dfa_min_cross_dst = this->m_valsize;
     header->adfa_total_words_len    = this->m_adfa_total_words_len;
+    header->dfa_cluster_num         = uint32_t(m_max_word_len);
     header->louds_dfa_min_zpath_id  = uint32_t(m_appdata_offset / AlignSize);
     header->louds_dfa_cache_states  = uint32_t(m_appdata_length / AlignSize);
 
