@@ -3890,12 +3890,7 @@ public:
         m_word.pop_back();
         m_value = (void*)(zptr + pow2_align_up(zlen, AlignSize));
     }
-    void reset1() {
-        m_curr = size_t(-1);
-        m_word.risk_set_size(0);
-        m_iter.risk_set_size(0);
-        m_value = NULL;
-    }
+    void reset1();
     size_t calc_word_len() const {
       #if 0
         size_t len = 0;
@@ -3925,15 +3920,24 @@ public:
 //static const size_t IterFlag_lower_bound_fast  = 1;
 //static const size_t IterFlag_omit_token_update = 2;
 
-MainPatricia::IterImpl::IterImpl(const Patricia* sub)
-  : Iterator(const_cast<Patricia*>(sub))
+MainPatricia::IterImpl::IterImpl(const Patricia* trie1)
+  : Iterator(const_cast<Patricia*>(trie1))
 {
-    if (NULL == sub) {
+    m_dfa = trie1;
+    reset1();
+}
+
+void MainPatricia::IterImpl::reset1() {
+    m_curr = size_t(-1);
+    m_word.risk_set_size(0);
+    m_iter.risk_set_size(0);
+    m_value = NULL;
+    if (NULL == m_trie) {
         m_iter.reserve(16); // fast malloc small
         m_flag = 0;
         return;
     }
-    auto trie = static_cast<MainPatricia*>(m_trie);
+    auto trie = static_cast<const MainPatricia*>(m_trie);
     auto conLevel = trie->m_writing_concurrent_level;
     if (NoWriteReadOnly == conLevel) {
         size_t cap = trie->m_max_word_len + 2;
@@ -3946,7 +3950,6 @@ MainPatricia::IterImpl::IterImpl(const Patricia* sub)
         m_iter.reserve( 16); // fast malloc small
         m_word.reserve(128);
     }
-    m_dfa = sub;
 }
 
 MainPatricia::IterImpl::~IterImpl() {
@@ -3969,7 +3972,7 @@ void MainPatricia::IterImpl::reset(const BaseDFA* dfa, size_t root) {
         }
     }
     else {
-        assert(dynamic_cast<const BaseDFA*>(dfa) != NULL);
+        assert(dynamic_cast<const MainPatricia*>(dfa) != NULL);
         auto trie = static_cast<const MainPatricia*>(dfa);
         if (m_trie == trie) {
             if (ReaderToken::m_flags.is_head) {
