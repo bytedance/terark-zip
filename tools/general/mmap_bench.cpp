@@ -80,7 +80,14 @@ GetoptDone:
     }
     profiling pf;
     if (fsize) {
-        truncate(fname, fsize);
+        int fd = open(fname, O_RDWR|O_CREAT);
+        if (fd < 0) {
+            fprintf(stderr, "ERROR: open(%s, O_RDWR|O_CREAT) = %s\n",
+                    fname, strerror(errno));
+            return 1;
+        }
+        ftruncate(fd, fsize);
+        close(fd);
         MmapWholeFile fm(fname, true);
         auto t0 = pf.now();
         std::mt19937_64 rnd(fsize);
@@ -94,7 +101,8 @@ GetoptDone:
     }
     int fd = open(fname, O_RDONLY);
     if (fd < 0) {
-        fprintf(stderr, "ERROR: open(%s, O_RDONLY) = %s\n", fname, strerror(errno));
+        fprintf(stderr, "ERROR: open(%s, O_RDONLY) = %s\n",
+                fname, strerror(errno));
         return 1;
     }
     {
@@ -104,9 +112,9 @@ GetoptDone:
             return 1;
         }
         if (fsize != size_t(st.st_size)) {
-            fprintf(stderr, "INFO: cmd fsize = %zd, st_size(%s) = %zd, use min\n",
+            fprintf(stderr, "INFO: cmd fsize = %zd, st_size(%s) = %zd, use st_size\n",
                     fsize, fname, size_t(st.st_size));
-            fsize = std::min(size_t(st.st_size), fsize);
+            fsize = size_t(st.st_size);
         }
     }
     size_t gsum = 0;
