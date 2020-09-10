@@ -140,6 +140,7 @@ GetoptDone:
         }
         rd_func(thr_num-1);
         for (auto& t : thr_vec) t.join();
+        t1 = pf.now();
     }
     else {
       #if defined(POSIX_FADV_RANDOM)
@@ -169,8 +170,8 @@ GetoptDone:
         }
         rd_func(thr_num-1);
         for (auto& t : thr_vec) t.join();
+        t1 = pf.now();
     }
-    t1 = pf.now();
     fprintf(stderr, "%zd threads, total read op = %zd, %sread = %f M op/sec\n",
             thr_num, rd_num*thr_num, mmap_read ? "mmap_" : "p",
             double(rd_num*thr_num)/pf.uf(t0,t1));
