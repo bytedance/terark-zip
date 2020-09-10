@@ -126,7 +126,7 @@ GetoptDone:
         MmapWholeFile fm(fname);
         madvise(fm.base, fm.size, MADV_RANDOM);
         auto rd_func = [&](size_t tno) {
-            std::mt19937_64 rnd(tno);
+            std::mt19937_64 rnd(tno + t0);
             size_t sum = 0;
             for(size_t i = 0, n = rd_num; i < n; ++i) {
                 size_t pos = (rnd() % (fsize/4096)) * 4096;
@@ -148,7 +148,7 @@ GetoptDone:
         fprintf(stderr, "WARN: posix_fadvise is not supported on the platform, ignored\n");
       #endif
         auto rd_func = [&](size_t tno) {
-            std::mt19937_64 rnd(tno);
+            std::mt19937_64 rnd(tno + t0);
             size_t sum = 0;
             for(size_t i = 0, n = rd_num; i < n; ++i) {
                 size_t pos = (rnd() % (fsize/4096)) * 4096;
