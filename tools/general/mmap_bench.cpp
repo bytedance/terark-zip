@@ -24,7 +24,6 @@ void usage(const char* prog) {
 	fprintf(stderr,
 R"EOS(Usage: %s Options file_name
   Options:
-    -s file size
     -t read threads
     -r read op num per thread
     -m mmap read
@@ -72,6 +71,7 @@ GetoptDone:
     if (optind >= argc) {
         usage(argv[0]);
     }
+    fname = argv[optind];
     if (0 == rd_num) {
         rd_num = fsize / 4096;
     }
