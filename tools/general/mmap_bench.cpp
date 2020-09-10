@@ -17,6 +17,7 @@
 
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 using namespace terark;
 
@@ -123,6 +124,7 @@ GetoptDone:
     llong t0, t1;
     if (mmap_read) {
         MmapWholeFile fm(fname);
+        madvise(fm.base, fm.size, MADV_RANDOM);
         auto rd_func = [&](size_t tno) {
             std::mt19937_64 rnd(tno);
             size_t sum = 0;
@@ -139,6 +141,11 @@ GetoptDone:
         rd_func(thr_num-1);
     }
     else {
+      #if defined(POSIX_FADV_RANDOM)
+        posix_fadvise(fd, 0, fsize, POSIX_FADV_RANDOM);
+      #else
+        fprintf(stderr, "WARN: posix_fadvise is not supported on the platform, ignored\n");
+      #endif
         auto rd_func = [&](size_t tno) {
             std::mt19937_64 rnd(tno);
             size_t sum = 0;
