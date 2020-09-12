@@ -55,12 +55,14 @@ public:
 	explicit MmapWholeFile(const char* fname,
 						   bool writable = false,
 						   bool populate = false) {
+        size = 0;
 		base = mmap_load(fname, &size, writable, populate);
 	}
 	template<class String>
 	explicit MmapWholeFile(const String& fname,
 						   bool writable = false,
 						   bool populate = false) {
+        size = 0;
 		base = mmap_load(fname, &size, writable, populate);
 	}
 
