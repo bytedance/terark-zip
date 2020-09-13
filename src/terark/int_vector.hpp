@@ -95,7 +95,7 @@ public:
 		BOOST_STATIC_ASSERT(boost::is_unsigned<Uint>::value);
 	//	assert(max_val > 0);
 		assert(m_bits <= 64);
-    size_t bits = compute_uintbits(max_val);
+		size_t bits = compute_uintbits(max_val);
 		resize_with_uintbits(num, bits);
 	}
 

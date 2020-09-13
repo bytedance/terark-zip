@@ -44,9 +44,9 @@ class TERARK_DLL_EXPORT MinMemIO
 public:
 	typedef boost::mpl::false_ is_seekable; //!< 不能 seek
 
-	explicit MinMemIO(void* buf = 0) : m_pos((unsigned char*)buf) {}
+	explicit MinMemIO(const void* buf = 0) : m_pos((unsigned char*)buf) {}
 
-	void set(void* vptr) { m_pos = (unsigned char*)vptr; }
+	void set(const void* vptr) { m_pos = (unsigned char*)vptr; }
 	void set(MinMemIO y) { m_pos = y.m_pos; }
 
 	byte readByte() { return *m_pos++; }
@@ -123,6 +123,8 @@ public:
 	using MinMemIO::flush;
 
 	MemIO() { m_end = NULL; }
+
+	// const void* is just for convenient
 	MemIO(const void* buf, size_t size) { set(buf, size); }
 	MemIO(const void* beg, const void* end) { set(beg, end); }
 
@@ -152,6 +154,7 @@ public:
 		m_end = (byte*)range.second;
 	}
 
+	// const void* is just for convenient
 	void set(const void* buf, size_t size) {
 		m_pos = (byte*)buf;
 		m_end = (byte*)buf + size;

@@ -1,16 +1,16 @@
 public:
 template<class OP>
 void for_each_move(state_id_t root, OP* op) const {
-	this->for_each_move<OP&>(root, *op);
+	this->template for_each_move<OP&>(root, *op);
 }
 
 template<class OP>
 void for_each_dest(state_id_t root, OP* op) const {
-	this->for_each_dest<OP&>(root, *op);
+	this->template for_each_dest<OP&>(root, *op);
 }
 template<class OP>
 void for_each_dest_rev(state_id_t root, OP* op) const {
-	this->for_each_dest_rev<OP&>(root, *op);
+	this->template for_each_dest_rev<OP&>(root, *op);
 }
 
 void v_for_each_move(size_t parent, const OnMove& op) const override {

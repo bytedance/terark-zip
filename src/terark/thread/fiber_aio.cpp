@@ -3,13 +3,7 @@
 //
 
 #include "fiber_aio.hpp"
-#include "fiber_yield.hpp"
-#include <terark/stdtypes.hpp>
-#include <terark/fstring.hpp>
-#include <terark/util/atomic.hpp>
-#include <terark/util/throw.hpp>
-#include <boost/fiber/all.hpp>
-#include <boost/lockfree/queue.hpp>
+#include <boost/predef.h>
 
 #if BOOST_OS_LINUX
   #include <libaio.h> // linux native aio
@@ -25,6 +19,14 @@
   #include <sys/types.h>
   #include <sys/mman.h>
 #endif
+
+#include "fiber_yield.hpp"
+#include <terark/stdtypes.hpp>
+#include <terark/fstring.hpp>
+#include <terark/util/atomic.hpp>
+#include <terark/util/throw.hpp>
+#include <boost/fiber/all.hpp>
+#include <boost/lockfree/queue.hpp>
 
 namespace terark {
 
@@ -282,7 +284,7 @@ io_queue_t* dt_io_queue() {
 #endif
 
 TERARK_DLL_EXPORT
-ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
+intptr_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
   if (1 == g_aio_method) {
     return tls_io_fiber().exec_io(fd, buf, len, offset, IO_CMD_PREAD);
@@ -312,19 +314,19 @@ ssize_t fiber_aio_read(int fd, void* buf, size_t len, off_t offset) {
 #endif
 }
 
-static const size_t PAGE_SIZE = 4096;
+static const size_t MY_AIO_PAGE_SIZE = 4096;
 
 TERARK_DLL_EXPORT
 void fiber_aio_need(const void* buf, size_t len) {
 #if BOOST_OS_WINDOWS
 		WIN32_MEMORY_RANGE_ENTRY vm;
-		vm.VirtualAddress = buf;
+		vm.VirtualAddress = (void*)buf;
 		vm.NumberOfBytes  = len;
 		PrefetchVirtualMemory(GetCurrentProcess(), 1, &vm, 0);
-#else
-    len += size_t(buf) & (PAGE_SIZE-1);
-    buf  = (const void*)(size_t(buf) & ~(PAGE_SIZE-1));
-    size_t len2 = std::min<size_t>(len, 8*PAGE_SIZE);
+#elif !defined(__CYGWIN__)
+    len += size_t(buf) & (MY_AIO_PAGE_SIZE-1);
+    buf  = (const void*)(size_t(buf) & ~(MY_AIO_PAGE_SIZE-1));
+    size_t len2 = std::min<size_t>(len, 8*MY_AIO_PAGE_SIZE);
     union {
         uint64_t val;
     #if BOOST_OS_LINUX
@@ -346,7 +348,7 @@ void fiber_aio_need(const void* buf, size_t len) {
 }
 
 TERARK_DLL_EXPORT
-ssize_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
+intptr_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
   if (1 == g_aio_method) {
     return tls_io_fiber().exec_io(fd, (void*)buf, len, offset, IO_CMD_PWRITE);
@@ -377,7 +379,7 @@ ssize_t fiber_aio_write(int fd, const void* buf, size_t len, off_t offset) {
 }
 
 TERARK_DLL_EXPORT
-ssize_t fiber_put_write(int fd, const void* buf, size_t len, off_t offset) {
+intptr_t fiber_put_write(int fd, const void* buf, size_t len, off_t offset) {
 #if BOOST_OS_LINUX
   if (1 == g_aio_method) {
     return tls_io_fiber().dt_exec_io(fd, (void*)buf, len, offset, IO_CMD_PWRITE);

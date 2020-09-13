@@ -96,7 +96,7 @@ public:
 
 protected:
     struct LazyFreeItem {
-        uint64_t age;
+        ullong   age;
         pos_type node;
         pos_type size;
     };
@@ -486,7 +486,7 @@ public:
                 auto bits = (const uint64_t*)(a[state+1+1].bytes);
                 auto children =  &a[state+1+9].child;
                 for (int i = 0; i < 256/64; ++i) {
-                    uint64_t bm = bits[i];
+                    ullong   bm = bits[i];
                     auchar_t ch = 64 * i;
                     for (; bm; ++pos) {
                         uint32_t target = children[pos];
@@ -639,16 +639,16 @@ public:
     template<ConcurrentLevel>
     void revoke_list(PatriciaNode* a, size_t state, size_t valsize, LazyFreeListTLS*);
 
-    template<MainPatricia::ConcurrentLevel>
+    template<ConcurrentLevel>
     size_t new_suffix_chain(fstring tail, size_t* pValpos, size_t* chainLen, size_t valsize, LazyFreeListTLS*);
 
-    template<MainPatricia::ConcurrentLevel>
+    template<ConcurrentLevel>
     size_t fork(size_t curr, size_t pos, NodeInfo*, byte_t newChar, size_t newSuffixNode, LazyFreeListTLS*);
 
-    template<MainPatricia::ConcurrentLevel>
+    template<ConcurrentLevel>
     size_t split_zpath(size_t curr, size_t pos, NodeInfo*, size_t* pValpos, size_t valsize, LazyFreeListTLS*);
 
-    template<MainPatricia::ConcurrentLevel>
+    template<ConcurrentLevel>
     size_t add_state_move(size_t curr, byte_t ch, size_t suffix_node, size_t valsize, LazyFreeListTLS*);
 
     size_t get_valpos(const PatriciaNode* a, size_t state) const {

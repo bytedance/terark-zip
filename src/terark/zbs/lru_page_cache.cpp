@@ -1,4 +1,12 @@
 #include "lru_page_cache.hpp"
+#if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
+	#define WIN32_LEAN_AND_MEAN
+	#define NOMINMAX
+	#include <Windows.h>
+#else
+	#include <unistd.h> // for usleep
+	#include <sys/mman.h>
+#endif
 #include <thread>
 #include <terark/util/throw.hpp>
 #include <terark/hash_common.hpp>
@@ -10,19 +18,9 @@
 #include <terark/num_to_str.hpp>
 #include <atomic>
 #include <boost/preprocessor/cat.hpp>
-#include <boost/fiber/mutex.hpp>
 #include <boost/fiber/operations.hpp>
 #include <terark/thread/fiber_aio.hpp>
 #include <terark/thread/fiber_local.hpp>
-
-#if (defined(_WIN32) || defined(_WIN64)) && !defined(__CYGWIN__)
-	#define WIN32_LEAN_AND_MEAN
-	#define NOMINMAX
-	#include <Windows.h>
-#else
-	#include <unistd.h> // for usleep
-	#include <sys/mman.h>
-#endif
 
 #if defined(TERARK_WITH_TBB)
   #include <tbb/tbb.h>
@@ -38,6 +36,8 @@
 #endif
 
 #undef PAGE_SIZE
+#undef min
+#undef max
 
 namespace terark {
 

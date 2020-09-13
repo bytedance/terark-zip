@@ -4,6 +4,9 @@
 namespace terark {
 
 
+ZReorderMap::Builder::~Builder() {
+}
+
 void ZReorderMap::Builder::push_back(size_t value) {
     assert(size_ > 0);
     assert(value <= 0x7FFFFFFFFFULL);

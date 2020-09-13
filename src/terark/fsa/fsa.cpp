@@ -767,19 +767,19 @@ BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
 		THROW_STD(invalid_argument,	"fd=%d < 0", fd);
 	}
 #ifdef _MSC_VER
-//	LARGE_INTEGER fsize;
-//	if (!GetFileSizeEx((HANDLE)mmap_fd, &fsize) {
-//		DWORD err = GetLastError();
-//		THROW_STD(runtime_error, "GetFileSizeEx().ErrCode=%d(0x%X)", err, err);
-//	}
 	HANDLE hFile = (HANDLE)::_get_osfhandle(fd);
 	HANDLE hMmap = CreateFileMapping(hFile, NULL, PAGE_READONLY, 0, 0, NULL);
 	if (NULL == hMmap) {
 		DWORD err = GetLastError();
 		THROW_STD(runtime_error, "CreateFileMapping().ErrCode=%d(0x%X)", err, err);
 	}
-	const DFA_MmapHeader* base = (const DFA_MmapHeader*)
-		MapViewOfFile(hMmap, FILE_MAP_READ, 0, 0, 0);
+	LARGE_INTEGER fsize_li;
+	if (!GetFileSizeEx((HANDLE)hFile, &fsize_li)) {
+		DWORD err = GetLastError();
+		THROW_STD(runtime_error, "GetFileSizeEx().ErrCode=%d(0x%X)", err, err);
+	}
+	ullong fsize = fsize_li.QuadPart;
+	auto base = (const DFA_MmapHeader*)MapViewOfFile(hMmap, FILE_MAP_READ, 0, 0, 0);
 	if (NULL == base) {
 		DWORD err = GetLastError();
 		CloseHandle(hMmap);
@@ -819,11 +819,11 @@ BaseDFA* BaseDFA::load_mmap(int fd, bool mmapPopulate) {
 	if (MAP_FAILED == base) {
 		THROW_STD(runtime_error, "mmap(PROT_READ, fd=%d) = %s", fd, strerror(errno));
 	}
-	size_t fsize = st.st_size;
+	ullong fsize = st.st_size;
 #endif
 	if (fsize < base->file_size) {
 		THROW_STD(invalid_argument, "length=%lld, header.file_size=%lld"
-			, (long long)fsize, (long long)base->file_size);
+			, fsize, (long long)base->file_size);
 	}
 	BaseDFA* dfa = load_mmap_fmt(base);
 	dfa->m_mmap_type = DFA_MmapType::is_mmap;
@@ -843,7 +843,7 @@ BaseDFA* BaseDFA::load_mmap_user_mem(const void* baseptr, size_t length) {
 
 BaseDFA* BaseDFA::load_mmap_fmt(const DFA_MmapHeader* base) {
 	if (strcmp(base->magic, "nark-dfa-mmap") != 0) {
-		THROW_STD(invalid_argument, "file is not nark-dfa-mmap");
+		THROW_STD(invalid_argument, "file is not nark-dfa-mmap, but is: %.19s", base->magic);
 	}
 	const DFA_ClassMetaInfo* meta = DFA_ClassMetaInfo::find(base->dfa_class_name);
 	if (NULL == meta) {

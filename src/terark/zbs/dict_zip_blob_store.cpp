@@ -43,7 +43,6 @@
 #else
 #   include <unistd.h> // for usleep
 #endif
-#include <inttypes.h>
 
 namespace terark {
 

@@ -1,4 +1,4 @@
-/* vim: set tabstop=4 : */
+﻿/* vim: set tabstop=4 : */
 #ifndef __terark_io_FileStream_h__
 #define __terark_io_FileStream_h__
 

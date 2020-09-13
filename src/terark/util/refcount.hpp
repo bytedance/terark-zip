@@ -12,7 +12,7 @@
 # pragma clang diagnostic push
 # pragma clang diagnostic ignored "-Wshorten-64-to-32"
 #endif
-#include <boost/detail/atomic_count.hpp>
+#include <atomic>
 #if __clang__
 # pragma clang diagnostic pop
 #endif
@@ -28,7 +28,7 @@ class RefCountable : public Clazz
 {
 	DECLARE_NONE_COPYABLE_CLASS(RefCountable)
 protected:
-	boost::detail::atomic_count m_intrusive_refcnt;
+	std::atomic<intptr_t> m_intrusive_refcnt;
 public:
 	explicit
 	RefCountable(long nInitRef = 0) : m_intrusive_refcnt(nInitRef) {
@@ -57,7 +57,7 @@ public:
 class TERARK_DLL_EXPORT RefCounter
 {
 	DECLARE_NONE_COPYABLE_CLASS(RefCounter)
-	boost::detail::atomic_count nRef;
+	std::atomic<intptr_t> nRef;
 
 public:
 	explicit RefCounter(long nInitRef = 0) : nRef(nInitRef) {

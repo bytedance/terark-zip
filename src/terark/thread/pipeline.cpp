@@ -2,6 +2,10 @@
 #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
     #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
+#if defined(_WIN32) || defined(_WIN64) || defined(_MSC_VER)
+	#define NOMINMAX
+	#define WIN32_LEAN_AND_MEAN
+#endif
 #include "pipeline.hpp"
 #include <terark/circular_queue.hpp>
 #include <terark/num_to_str.hpp>
@@ -13,6 +17,7 @@
 #include <terark/util/concurrent_queue.hpp>
 #include <stdio.h>
 #include <iostream>
+
 #include <boost/fiber/all.hpp>
 #include "fiber_yield.hpp"
 
@@ -420,7 +425,7 @@ void PipelineStage::clean(int threadno)
 
 void PipelineStage::run_wrapper(int threadno)
 {
-#if !defined(_MSC_VER)
+#if !defined(_MSC_VER) && !defined(__CYGWIN__)
   {
 	static const size_t MAX_TNAME_LEN = 15; // not include trailing '\0'
 	char szbuf[MAX_TNAME_LEN+1];

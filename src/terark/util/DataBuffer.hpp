@@ -8,7 +8,7 @@
 #endif
 
 #include <cstddef>
-#include <boost/detail/atomic_count.hpp>
+#include <atomic>
 #include <boost/smart_ptr.hpp>
 #include "../config.hpp"
 #include "../stdtypes.hpp"
@@ -23,7 +23,7 @@ namespace terark {
  */
 class TERARK_DLL_EXPORT DataBuffer
 {
-	boost::detail::atomic_count m_refcount;
+	std::atomic<intptr_t> m_refcount;
 	size_t m_size;
 
 private:
@@ -92,7 +92,7 @@ public:
 		std::swap(m_size, y.m_size);
 		std::swap(m_refcountp, y.m_refcountp);
 	}
-	long refcount() const { return m_refcountp ? *m_refcountp : 0; }
+	intptr_t refcount() const { return m_refcountp ? m_refcountp->load() : 0; }
 
 	size_t size() const { return m_size; }
 	byte*  data() const { return m_data; }
@@ -100,7 +100,7 @@ public:
 private:
 	byte*  m_data;
 	size_t m_size;
-	boost::detail::atomic_count* m_refcountp;
+	std::atomic<intptr_t>* m_refcountp;
 };
 
 

@@ -1,13 +1,16 @@
 // created by leipeng at 2020-01-09 10:32
 
 #include "tmpfile.hpp"
+#if _MSC_VER
+  #include <io.h>
+#endif
 
 namespace terark {
 
-TempFileDeleteOnClose::~TempFileDeleteOnClose() {
+  TempFileDeleteOnClose::~TempFileDeleteOnClose() {
     if (fp)
         this->close();
-}
+  }
 
   void TempFileDeleteOnClose::open_temp() {
     if (!fstring(path).endsWith("XXXXXX")) {

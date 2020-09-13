@@ -55,7 +55,7 @@ public:
         fstring tmpFile) const override;
 
     struct TERARK_DLL_EXPORT MyBuilder : public AbstractBlobStore::Builder {
-        class TERARK_DLL_EXPORT Impl; Impl* impl;
+        class Impl; Impl* impl;
     public:
         MyBuilder(fstring fpath, size_t offset = 0, Options options = Options());
         MyBuilder(FileMemIO& mem, Options options = Options());

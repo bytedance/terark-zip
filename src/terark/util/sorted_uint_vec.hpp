@@ -37,8 +37,8 @@ public:
 	SortedUintVec();
 	~SortedUintVec();
 
-        SortedUintVec(SortedUintVec&&) noexcept;
-        SortedUintVec& operator=(SortedUintVec&&) noexcept;
+    SortedUintVec(SortedUintVec&&) noexcept;
+    SortedUintVec& operator=(SortedUintVec&&) noexcept;
 
 /*
 	class UintVecMin0& as_UintVecMin0() {

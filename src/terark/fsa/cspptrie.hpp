@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "fsa.hpp"
 #include <terark/util/enum.hpp>
 #include <atomic>
@@ -79,7 +79,7 @@ protected:
     class TERARK_DLL_EXPORT TokenBase;
     struct alignas(16) LinkType {
         TokenBase* next;
-        uint64_t   verseq;
+        ullong     verseq;
     };
 
     class TERARK_DLL_EXPORT TokenBase : protected boost::noncopyable {
@@ -88,11 +88,11 @@ protected:
         Patricia*     m_trie;
         void*         m_value;
         void*         m_tls; // unused for ReaderToken
-        uint64_t      m_live_verseq;
+        ullong        m_live_verseq;
         size_t        m_thread_id;
         struct alignas(16) { // will sync with other threads
             LinkType      m_link;
-            uint64_t      m_min_age;
+            ullong        m_min_age;
             TokenFlags    m_flags;
         };
         void enqueue(Patricia*);

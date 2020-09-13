@@ -54,7 +54,7 @@ bool operator> (fstring16 x, fstring16 y) { return   y < x ; }
 bool operator<=(fstring16 x, fstring16 y) { return !(y < x); }
 bool operator>=(fstring16 x, fstring16 y) { return !(x < y); }
 
-fstring var_symbol(const char* s) {
+TERARK_DLL_EXPORT fstring var_symbol(const char* s) {
   const char* e = s;
   while (*e && ('_' == *e || isalnum((unsigned char)*e))) e++;
   return fstring(s, e);

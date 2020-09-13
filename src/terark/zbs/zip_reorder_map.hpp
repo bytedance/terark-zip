@@ -10,7 +10,7 @@
 namespace terark {
 
 class TERARK_DLL_EXPORT ZReorderMap {
-  private:
+private:
     terark::MmapWholeFile file_;
     const byte_t *pos_ = nullptr;
     size_t current_value_ = -1;
@@ -18,7 +18,7 @@ class TERARK_DLL_EXPORT ZReorderMap {
     size_t size_ = 0;
     size_t i_ = 0;
     intptr_t sign_ = 0;
-    private:
+private:
     void read_() {
         current_value_ = 0;
         if (pos_ + 5 > (const byte_t*)file_.base + file_.size) {
@@ -37,7 +37,7 @@ class TERARK_DLL_EXPORT ZReorderMap {
         }
         current_value_ >>= 1;
     }
-  public:
+public:
     bool eof() const {
         assert(i_ <= size_);
         return i_ == size_;
@@ -103,6 +103,7 @@ class TERARK_DLL_EXPORT ZReorderMap {
             file_.disbuf();
             writer_ << size << sign_;
         }
+        ~Builder();
         void push_back(size_t value);
         void finish();
     };

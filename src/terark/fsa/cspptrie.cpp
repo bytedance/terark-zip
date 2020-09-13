@@ -59,10 +59,13 @@ inline void cas_unlock(bool& lock) {
     as_atomic(lock).store(false, std::memory_order_release);
 }
 
+template<size_t> struct CSPP_size_to_uint;
+template<> struct CSPP_size_to_uint<4> { typedef unsigned int   type; };
+template<> struct CSPP_size_to_uint<8> { typedef unsigned long long type; };
+
 inline static size_t ThisThreadID() {
-    BOOST_STATIC_ASSERT(sizeof(std::thread::id) == sizeof(size_t));
     auto id = std::this_thread::get_id();
-    return (size_t&)id;
+    return (size_t)(CSPP_size_to_uint<sizeof(id)>::type&)(id);
 }
 
 /*
@@ -629,7 +632,7 @@ void PatriciaMem<Align>::alloc_mempool_space(intptr_t maxMem) {
         byte_t* mem = (byte_t*)VirtualAlloc(
             NULL, maxMem, MEM_RESERVE|MEM_COMMIT, PAGE_READWRITE);
         TERARK_VERIFY_F(NULL != mem, "VirtualAlloc(%zd) : ErrCode = %zd\n",
-            maxMem, GetLastError());
+            maxMem, (size_t)GetLastError());
 #else
   #if !defined(MAP_UNINITIALIZED)
     #define MAP_UNINITIALIZED 0
@@ -1222,7 +1225,7 @@ MainPatricia::insert_one_writer(fstring key, void* value, WriterToken* token) {
 auto update_curr_ptr = [&](size_t newCurr, size_t nodeIncNum) {
     assert(newCurr != curr);
     if (ConLevel != SingleThreadStrict) {
-        uint64_t age = token->m_link.verseq;
+        ullong   age = token->m_link.verseq;
         m_lazy_free_list_sgl.push_back({age, uint32_t(curr), ni.node_size});
         m_lazy_free_list_sgl.m_mem_size += ni.node_size;
     }
@@ -1601,8 +1604,7 @@ MainPatricia::insert_multi_writer(fstring key, void* value, WriterToken* token) 
     assert(token->m_min_age <= token->m_link.verseq);
     assert(token->m_min_age <= m_token_tail->m_link.verseq);
     assert(token->m_link.verseq <= m_token_tail->m_link.verseq);
-    TERARK_ASSERT_F(token->m_link.verseq >= m_dummy.m_min_age, "%lld %lld",
-            llong(token->m_link.verseq), llong(m_dummy.m_min_age));
+    TERARK_ASSERT_GE(token->m_link.verseq, m_dummy.m_min_age);
     auto const lzf = reinterpret_cast<LazyFreeListTLS*>(token->m_tls);
     assert(nullptr != lzf);
     assert(static_cast<LazyFreeListTLS*>(m_mempool_lock_free.tls()) == lzf);
@@ -1674,7 +1676,7 @@ auto update_curr_ptr_concurrent = [&](size_t newCurr, size_t nodeIncNum, int lin
     }
     if (cas_weak(a[curr_slot].child, uint32_t(curr), uint32_t(newCurr))) {
         as_atomic(a[parent].flags).fetch_and(uint08_t(~FLAG_lock), std::memory_order_release);
-        uint64_t age = token->m_link.verseq;
+        ullong   age = token->m_link.verseq;
         assert(age >= m_dummy.m_min_age);
         maximize(lzf->m_max_word_len, key.size());
         lzf->m_n_nodes += nodeIncNum;
@@ -2228,7 +2230,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             size_t rank1 = 0;
             for (size_t i = 0; i < 4; ++i) {
                 a[node+1].bytes[i] = byte_t(rank1);
-                uint64_t w = unaligned_load<uint64_t>(bits, i);
+                ullong   w = unaligned_load<uint64_t>(bits, i);
                 rank1 += fast_popcount64(w);
             }
             uint32_t* oldchilds = &a[curr +  5].child;
@@ -2293,7 +2295,7 @@ MainPatricia::add_state_move(size_t curr, byte_t ch,
             size_t rank1 = 0;
             for (size_t i = 0; i < 4; ++i) {
                 a[node+1].bytes[i] = byte_t(rank1);
-                uint64_t w = unaligned_load<uint64_t>(bits, i);
+                ullong   w = unaligned_load<uint64_t>(bits, i);
                 rank1 += fast_popcount64(w);
             }
             a[node].big.n_children = n_children + 1;
@@ -2357,7 +2359,7 @@ static long g_lazy_free_debug_level =
     if (ConLevel == SingleThreadStrict) {
         return;
     }
-    uint64_t min_age = ConLevel >= MultiWriteMultiRead
+    ullong   min_age = ConLevel >= MultiWriteMultiRead
                      ? token->m_min_age // Cheap to read token->m_min_age
                      : this->m_dummy.m_min_age;
 
@@ -2417,7 +2419,7 @@ static long g_lazy_free_debug_level =
             //     if (tls->m_revoke_try_cnt >= BULK_FREE_NUM) {
             //         tls->m_revoke_try_cnt = 0;
             //         //// Expensive to read m_dummy.m_min_age
-            //         uint64_t new_min_age = m_dummy.m_min_age;
+            //         ullong   new_min_age = m_dummy.m_min_age;
             //         if (new_min_age != min_age) {
             //             TERARK_VERIFY(min_age < new_min_age);
             //             token->m_min_age = new_min_age;
@@ -2689,7 +2691,7 @@ template<size_t Align>
 void PatriciaMem<Align>::mem_lazy_free(size_t loc, size_t size) {
     auto conLevel = m_writing_concurrent_level;
     if (conLevel >= SingleThreadShared) {
-        uint64_t verseq = m_token_tail->m_link.verseq;
+        ullong   verseq = m_token_tail->m_link.verseq;
         auto& lzf = lazy_free_list(conLevel);
         lzf.push_back({ verseq, uint32_t(loc), uint32_t(size) });
         lzf.m_mem_size += size;
@@ -2900,7 +2902,7 @@ void Patricia::TokenBase::enqueue(Patricia* trie1) {
     assert(!m_flags.is_head);
     assert(trie->m_head_lock); // locked
     TokenBase* const p = trie->m_token_tail;
-    const uint64_t verseq = p->m_link.verseq;
+    const ullong   verseq = p->m_link.verseq;
     this->m_link = {NULL, verseq+1};
     p->m_link.next = this;
     trie->m_tail = {this, verseq+1};
@@ -2941,7 +2943,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
         case DisposeDone: TERARK_DIE("DisposeDone == m_flags.state"); break;
         case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
         case AcquireDone: {
-            uint64_t min_age = curr->m_link.verseq;
+            ullong   min_age = curr->m_link.verseq;
         #if !defined(NDEBUG)
             auto p = curr->m_link.next;
             while (p) {
@@ -2970,7 +2972,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
             break; }
         case AcquireIdle:
             if (cas_weak(curr->m_flags, flags, {AcquireLock, false})) {
-                uint64_t min_age = curr->m_link.verseq;
+                ullong   min_age = curr->m_link.verseq;
                 trie->m_dummy.m_link.next = curr;
                 trie->m_dummy.m_min_age = min_age;
                 trie->m_head_is_idle = true;
@@ -3019,7 +3021,7 @@ bool Patricia::TokenBase::dequeue(Patricia* trie1, TokenBase* delptrs[], size_t*
         } // switch
     }
   Done_HeadIsWait:
-    uint64_t min_age = curr->m_link.verseq;
+    ullong   min_age = curr->m_link.verseq;
     trie->m_dummy.m_link.next = curr;
     trie->m_dummy.m_min_age = min_age;
     curr->m_min_age = min_age;
@@ -3288,7 +3290,7 @@ void Patricia::TokenBase::mt_update(Patricia* trie1) {
     else {
         if (cas_weak(trie->m_head_lock, false, true)) {
             //assert(this == trie->m_dummy.m_link.next); // false positive
-            uint64_t verseq = m_link.verseq;
+            ullong   verseq = m_link.verseq;
             if (cas_strong(m_link, {NULL, verseq}, {NULL, verseq+1})) {
                 TERARK_VERIFY_F(
                     cas_strong(trie->m_tail, {this, verseq}, {this, verseq+1}),
@@ -3376,7 +3378,7 @@ void PatriciaMem<Align>::reclaim_head() {
             // must have stopped at AcquireDone before reached NULL
             TERARK_VERIFY(NULL != next);
             if (cas_weak(head->m_flags, flags, {AcquireLock, false})) {
-                uint64_t min_age = head->m_link.verseq;
+                ullong   min_age = head->m_link.verseq;
                 head->enqueue(this);
                 head->m_min_age = min_age;
                 as_atomic(head->m_flags).store({AcquireIdle, false},
@@ -3392,7 +3394,7 @@ void PatriciaMem<Align>::reclaim_head() {
         }
     }
   Done:
-    uint64_t min_age = head->m_link.verseq;
+    ullong   min_age = head->m_link.verseq;
     m_dummy.m_link.next = head;
     m_dummy.m_min_age = min_age;
     m_head_is_dead = false;
@@ -3445,7 +3447,7 @@ void Patricia::TokenBase::idle() {
         case AcquireLock: TERARK_DIE("AcquireLock == m_flags.state"); break;
         case AcquireDone:
             if (cas_weak(curr->m_flags, flags, {AcquireDone, true})) {
-                uint64_t min_age = curr->m_link.verseq;
+                ullong   min_age = curr->m_link.verseq;
                 trie->m_dummy.m_min_age = min_age;
                 curr->m_min_age = min_age;
                 goto SetQueueHead;
@@ -3643,7 +3645,7 @@ size_t MainPatricia::first_child(const PatriciaNode* p, byte_t* ch) const {
     case 8: // cnt >= 17
         assert(popcount_rs_256(p[1].bytes) == p->big.n_children);
         for (size_t i = 0; i < 4; ++i) {
-            uint64_t b = unaligned_load<uint64_t>(p+2, i);
+            ullong   b = unaligned_load<uint64_t>(p+2, i);
             if (b) {
                 *ch = byte_t(i*64 + fast_ctz64(b));
                 return p[10].child;
@@ -3697,7 +3699,7 @@ size_t MainPatricia::last_child(const PatriciaNode* p, byte_t* ch) const {
             size_t n_children = p->big.n_children;
             assert(n_children >= 17);
             for (size_t i = 4; i-- > 0;) {
-                uint64_t w = unaligned_load<uint64_t>(p+2, i);
+                ullong   w = unaligned_load<uint64_t>(p+2, i);
                 if (w) {
                     *ch = i*64 + terark_bsr_u64(w);
                     return p[10+n_children-1].child;

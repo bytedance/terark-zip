@@ -693,7 +693,7 @@ template class TERARK_DLL_EXPORT rank_select_mixed_xl_256<4>;
 // instatiate_member_template does not work for VC, gcc is not tested
 // use explicit member template instantiation with TERARK_DLL_EXPORT
 #define INSTANTIATE_MEMBER_TEMPLATE(Arity, index) \
-template class TERARK_DLL_EXPORT  rank_select_mixed_dimensions<rank_select_mixed_xl_256<Arity>, index>;               \
+template class TERARK_DLL_EXPORT  rank_select_mixed_dimensions<rank_select_mixed_xl_256<Arity>, index>;      \
 template TERARK_DLL_EXPORT void   rank_select_mixed_xl_256<Arity>::bits_range_set0_dx<index>(size_t,size_t); \
 template TERARK_DLL_EXPORT void   rank_select_mixed_xl_256<Arity>::bits_range_set1_dx<index>(size_t,size_t); \
 template TERARK_DLL_EXPORT void   rank_select_mixed_xl_256<Arity>::    build_cache_dx<index>(bool,bool);     \

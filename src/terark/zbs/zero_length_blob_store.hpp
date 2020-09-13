@@ -1,7 +1,7 @@
-/*
+﻿/*
  * plain_blob_store.hpp
  *
- *  Created on: 2017��2��10��
+ *  Created on: 2017年2月10日
  *      Author: leipeng
  */
 

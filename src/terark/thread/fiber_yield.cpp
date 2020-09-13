@@ -2,6 +2,10 @@
 // Created by leipeng on 2019-08-26.
 //
 
+#if defined(_MSC_VER)
+	#define NOMINMAX
+	#define WIN32_LEAN_AND_MEAN
+#endif
 #include "fiber_yield.hpp"
 
 namespace terark {

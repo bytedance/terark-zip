@@ -39,6 +39,11 @@ extern "C" {
 };
 #endif
 
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+  #pragma GCC diagnostic push
+  //#pragma GCC diagnostic ignored "-Wno-class-memaccess" // which version support?
+#endif
+
 namespace terark {
 
     enum class MemType {
@@ -116,6 +121,8 @@ always_uninitialized_default_construct_n_aux(ForwardIt first, Size n,
     try {
         for (; n > 0 ; (void) ++current, --n) {
             ::new (static_cast<void*>(std::addressof(*current))) T ();
+			// ------------------------------- init primitives  ---^^
+			// std::uninitialized_default_construct_n will not init primitives
         }
         return current;
     }  catch (...) {
@@ -1973,6 +1980,10 @@ namespace std {
 	template<class T>
 	void swap(terark::valvec<T>& x, terark::valvec<T>& y) { x.swap(y); }
 }
+
+#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+  #pragma GCC diagnostic pop
+#endif
 
 #endif
 

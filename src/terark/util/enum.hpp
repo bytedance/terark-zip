@@ -9,7 +9,7 @@
 #if 1
 
 namespace terark {
-fstring var_symbol(const char* s);
+    TERARK_DLL_EXPORT fstring var_symbol(const char* s);
 }
 
 template<class Enum>

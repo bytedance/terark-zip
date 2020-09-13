@@ -459,6 +459,7 @@ protected:
 	friend class LazyUnionDAWG;
 };
 
+
 TERARK_DLL_EXPORT
 size_t
 dot_escape(const char* ibuf, size_t ilen, char* obuf, size_t olen);

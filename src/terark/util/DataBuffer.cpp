@@ -29,7 +29,7 @@ SmartBuffer::SmartBuffer(size_t size)
 {
 	m_data = size ? new byte[size] : 0;
 	m_size = size;
-	m_refcountp = new boost::detail::atomic_count(1);
+	m_refcountp = new std::atomic<intptr_t>(1);
 }
 
 SmartBuffer::~SmartBuffer()
