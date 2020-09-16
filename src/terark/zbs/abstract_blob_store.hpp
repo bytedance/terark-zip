@@ -9,20 +9,6 @@ class LruReadonlyCache;
 
 class TERARK_DLL_EXPORT AbstractBlobStore : public BlobStore {
 public:
-    struct TERARK_DLL_EXPORT Dictionary {
-        Dictionary();
-        explicit Dictionary(fstring mem);
-        Dictionary(fstring mem, uint64_t hash);
-        Dictionary(fstring mem, uint64_t hash, bool verified);
-        Dictionary(size_t size, uint64_t hash);
-
-        fstring  memory;
-        uint64_t xxhash;
-        bool verified = true;
-    };
-    enum MemoryCloseType : uint8_t {
-        Clear, MmapClose, RiskRelease
-    };
     struct TERARK_DLL_EXPORT Builder : public RefCounter {
         static Builder* createBuilder(fstring clazz, fstring outputFileName, fstring moreConfig);
         virtual ~Builder();
@@ -41,8 +27,6 @@ protected:
 	const struct FileHeaderBase* m_mmapBase;
 
 	void risk_swap(AbstractBlobStore& y);
-protected:
-	virtual void init_from_memory(fstring dataMem, Dictionary dict) = 0;
 
 public:
 	static AbstractBlobStore* load_from_mmap(fstring fpath, bool mmapPopulate);
@@ -54,8 +38,8 @@ public:
     const char* name() const override;
 	void set_fpath(fstring fpath);
 	fstring get_fpath() const;
-	virtual Dictionary get_dict() const;
-	virtual fstring get_mmap() const;
+	Dictionary get_dict() const override;
+	fstring get_mmap() const override;
 
 	AbstractBlobStore();
 	virtual ~AbstractBlobStore();

@@ -38,6 +38,11 @@ BlobStore* BlobStore::load_from_user_memory(fstring dataMem) {
     return AbstractBlobStore::load_from_user_memory(dataMem);
 }
 
+BlobStore* BlobStore::load_from_user_memory(fstring dataMem,
+                                            const Dictionary& dict) {
+    return AbstractBlobStore::load_from_user_memory(dataMem, dict);
+}
+
 valvec<fstring> BlobStore::get_meta_blocks() const {
   valvec<fstring> blocks;
   this->get_meta_blocks(&blocks);

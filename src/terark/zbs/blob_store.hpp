@@ -13,8 +13,23 @@ struct BlobStoreRecBuffer;
 
 class TERARK_DLL_EXPORT BlobStore : public RefCounter {
 public:
+    struct TERARK_DLL_EXPORT Dictionary {
+        Dictionary();
+        explicit Dictionary(fstring mem);
+        Dictionary(fstring mem, uint64_t hash);
+        Dictionary(fstring mem, uint64_t hash, bool verified);
+        Dictionary(size_t size, uint64_t hash);
+
+        fstring  memory;
+        uint64_t xxhash;
+        bool verified = true;
+    };
+    enum MemoryCloseType : uint8_t {
+        Clear, MmapClose, RiskRelease
+    };
     static BlobStore* load_from_mmap(fstring fpath, bool mmapPopulate);
     static BlobStore* load_from_user_memory(fstring dataMem);
+    static BlobStore* load_from_user_memory(fstring dataMem, const Dictionary&);
 
     virtual const char* name() const = 0;
     virtual void get_meta_blocks(valvec<fstring>* blocks) const = 0;
@@ -24,7 +39,7 @@ public:
     valvec<fstring> get_data_blocks() const;
 
     BlobStore();
-    virtual ~BlobStore();
+    ~BlobStore() override;
     size_t num_records() const { return m_numRecords; }
     uint64_t total_data_size() const { return m_unzipSize; }
     virtual size_t mem_size() const = 0;
@@ -132,6 +147,10 @@ public:
 
     bool is_mmap_aio() const { return m_mmap_aio; }
     void set_mmap_aio(bool mmap_aio) { m_mmap_aio = mmap_aio; }
+
+    virtual Dictionary get_dict() const = 0;
+    virtual fstring get_mmap() const = 0;
+    virtual void init_from_memory(fstring dataMem, Dictionary dict) = 0;
 
 protected:
     size_t      m_numRecords;
