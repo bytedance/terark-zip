@@ -259,15 +259,15 @@ struct basic_fstring {
 	   	return basic_fstring(p+Beg, End-Beg);
 	}
     basic_fstring prefix(size_t len) const {
-        assert(len <= n);
+        assert(len <= size_t(n));
         return basic_fstring(p, len);
     }
     basic_fstring suffix(size_t len) const {
-        assert(len <= n);
+        assert(len <= size_t(n));
         return basic_fstring(p+n-len, len);
     }
     basic_fstring del_suffix(size_t len) const {
-        assert(len <= n);
+        assert(len <= size_t(n));
         return basic_fstring(p, n-len);
     }
 
