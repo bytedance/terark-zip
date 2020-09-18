@@ -266,7 +266,7 @@ struct basic_fstring {
         assert(len <= size_t(n));
         return basic_fstring(p+n-len, len);
     }
-    basic_fstring del_suffix(size_t len) const {
+    basic_fstring notail(size_t len) const {
         assert(len <= size_t(n));
         return basic_fstring(p, n-len);
     }
