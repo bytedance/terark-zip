@@ -74,6 +74,11 @@ public:
 	fstring memory() const {
 		return fstring{(const char*)base, (ptrdiff_t)size};
 	}
+	fstring memory(size_t pos, size_t len) const {
+		TERARK_ASSERT_LE(pos, size);
+		TERARK_ASSERT_LE(pos + len, size);
+		return fstring((const char*)base + pos, len); // NOLINT
+	}
 
 	void parallel_for_lines(size_t num_threads,
 	                        const function<void(size_t tid, byte_t*beg,byte_t*end)>&func)
