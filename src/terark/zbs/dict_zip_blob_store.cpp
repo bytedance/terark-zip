@@ -556,6 +556,7 @@ public:
 		}
 		else {
 			zipRecord(rData, rSize, m_hash, m_dio);
+	        g_dataThroughBytes.fetch_add(rSize, std::memory_order_relaxed);
 			if (m_opt.kNoEntropy == m_opt.entropyAlgo) {
 				m_xxhash64.update(m_dio.begin(), m_dio.tell());
 			}
@@ -842,6 +843,7 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
 			builder->zipRecord(rec.udata(), rec.size(), hash, task->obuf);
 			task->offsets[i] = uint32_t(task->obuf.tell());
 		}
+		g_dataThroughBytes.fetch_add(task->ibuf.size(), std::memory_order_relaxed);
 	}
 }
 
@@ -995,8 +997,6 @@ DictZipBlobStoreBuilder::zipRecord(const byte* rData, size_t rSize,
 		uint32_t crc = Crc32c_update(0, zdata, zsize);
 		dio << crc;
 	}
-
-	g_dataThroughBytes.fetch_add(rSize, std::memory_order_relaxed);
 }
 
 template<uint32_t LowerBytes>
