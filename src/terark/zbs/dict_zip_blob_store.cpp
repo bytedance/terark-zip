@@ -730,13 +730,13 @@ public:
 	}
 	void finishZip() override {
 		if (m_opt.enableLake) {
-			if (m_curTask && m_curTask->ibuf.size() > 0) {
+			if (m_curTask && m_curTask->num) {
 				m_lake.push_back(m_curTask);
 				m_curTask = nullptr;
 			}
 			drainLake();
 		} else {
-			if (m_curTask && m_curTask->ibuf.size() > 0) {
+			if (m_curTask && m_curTask->num) {
 				m_pipeline->enqueue(m_curTask);
 			}
 		}
