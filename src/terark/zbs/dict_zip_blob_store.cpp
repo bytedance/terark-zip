@@ -776,8 +776,11 @@ public:
 	void addRecord(const byte* rData, size_t rSize) override {
 	    static const size_t lake_MAX_BYTES = m_pipeline->zipThreads * 1024 * 1024;
 		MyTask* task = m_curTask;
-		if (!task || task->num >= task->cap ||
-                    (task->ibuf.size() > 0 && task->ibuf.unused() < rSize)) {
+        if (terark_unlikely(!task)) {
+			m_curTask = task = newTask(rData);
+        }
+		else if (task->num >= task->cap ||
+                (task->ibuf.size() > 0 && task->ibuf.unused() < rSize)) {
 			if (m_opt.enableLake) {
 				if (m_lake.full() || m_lakeBytes >= lake_MAX_BYTES) {
 					drainLake();
