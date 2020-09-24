@@ -11,7 +11,7 @@ void UintVecMin0Base::push_back_slow_path(size_t val) {
     // 103/64 is a bit less than 1.618
     if (val > m_mask) {
         size_t num = m_size;
-        UintVecMin0Base tmp(align_up(128 + num*103/64, 16), val);
+        UintVecMin0Base tmp(std::max(num+1, num*103/64), val);
         auto d = m_data.data();
         auto b = m_bits;
         if (b <= 58) {
