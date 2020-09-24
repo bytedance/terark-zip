@@ -774,13 +774,15 @@ public:
 	}
 
 	void addRecord(const byte* rData, size_t rSize) override {
-	    static const size_t lake_MAX_BYTES = m_pipeline->zipThreads * 1024 * 1024;
+        TERARK_ASSERT_GT(rSize, 0);
+	    const size_t lake_MAX_BYTES = m_pipeline->zipThreads * 1024 * 1024;
 		MyTask* task = m_curTask;
         if (terark_unlikely(!task)) {
 			m_curTask = task = newTask(rData);
         }
 		else if (task->num >= task->cap ||
-                (task->ibuf.size() > 0 && task->ibuf.unused() < rSize)) {
+                    (!task->ibuf.empty() && task->ibuf.unused() < rSize)) {
+            TERARK_ASSERT_EQ(task->offsets[task->num], task->ibuf.size());
 			if (m_opt.enableLake) {
 				if (m_lake.full() || m_lakeBytes >= lake_MAX_BYTES) {
 					drainLake();
@@ -792,6 +794,7 @@ public:
 			}
 			m_curTask = task = newTask(rData);
 		}
+        TERARK_ASSERT_EQ(task->offsets[task->num], task->ibuf.size());
 		if (m_opt.inputIsPerm) {
 		    // all input record(rData, rSize) are tightly concatenated, so
 		    // current rData is equal to previous record end, we verify the
