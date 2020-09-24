@@ -220,6 +220,14 @@ inline void terark_bit_set1(Uint* a, size_t i) {
 }
 #endif
 
+template<class Uint>
+inline void terark_bit_set_val(Uint* a, size_t i, bool val) {
+	if (val)
+	    terark_bit_set1(a, i);
+	else
+	    terark_bit_set0(a, i);
+}
+
 inline int fast_popcount(unsigned int x) { return fast_popcount32(x); }
 inline TERARK_IF_WORD_BITS_64(long long, int)
 	   fast_popcount(unsigned long long x) { return fast_popcount64(x); }
