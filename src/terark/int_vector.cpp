@@ -31,6 +31,7 @@ void UintVecMin0Base::push_back_slow_path(size_t val) {
     else {
         m_data.resize(std::max(size_t(32), align_up(m_data.size() * 103/64, 16)));
     }
+    TERARK_VERIFY_AL(m_data.size(), 16);
     TERARK_VERIFY_LT(compute_mem_size(m_bits, m_size+1), m_data.size());
     set_wire(m_size++, val);
 }
