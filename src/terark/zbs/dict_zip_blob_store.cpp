@@ -825,10 +825,10 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
 	    auto entropyBitmap = task->entropyBitmap();
 		for(size_t i = 0; i < num; ++i) {
 			fstring rec = task->nthRecord(i);
-			task->offsets[i] = uint32_t(task->obuf.tell());
 			bool zip = builder->entropyZip(rec.udata(), rec.size(),
 				*ctx, task->obuf);
 			terark_bit_set_val(entropyBitmap, i, zip);
+			task->offsets[i] = uint32_t(task->obuf.tell());
 		}
 	}
 	else {
@@ -836,11 +836,10 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
         task->obuf.resize(task->ibuf.size() / 2);
 		for(size_t i = 0; i < num; ++i) {
 			fstring rec = task->nthRecord(i);
-			task->offsets[i] = uint32_t(task->obuf.tell());
 			builder->zipRecord(rec.udata(), rec.size(), hash, task->obuf);
+			task->offsets[i] = uint32_t(task->obuf.tell());
 		}
 	}
-    task->offsets[num] = uint32_t(task->obuf.tell());
 }
 
 void
