@@ -466,6 +466,7 @@ public:
 	      T* finish()       { return p + c; }
 
     bool  empty() const { return 0 == n; }
+    bool   full() const { return c == n; }
     size_t size() const { return n; }
     size_t capacity() const { return c; }
 	size_t unused() const { return c - n; }
