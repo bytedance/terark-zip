@@ -210,6 +210,10 @@ class DictZipBlobStoreBuilder : public DictZipBlobStore::ZipBuilder {
 public:
 	typedef DictZipBlobStore::Options    Options;
 	typedef DictZipBlobStore::FileHeader FileHeader;
+	struct HashTable {
+		valvec<uint32_t> link;
+		valvec<uint32_t> tabl;
+	};
 	//valvec<size_t> m_offsets; // modified by writer thread (MyWriteStage)
     febitvec m_entropyBitmap;
 	XXHash64 m_xxhash64;
@@ -332,14 +336,12 @@ public:
                   NativeDataOutput<AutoGrownMemIO>& dio);
 
 	void zipRecord(const byte* rData, size_t rSize,
-				   valvec<uint32_t>& hashTabl,
-				   valvec<uint32_t>& hashLink,
+				   HashTable&,
 				   NativeDataOutput<AutoGrownMemIO>& dio);
 
     template<bool UseSuffixArrayLocalMatch>
     void zipRecord_impl2(const byte* rData, size_t rSize,
-                   valvec<uint32_t>& hashTabl,
-                   valvec<uint32_t>& hashLink,
+                   HashTable&,
                    NativeDataOutput<AutoGrownMemIO>& dio);
 
     void prepare(size_t records, FileMemIO& mem) override;
@@ -525,8 +527,7 @@ void DictZipBlobStoreBuilder::dictSwapIn(fstring fname) {
 }
 
 class DictZipBlobStoreBuilder::SingleThread : public DictZipBlobStoreBuilder {
-	valvec<uint32_t> m_hashLink;
-	valvec<uint32_t> m_hashBucket;
+	HashTable m_hash;
 	NativeDataOutput<AutoGrownMemIO> m_dio;
 public:
 	explicit SingleThread(const DictZipBlobStore::Options& opt)
@@ -536,8 +537,8 @@ public:
         m_xxhash64.reset(g_dzbsnark_seed);
     }
 	void finishZip() override {
-		m_hashLink.clear();
-		m_hashBucket.clear();
+		m_hash.link.clear();
+		m_hash.tabl.clear();
 		m_dio.clear();
 	}
 	// rSize can be 0 for this function
@@ -546,15 +547,15 @@ public:
 		if (m_entropyZipDataBase) {
 			// entropyZip is the second pass
 			size_t maxBytes = align_up(FSE_compressBound(rSize), 4);
-			m_hashBucket.resize_no_init(maxBytes/4);
-			m_hashLink.resize_no_init(maxBytes/4);
+			m_hash.tabl.resize_no_init(maxBytes/4);
+			m_hash.link.resize_no_init(maxBytes/4);
 			bool zip = entropyZip(rData, rSize, *GetTlsTerarkContext(), m_dio);
 			memcpy(m_entropyZipDataBase + m_zipDataSize, m_dio.begin(), m_dio.tell());
 			m_xxhash64.update(m_dio.begin(), m_dio.tell());
 			m_entropyBitmap.push_back(zip);
 		}
 		else {
-			zipRecord(rData, rSize, m_hashBucket, m_hashLink, m_dio);
+			zipRecord(rData, rSize, m_hash, m_dio);
 			if (m_opt.kNoEntropy == m_opt.entropyAlgo) {
 				m_xxhash64.update(m_dio.begin(), m_dio.tell());
 			}
@@ -625,20 +626,41 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	public:
 		MultiThread* builder;
 		size_t  firstRecId;
-		fstrvec ibuf;
-		valvec<uint32_t> offsets;
-		febitvec entropyBitmap;
+		int     num;
+		int     cap;
+		valvec<byte_t> ibuf;
 		NativeDataOutput<AutoGrownMemIO> obuf;
+		uint32_t offsets[1];
 
-		MyTask(MultiThread* b, size_t recId) {
+		MyTask(MultiThread* b, size_t recId, const byte_t* rec, int memsize) {
 			builder = b;
 			firstRecId = recId;
-			ibuf.strpool.reserve(g_input_bufsize);
-			ibuf.offsets.reserve(g_input_bufsize/100);
-			offsets.reserve(g_input_bufsize/100);
-            entropyBitmap.reserve(g_input_bufsize/100);
-		//	offsets.push_back(0);
+			size_t basesize = offsetof(MyTask, offsets); // NOLINT
+			num = 0;
+			cap = int((memsize - basesize - 4)*8/33) - 1;
+			if (b->m_opt.inputIsPerm) {
+			    ibuf.risk_set_data((byte_t*)rec);
+			    ibuf.risk_set_capacity(g_input_bufsize);
+			} else {
+			    ibuf.reserve(g_input_bufsize);
+			}
+			memset(offsets, 0, memsize - basesize); // offsets & entropyBitmap
 		}
+		~MyTask() override {
+		    if (builder->m_opt.inputIsPerm) {
+		        ibuf.risk_release_ownership();
+		    }
+		}
+		const byte_t* lastRecEnd() const {
+		    return ibuf.data() + offsets[num];
+		}
+		fstring nthRecord(size_t nth) {
+		    TERARK_ASSERT_LT(int(nth), num);
+		    size_t off0 = offsets[nth+0];
+		    size_t off1 = offsets[nth+1];
+		    return fstring(ibuf.data() + off0, off1 - off0);
+		}
+		uint32_t* entropyBitmap() { return offsets + cap + 1; }
 	};
 	class MyZipStage : public PipelineStage {
 	public:
@@ -677,25 +699,33 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			this->stop();
 			this->wait();
 		}
+		void destroyTask(PipelineTask* task) override {
+		    auto t = static_cast<MyTask*>(task); // NOLINT
+		    t->~MyTask();
+		    free(t);
+		}
 	};
+    MyTask* newTask(const byte_t* firstPermRec) {
+        const int memsize = 2*1024;
+        auto t = (MyTask*)malloc(memsize);
+        return new(t)MyTask(this, m_inputRecords, firstPermRec, memsize);
+    }
 	static MyPipeline& getPipeline() { static MyPipeline p; return p; }
 
-	struct HashTable {
-		valvec<uint32_t> hashLink;
-		valvec<uint32_t> hashTabl;
-	//	size_t  paddingForSeparateThreads[10]; // insignificant
-	};
 	valvec<HashTable> m_hash;
 	size_t m_inputRecords;
 	MyTask* m_curTask;
+	MyPipeline* m_pipeline;
 	valvec<MyTask*> m_lake;
 	size_t m_lakeBytes = 0;
 
 public:
 	explicit MultiThread(const DictZipBlobStore::Options& opt)
 	: DictZipBlobStoreBuilder(opt) {
+		m_curTask = nullptr;
+		m_pipeline = &getPipeline(); // access m_pipeline is faster
 		if (opt.enableLake) {
-			m_lake.reserve(getPipeline().getQueueSize());
+			m_lake.reserve(m_pipeline->getQueueSize());
 		}
 	}
 	void finishZip() override {
@@ -707,7 +737,7 @@ public:
 			drainLake();
 		} else {
 			if (m_curTask && m_curTask->ibuf.size() > 0) {
-				getPipeline().enqueue(m_curTask);
+				m_pipeline->enqueue(m_curTask);
 			}
 		}
 		while (m_lengthCount < m_inputRecords) {
@@ -724,13 +754,11 @@ public:
 	}
 	void prepareZip() override {
 		m_inputRecords = 0;
-		m_curTask = new MyTask(this, m_inputRecords);
-		m_hash.resize(getPipeline().zipThreads);
+		m_hash.resize(m_pipeline->zipThreads);
         m_xxhash64.reset(g_dzbsnark_seed);
 	}
 
 	void drainLake() {
-		auto& pipeline = getPipeline();
 		{
 			// serialize pipeline enqueue
 			//
@@ -739,29 +767,40 @@ public:
 			// for these builders, each builder consumes many CPU Cache
 			// especially L3 cache which shared by multiple CPU core on
 			// one CPU socket/die!
-			pipeline.enqueue((PipelineTask**)m_lake.data(), m_lake.size());
+			m_pipeline->enqueue((PipelineTask**)m_lake.data(), m_lake.size());
 		}
 		m_lake.erase_all();
 		m_lakeBytes = 0;
 	}
 
 	void addRecord(const byte* rData, size_t rSize) override {
-	  static const size_t lake_MAX_BYTES = getPipeline().zipThreads * 1024 * 1024;
+	    static const size_t lake_MAX_BYTES = m_pipeline->zipThreads * 1024 * 1024;
 		MyTask* task = m_curTask;
-		if (task->ibuf.strpool.size() > 0 &&
-			task->ibuf.strpool.unused() < rSize) {
+		if (!task || task->num >= task->cap ||
+                    (task->ibuf.size() > 0 && task->ibuf.unused() < rSize)) {
 			if (m_opt.enableLake) {
-				if (m_lake.size() == m_lake.capacity() || m_lakeBytes >= lake_MAX_BYTES) {
+				if (m_lake.full() || m_lakeBytes >= lake_MAX_BYTES) {
 					drainLake();
 				}
-				m_lakeBytes += task->ibuf.strpool.size();
+				m_lakeBytes += task->ibuf.size();
 				m_lake.push_back(task);
 			} else {
-				getPipeline().enqueue(task);
+				m_pipeline->enqueue(task);
 			}
-			m_curTask = task = new MyTask(this, m_inputRecords);
+			m_curTask = task = newTask(rData);
 		}
-		task->ibuf.emplace_back((const char*)rData, rSize);
+		if (m_opt.inputIsPerm) {
+		    // all input record(rData, rSize) are tightly concatenated, so
+		    // current rData is equal to previous record end, we verify the
+		    // the assertion to detect caller's violation of this rule.
+		    TERARK_VERIFY_EQ(task->lastRecEnd(), rData);
+		    task->ibuf.risk_set_size(task->ibuf.size() + rSize);
+		    // after risk_set_size, ibuf.size() maybe > ibuf.capacity(),
+		    // that's ok
+		} else {
+		    task->ibuf.append(rData, rSize);
+		}
+		task->offsets[++task->num] = task->ibuf.size();
 		this->m_unzipSize += rSize;
 		this->m_inputRecords++;
 	}
@@ -774,29 +813,31 @@ MyZipStage::process(int tno, PipelineQueueItem* item) {
 	auto  builder = task->builder;
 	auto& hash = builder->m_hash[tno];
 	assert(tno < (int)builder->m_hash.size());
-	assert(task->offsets.size() == 0);
 	assert(task->obuf.tell() == 0);
-	// reserve 1/2 of input data for zipped data memory
-	task->obuf.resize(task->ibuf.strpool.size() / 2);
-	task->offsets.reserve(task->ibuf.size());
+	const size_t num = task->num;
 	if (builder->m_entropyZipDataBase) {
-	      auto ctx = GetTlsTerarkContext();
-		for(size_t i = 0; i < task->ibuf.size(); ++i) {
-			fstring rec = task->ibuf[i];
+        // reserve same of input data for zipped data memory
+        task->obuf.resize(task->ibuf.size());
+	    auto ctx = GetTlsTerarkContext();
+	    auto entropyBitmap = task->entropyBitmap();
+		for(size_t i = 0; i < num; ++i) {
+			fstring rec = task->nthRecord(i);
+			task->offsets[i] = uint32_t(task->obuf.tell());
 			bool zip = builder->entropyZip(rec.udata(), rec.size(),
 				*ctx, task->obuf);
-			task->entropyBitmap.push_back(zip);
-			task->offsets.push_back(task->obuf.tell());
+			terark_bit_set_val(entropyBitmap, i, zip);
 		}
 	}
 	else {
-		for(size_t i = 0; i < task->ibuf.size(); ++i) {
-			fstring rec = task->ibuf[i];
-			builder->zipRecord(rec.udata(), rec.size(),
-				hash.hashTabl, hash.hashLink, task->obuf);
-			task->offsets.push_back(task->obuf.tell());
+        // reserve 1/2 of input data for zipped data memory
+        task->obuf.resize(task->ibuf.size() / 2);
+		for(size_t i = 0; i < num; ++i) {
+			fstring rec = task->nthRecord(i);
+			task->offsets[i] = uint32_t(task->obuf.tell());
+			builder->zipRecord(rec.udata(), rec.size(), hash, task->obuf);
 		}
 	}
+    task->offsets[num] = uint32_t(task->obuf.tell());
 }
 
 void
@@ -804,17 +845,18 @@ DictZipBlobStoreBuilder::MultiThread::
 MyWriteStage::process(int tno, PipelineQueueItem* item) {
 	MyTask* task = static_cast<MyTask*>(item->task);
 	auto builder = task->builder;
-	auto taskOffsets   = task->offsets.data();
+	auto taskOffsets = task->offsets;
 	auto taskZipData = task->obuf.begin();
 	size_t taskZipSize = task->obuf.tell();
 	size_t baseZipSize = builder->m_zipDataSize;
 	assert(0 == tno);
-	assert(task->offsets.size() == task->ibuf.size());
-    auto taskRecNum = task->offsets.size();
+    size_t taskRecNum = task->num;
     if (builder->m_onFinishEachValue) {
+        // TODO: now zipped offsets reuse input offsets
+        TERARK_DIE("m_onFinishEachValue is to be implemented");
         for(size_t off0 = 0, i = 0; i < taskRecNum; ++i) {
-            size_t off1 = taskOffsets[i];
-            fstring raw = task->ibuf[i];
+            size_t off1 = taskOffsets[i+1];
+            fstring raw = task->nthRecord(i);
             fstring zip(taskZipData + off0, off1 - off0);
             builder->m_onFinishEachValue(raw, zip);
             off0 = off1;
@@ -823,7 +865,9 @@ MyWriteStage::process(int tno, PipelineQueueItem* item) {
 	if (byte* ebase = builder->m_entropyZipDataBase) {
 		assert(builder->m_opt.kNoEntropy != builder->m_opt.entropyAlgo);
 		memcpy(ebase + baseZipSize, task->obuf.begin(), taskZipSize);
-        builder->m_entropyBitmap.append(task->entropyBitmap);
+		auto bitmap = task->entropyBitmap();
+		for (size_t i = 0; i < taskRecNum; ++i)
+            builder->m_entropyBitmap.push_back(terark_bit_test(bitmap, i));
 		builder->m_xxhash64.update(task->obuf.begin(), taskZipSize);
 	}
 	else {
@@ -927,8 +971,7 @@ DictZipBlobStoreBuilder::entropyZip(const byte* rData, size_t rSize,
 
 void
 DictZipBlobStoreBuilder::zipRecord(const byte* rData, size_t rSize,
-								   valvec<uint32_t>& hashTabl,
-								   valvec<uint32_t>& hashLink,
+								   HashTable& hash,
 								   NativeDataOutput<AutoGrownMemIO>& dio) {
 	if (terark_unlikely(0 == rSize)) {
 		return;
@@ -936,9 +979,9 @@ DictZipBlobStoreBuilder::zipRecord(const byte* rData, size_t rSize,
 	size_t oldsize = dio.tell();
 
 	if (m_opt.useSuffixArrayLocalMatch)
-		zipRecord_impl2<true>(rData, rSize, hashTabl, hashLink, dio);
+		zipRecord_impl2<true>(rData, rSize, hash, dio);
 	else
-		zipRecord_impl2<false>(rData, rSize, hashTabl, hashLink, dio);
+		zipRecord_impl2<false>(rData, rSize, hash, dio);
 
 	if (m_opt.checksumLevel == 2) {
 		assert(dio.tell() > oldsize);
@@ -990,8 +1033,7 @@ int GlobalMatchEncLen(size_t matchlen, size_t refBits, size_t maxShortLen) {
 template<bool UseSuffixArrayLocalMatch>
 void
 DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
-                   valvec<uint32_t>& hashTabl,
-                   valvec<uint32_t>& hashLink,
+                   HashTable& hash,
                    NativeDataOutput<AutoGrownMemIO>& dio) {
 #if defined(DEBUG_CHECK_UNZIP)
     size_t old_dio_pos = dio.tell();
@@ -1001,19 +1043,19 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
     unsigned const bits = 1 == rSize ? 1 : My_bsr_size_t(rSize - 1) + 1;
     unsigned const shift = 32 - bits;
     if (UseSuffixArrayLocalMatch) {
-        BOOST_STATIC_ASSERT(sizeof(saidx_t) == sizeof(hashTabl[0]));
-        hashTabl.resize_no_init(rSize);
-        hashLink.resize_no_init(rSize);
-        divsufsort(rData, (saidx_t*)hashTabl.data(), rSize, 0);
-        auto local_sa = hashTabl.data();
-        auto local_rsa = hashLink.data(); // reverse sa
+        BOOST_STATIC_ASSERT(sizeof(saidx_t) == sizeof(hash.tabl[0]));
+        hash.tabl.resize_no_init(rSize);
+        hash.link.resize_no_init(rSize);
+        divsufsort(rData, (saidx_t*)hash.tabl.data(), rSize, 0);
+        auto local_sa = hash.tabl.data();
+        auto local_rsa = hash.link.data(); // reverse sa
         for (size_t i = 0; i < rSize; ++i) {
             local_rsa[local_sa[i]] = i;
         }
     }
     else {
-        hashTabl.resize_fill(size_t(1) << bits, nil);
-        hashLink.resize_fill(rSize, nil);
+        hash.tabl.resize_fill(size_t(1) << bits, nil);
+        hash.link.resize_fill(rSize, nil);
     }
     DzType_Trace("Compress %zd\n", rSize);
     size_t literal_len = 0;
@@ -1032,8 +1074,8 @@ DictZipBlobStoreBuilder::zipRecord_impl2(const byte* rData, size_t rSize,
         }
     };
     const int* sa = m_dict->sa_data();
-    auto bucket_or_sa = hashTabl.data();
-    auto hpLink_or_rsa = hashLink.data();
+    auto bucket_or_sa = hash.tabl.data();
+    auto hpLink_or_rsa = hash.link.data();
 
 #define gMinLen 5
     assert(m_strDict.size() <= INT32_MAX);
@@ -1246,6 +1288,7 @@ DictZipBlobStore::Options::Options() {
     entropyZipRatioRequire = (float)getEnvDouble("Entropy_zipRatioRequire", 0.92);
     embeddedDict = false;
     enableLake = false;
+    inputIsPerm = false;
 }
 
 DictZipBlobStore::ZipStat::ZipStat() {
@@ -1544,7 +1587,7 @@ void DictZipBlobStoreBuilder::prepare(size_t records, fstring fpath) {
 }
 
 void DictZipBlobStoreBuilder::prepare(size_t records, fstring fpath, size_t offset) {
-    assert(!m_strDict.empty());
+    TERARK_VERIFY(!m_strDict.empty());
     m_prepareStartTime = g_pf.now();
     prepareDict();
     m_fpOffset = offset;
@@ -1559,7 +1602,7 @@ void DictZipBlobStoreBuilder::prepare(size_t records, fstring fpath, size_t offs
     }
     m_fp.disbuf();
     m_fpWriter.attach(&m_fp);
-    assert(!m_fpDelta.isOpen());
+    TERARK_VERIFY(!m_fpDelta.isOpen());
     m_fpDelta.open(m_fpathForLength.c_str(), "wb+");
     m_fpDelta.disbuf();
     m_lengthCount = 0;
@@ -1677,7 +1720,7 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
             , "DictZipBlobStore::ReadDict() Load global dict ZSTD error: %s"
             , ZSTD_getErrorName(size));
     }
-    assert(size == raw_size);
+    TERARK_VERIFY_EQ(size, raw_size);
     MmapColdizeBytes(dictMem.data(), dictMem.size());
     dict = AbstractBlobStore::Dictionary(output_dict);
     output_dict.risk_release_ownership();
@@ -1720,7 +1763,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
     store->m_isUserMem = true;
     t2 = g_pf.now();
     byte* storeBase = m_entropyZipDataBase = store->m_ptrList.data();
-    assert(m_freq_hist);
+    TERARK_VERIFY(nullptr != m_freq_hist);
     m_freq_hist->finish();
     bool unnecessary = false;
     if (m_opt.entropyAlgo == DictZipBlobStore::Options::kFSE) {

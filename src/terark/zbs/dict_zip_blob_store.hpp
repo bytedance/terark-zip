@@ -41,6 +41,7 @@ public:
         float entropyZipRatioRequire;
         bool embeddedDict;
         bool enableLake;
+        bool inputIsPerm;
 
 		Options();
 	};
