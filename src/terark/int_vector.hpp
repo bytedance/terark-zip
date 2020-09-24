@@ -115,7 +115,8 @@ private:
 public:
 	void push_back(size_t val) {
 		assert(m_bits <= 64);
-		if (compute_mem_size(m_bits, m_size+1) < m_data.size()) {
+		if (compute_mem_size(m_bits, m_size+1) < m_data.size()
+                && val <= m_mask) {
             set_wire(m_size++, val);
 		} else {
 			push_back_slow_path(val);
