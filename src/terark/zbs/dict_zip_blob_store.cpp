@@ -1793,6 +1793,7 @@ void DictZipBlobStoreBuilder::entropyStore(std::unique_ptr<terark::DictZipBlobSt
             if (o0[i] > 0) { maxSym = i; }
         }
         if (maxCnt == 1 // each symbol present maximum once => not compressible
+            || 0 == dataSize
             || maxCnt < (dataSize >> 7) // Heuristic : not compressible enough
             ) {
             unnecessary = true;
