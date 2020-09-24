@@ -655,7 +655,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 		const byte_t* lastRecEnd() const {
 		    return ibuf.data() + offsets[num];
 		}
-		fstring nthRecord(size_t nth) {
+		terark_forceinline fstring nthRecord(size_t nth) const {
 		    TERARK_ASSERT_LT(int(nth), num);
 		    size_t off0 = offsets[nth+0];
 		    size_t off1 = offsets[nth+1];
@@ -976,6 +976,7 @@ DictZipBlobStoreBuilder::entropyZip(const byte* rData, size_t rSize,
     }
 }
 
+terark_forceinline
 void
 DictZipBlobStoreBuilder::zipRecord(const byte* rData, size_t rSize,
 								   HashTable& hash,
