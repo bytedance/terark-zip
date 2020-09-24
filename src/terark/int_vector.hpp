@@ -117,7 +117,6 @@ public:
 		assert(m_bits <= 64);
 		if (compute_mem_size(m_bits, m_size+1) < m_data.size()) {
             set_wire(m_size++, val);
-			m_data.resize(std::max(size_t(32), m_data.size()) * 2);
 		} else {
 			push_back_slow_path(val);
 		}
