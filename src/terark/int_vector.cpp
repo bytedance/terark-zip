@@ -7,6 +7,34 @@
 
 namespace terark {
 
+void UintVecMin0Base::push_back_slow_path(size_t val) {
+    // 103/64 is a bit less than 1.618
+    if (val > m_mask) {
+        size_t num = m_size;
+        UintVecMin0Base tmp(align_up(128 + num*103/64, 16), val);
+        auto d = m_data.data();
+        auto b = m_bits;
+        if (b <= 58) {
+            auto m = m_mask;
+            for (size_t i = 0; i < num; ++i) {
+                tmp.set_wire(i, UintVecMin0::fast_get(d, b, m, i));
+            }
+        }
+        else {
+            for (size_t i = 0; i < num; ++i) {
+                tmp.set_wire(i, BigUintVecMin0::fast_get(d, b, i));
+            }
+        }
+        tmp.m_size = num;
+        this->swap(tmp);
+    }
+    else {
+        m_data.resize(std::max(size_t(32), align_up(m_data.size() * 103/64, 16)));
+    }
+    TERARK_VERIFY_LT(compute_mem_size(m_bits, m_size+1), m_data.size());
+    set_wire(m_size++, val);
+}
+
 UintVecMin0Base::Builder::~Builder() {
 }
 
