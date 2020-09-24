@@ -857,7 +857,7 @@ MyWriteStage::process(int tno, PipelineQueueItem* item) {
         // TODO: now zipped offsets reuse input offsets
         TERARK_DIE("m_onFinishEachValue is to be implemented");
         for(size_t off0 = 0, i = 0; i < taskRecNum; ++i) {
-            size_t off1 = taskOffsets[i+1];
+            size_t off1 = taskOffsets[i];
             fstring raw = task->nthRecord(i);
             fstring zip(taskZipData + off0, off1 - off0);
             builder->m_onFinishEachValue(raw, zip);
