@@ -774,14 +774,14 @@ public:
 	}
 
 	void addRecord(const byte* rData, size_t rSize) override {
-        TERARK_ASSERT_GT(rSize, 0);
+        // TERARK_ASSERT_GT(rSize, 0); // rSize == 0 is allowed
 	    const size_t lake_MAX_BYTES = m_pipeline->zipThreads * 1024 * 1024;
 		MyTask* task = m_curTask;
         if (terark_unlikely(!task)) {
 			m_curTask = task = newTask(rData);
         }
 		else if (task->num >= task->cap ||
-                    (!task->ibuf.empty() && task->ibuf.unused() < rSize)) {
+                    (task->num && task->ibuf.unused() < rSize)) {
             TERARK_ASSERT_EQ(task->offsets[task->num], task->ibuf.size());
 			if (m_opt.enableLake) {
 				if (m_lake.full() || m_lakeBytes >= lake_MAX_BYTES) {
