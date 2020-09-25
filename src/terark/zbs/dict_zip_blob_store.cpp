@@ -635,7 +635,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 		NativeDataOutput<AutoGrownMemIO> obuf;
 		uint32_t offsets[1];
 
-		MyTask(MultiThread* b, size_t recId, const byte_t* rec, int memsize) {
+		MyTask(const MultiThread* b, size_t recId, const byte_t* rec, int memsize) {
 			builder = b;
 			firstRecId = recId;
 			size_t basesize = offsetof(MyTask, offsets); // NOLINT
@@ -710,10 +710,18 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 		    free(t);
 		}
 	};
-    MyTask* newTask(const byte_t* firstPermRec) {
-        const int memsize = 2*1024;
-        auto t = (MyTask*)malloc(memsize);
-        return new(t)MyTask(this, m_inputRecords, firstPermRec, memsize);
+    MyTask* newTask(const byte_t* firstPermRec) const {
+        // cap is an advise, the real cap is greater or equal than 'cap' here.
+        // the real record num in this task will be less or equal than real cap
+        const int cap = m_opt.maxRecordsPerTask;
+        const int len = align_up(sizeof(MyTask) + 4*cap, 256);
+#if defined(_MSC_VER)
+        void* t = malloc(len);
+#else
+        void* t = nullptr;
+        TERARK_VERIFY_F(posix_memalign(&t, 256, len) == 0, "len = %d", len);
+#endif
+        return new(t)MyTask(this, m_inputRecords, firstPermRec, len);
     }
 	static MyPipeline& getPipeline() { static MyPipeline p; return p; }
 
@@ -1301,6 +1309,10 @@ DictZipBlobStore::Options::Options() {
     embeddedDict = false;
     enableLake = false;
     inputIsPerm = false;
+
+    // this is an advise,
+    // the real max is greater or equal than maxRecordsPerTask
+    maxRecordsPerTask = 500;
 }
 
 DictZipBlobStore::ZipStat::ZipStat() {

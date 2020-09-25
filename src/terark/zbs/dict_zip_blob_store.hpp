@@ -42,6 +42,7 @@ public:
         bool embeddedDict;
         bool enableLake;
         bool inputIsPerm;
+        int  maxRecordsPerTask;
 
 		Options();
 	};
