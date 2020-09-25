@@ -586,7 +586,10 @@ public:
 	using DictZipBlobStore::ZipBuilder::addRecord;
 };
 
-static int g_zipThreads = (int)getEnvLong("DictZipBlobStore_zipThreads", -1);
+static int& g_zipThreads() {
+    static int s_zipThreads = (int)getEnvLong("DictZipBlobStore_zipThreads", -1);
+    return s_zipThreads;
+}
 static bool g_isPipelineStarted = false;
 
 static int g_pipelineLogLevel = (int)getEnvLong("DictZipBlobStore_pipelineLogLevel", 1);
@@ -598,7 +601,7 @@ TERARK_DLL_EXPORT void DictZipBlobStore_setZipThreads(int zipThreads) {
 			"WARN: DictZipBlobStore pipeline has started, can not change zipThreads\n");
 	}
 	else {
-		g_zipThreads = zipThreads;
+		g_zipThreads() = zipThreads;
 	}
 }
 
@@ -612,16 +615,15 @@ TERARK_DLL_EXPORT void DictZipBlobStore_setPipelineLogLevel(int level) {
   }
 }
 
-static size_t DictZipBlobStore_batchBufferSize() {
+static size_t DictZipBlobStore_bytesPerBatch() {
 //  long def = 2L*1024*1024; // 2M
     long def = 256*1024;
-    long val = getEnvLong("DictZipBlobStore_batchBufferSize", def);
+    long val = getEnvLong("DictZipBlobStore_bytesPerBatch", def);
     if (val <= 0) {
         val = def;
     }
     return val;
 }
-static size_t g_input_bufsize = DictZipBlobStore_batchBufferSize();
 class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyTask : public PipelineTask {
 	public:
@@ -641,9 +643,9 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			cap = int((memsize - basesize - 4)*8/33) - 1;
 			if (b->m_opt.inputIsPerm) {
 			    ibuf.risk_set_data((byte_t*)rec);
-			    ibuf.risk_set_capacity(g_input_bufsize);
+			    ibuf.risk_set_capacity(b->m_bytesPerBatch);
 			} else {
-			    ibuf.reserve(g_input_bufsize);
+			    ibuf.reserve(b->m_bytesPerBatch);
 			}
 			memset(offsets, 0, memsize - basesize); // offsets & entropyBitmap
 		}
@@ -680,15 +682,17 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyPipeline : public PipelineProcessor {
 	public:
 		int zipThreads;
+		int bytesPerBatch;
 		MyPipeline() {
 			using namespace std;
 			int cpuCount = this->sysCpuCount();
-			if (g_zipThreads > 0) {
-				zipThreads = min(cpuCount, g_zipThreads);
+			if (g_zipThreads() > 0) {
+				zipThreads = min(cpuCount, g_zipThreads());
 			}
 			else {
 				zipThreads = min(cpuCount, 8);
 			}
+			bytesPerBatch = DictZipBlobStore_bytesPerBatch();
 			this->setLogLevel(g_pipelineLogLevel);
 			this->setQueueSize(8*zipThreads);
 			this->add_step(new MyZipStage(zipThreads));
@@ -719,6 +723,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	MyPipeline* m_pipeline;
 	valvec<MyTask*> m_lake;
 	size_t m_lakeBytes = 0;
+	int m_bytesPerBatch;
 
 public:
 	explicit MultiThread(const DictZipBlobStore::Options& opt)
@@ -728,6 +733,7 @@ public:
 		if (opt.enableLake) {
 			m_lake.reserve(m_pipeline->getQueueSize());
 		}
+		m_bytesPerBatch = m_pipeline->bytesPerBatch;
 	}
 	void finishZip() override {
 		if (m_opt.enableLake) {
@@ -1342,8 +1348,8 @@ DictZipBlobStore::createZipBuilder(const Options& opt) {
 		, opt.checksumLevel, opt.useSuffixArrayLocalMatch, opt.maxMatchProbe
 		);
 #endif
-	// g_zipThreads == 0 indicate SingleThread
-	if (g_zipThreads)
+	// g_zipThreads() == 0 indicate SingleThread
+	if (g_isPipelineStarted || g_zipThreads())
 		return new DictZipBlobStoreBuilder::MultiThread(opt);
 	else
 		return new DictZipBlobStoreBuilder::SingleThread(opt);
