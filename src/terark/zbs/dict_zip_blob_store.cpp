@@ -635,7 +635,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 		NativeDataOutput<AutoGrownMemIO> obuf;
 		uint32_t offsets[1];
 
-		MyTask(const MultiThread* b, size_t recId, const byte_t* rec, int memsize) {
+		MyTask(MultiThread* b, size_t recId, const byte_t* rec, int memsize) {
 			builder = b;
 			firstRecId = recId;
 			size_t basesize = offsetof(MyTask, offsets); // NOLINT
@@ -710,7 +710,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 		    free(t);
 		}
 	};
-    MyTask* newTask(const byte_t* firstPermRec) const {
+    MyTask* newTask(const byte_t* firstPermRec) {
         // cap is an advise, the real cap is greater or equal than 'cap' here.
         // the real record num in this task will be less or equal than real cap
         const int cap = m_opt.maxRecordsPerTask;
