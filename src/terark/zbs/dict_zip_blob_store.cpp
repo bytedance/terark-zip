@@ -615,15 +615,6 @@ TERARK_DLL_EXPORT void DictZipBlobStore_setPipelineLogLevel(int level) {
   }
 }
 
-static size_t DictZipBlobStore_bytesPerBatch() {
-//  long def = 2L*1024*1024; // 2M
-    long def = 256*1024;
-    long val = getEnvLong("DictZipBlobStore_bytesPerBatch", def);
-    if (val <= 0) {
-        val = def;
-    }
-    return val;
-}
 class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyTask : public PipelineTask {
 	public:
@@ -643,9 +634,9 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			cap = int((memsize - basesize - 4)*8/33) - 1;
 			if (b->m_opt.inputIsPerm) {
 			    ibuf.risk_set_data((byte_t*)rec);
-			    ibuf.risk_set_capacity(b->m_bytesPerBatch);
+			    ibuf.risk_set_capacity(b->m_opt.bytesPerBatch);
 			} else {
-			    ibuf.reserve(b->m_bytesPerBatch);
+			    ibuf.reserve(b->m_opt.bytesPerBatch);
 			}
 			memset(offsets, 0, memsize - basesize); // offsets & entropyBitmap
 		}
@@ -682,7 +673,6 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	class MyPipeline : public PipelineProcessor {
 	public:
 		int zipThreads;
-		int bytesPerBatch;
 		MyPipeline() {
 			using namespace std;
 			int cpuCount = this->sysCpuCount();
@@ -692,7 +682,6 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			else {
 				zipThreads = min(cpuCount, 8);
 			}
-			bytesPerBatch = DictZipBlobStore_bytesPerBatch();
 			this->setLogLevel(g_pipelineLogLevel);
 			this->setQueueSize(8*zipThreads);
 			this->add_step(new MyZipStage(zipThreads));
@@ -713,7 +702,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
     MyTask* newTask(const byte_t* firstPermRec) {
         // cap is an advise, the real cap is greater or equal than 'cap' here.
         // the real record num in this task will be less or equal than real cap
-        const int cap = m_opt.maxRecordsPerTask;
+        const int cap = m_opt.recordsPerBatch;
         const int len = align_up(sizeof(MyTask) + 4*cap, 256);
 #if defined(_MSC_VER)
         void* t = malloc(len);
@@ -731,7 +720,6 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 	MyPipeline* m_pipeline;
 	valvec<MyTask*> m_lake;
 	size_t m_lakeBytes = 0;
-	int m_bytesPerBatch;
 
 public:
 	explicit MultiThread(const DictZipBlobStore::Options& opt)
@@ -741,7 +729,6 @@ public:
 		if (opt.enableLake) {
 			m_lake.reserve(m_pipeline->getQueueSize());
 		}
-		m_bytesPerBatch = m_pipeline->bytesPerBatch;
 	}
 	void finishZip() override {
 		if (m_opt.enableLake) {
@@ -1311,8 +1298,9 @@ DictZipBlobStore::Options::Options() {
     inputIsPerm = false;
 
     // this is an advise,
-    // the real max is greater or equal than maxRecordsPerTask
-    maxRecordsPerTask = 500;
+    // the real max is greater or equal than recordsPerBatch
+    recordsPerBatch = getEnvLong("DictZipBlobStore_recordsPerBatch", 500);
+    bytesPerBatch = getEnvLong("DictZipBlobStore_bytesPerBatch", 256*1024);
 }
 
 DictZipBlobStore::ZipStat::ZipStat() {
