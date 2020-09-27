@@ -571,25 +571,19 @@ size_t MemMapStream::remap_and_read(void* vbuf, size_t size)
 	unsigned char* bbuf = (unsigned char*)vbuf;
 	size_t curr = m_end-m_pos;
 	memcpy(bbuf, m_pos, curr);
-	while (curr != size)
-	{
-		stream_position_t fpos = m_file_pos + (m_end-m_beg);
-		if (fpos > m_file_size)
-		{
-			string_appender<> oss;
-			oss << "this[fpos=" << m_file_pos
-				<< ", map_size=" << (m_end-m_beg)
-				<< ", fsize=" << m_file_size
-				<< "], at: " << BOOST_CURRENT_FUNCTION
-				;
-			throw EndOfFileException(oss.str().c_str());
-		}
-		unaligned_remap(fpos, m_best_block_size);
-		size_t nbytes = min(size_t(size-curr), size_t(m_end-m_pos));
-		memcpy(bbuf+curr, m_pos, nbytes);
-		m_pos += nbytes;
-		curr += nbytes;
-	}
+    m_pos += curr; // == m_end
+    m_file_pos += m_end - m_beg;
+
+    size_t remain = size - curr;
+    size_t file_remain = size_t(m_file_size - m_file_pos); // NOLINT
+    size_t mapsize = min(file_remain, max(m_best_block_size, remain));
+
+    unaligned_remap(m_file_pos, mapsize);
+
+    remain = min(remain, file_remain);
+    memcpy(bbuf+curr, m_pos, remain);
+    m_pos += remain;
+    curr += remain;
 	return curr;
 }
 
@@ -601,16 +595,16 @@ size_t MemMapStream::remap_and_write(const void* vbuf, size_t size)
 	const unsigned char* bbuf = (const unsigned char*)vbuf;
 	size_t curr = m_end-m_pos;
 	memcpy(m_pos, bbuf, curr);
-	while (curr != size)
-	{
-		unaligned_remap(m_file_pos + (m_pos-m_beg), m_best_block_size);
+	m_pos += curr; // == m_end
+	m_file_pos += m_end - m_beg;
+	size_t remain = size - curr;
 
-		size_t nbytes = min(size_t(size-curr), size_t(m_end-m_pos));
-		memcpy(m_pos, bbuf+curr, nbytes);
-		m_pos += nbytes;
-		curr += nbytes;
-	}
-	return curr;
+	// may fail(throw exception) because out of space
+	unaligned_remap(m_file_pos, max(m_best_block_size, remain));
+
+	memcpy(m_pos, bbuf+curr, remain);
+	m_pos += remain;
+	return size;
 }
 
 void MemMapStream::remap_and_ensureRead(void* buf, size_t size)
@@ -757,6 +751,40 @@ int MemMapStream::BinCompare(MemMapStream& y)
 // 	return excep.what();
 // }
 
-
 } // namespace terark
+
+/*
+#include <x86intrin.h>
+ * incomplete
+ * nontemporal will not pollute cpu cache, but too complex
+void memcpy_nontemporal_store(void* dst, const void* src, size_t len) {
+    if (size_t pre = size_t(dst) & ~31) {
+        // memcpy(dst, src, pre); dst += pre; src += pre; len -= pre;
+        if (len < pre) {
+            pre = len;
+            len = 0;
+        } else {
+            len -= pre;
+        }
+        for (; pre; pre--) {
+            *(char*)dst = *(const char*)src;
+            dst = (char*)dst + 1;
+            src = (const char*)src + 1;
+        }
+    }
+    assert(size_t(dst) % 32 == 0);
+    auto s = (const __m256i_u*)src;
+    auto d = (__m256i*)dst; // aligned at 32
+    for (size_t n = len/sizeof(__m256i_u); n > 0; n--) {
+        _mm256_stream_si256(d, _mm256_loadu_si256(s));
+        s++;
+        d++;
+    }
+    for (len &= 31; len; len--) {
+        *(char*)dst = *(const char*)src;
+        dst = (char*)dst + 1;
+        src = (const char*)src + 1;
+    }
+}
+*/
 

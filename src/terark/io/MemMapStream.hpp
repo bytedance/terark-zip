@@ -81,7 +81,7 @@ public:
 	stream_position_t tell() const throw();
 	stream_position_t size() const throw();
 
-	//! ¾ùÖ¸µ±Ç°±» map µÄ²¿·Ö
+	//! å‡æŒ‡å½“å‰è¢« map çš„éƒ¨åˆ†
 	unsigned char* current() const throw() { return m_pos; }
 	unsigned char* begin() const throw() { return m_beg; }
 	unsigned char* end() const throw() { return m_end; }
@@ -123,9 +123,10 @@ public:
 	int BinCompare(MemMapStream& y);
 
 protected:
-	unsigned char* m_beg;
+	// object layout of this 3 fields is same as SeekableMemIO
 	unsigned char* m_pos;
 	unsigned char* m_end;
+	unsigned char* m_beg;
 
 #if defined(_WIN32) || defined(WIN32) || defined(_WIN64) || defined(WIN64)
 	HANDLE m_hFile;
@@ -347,7 +348,7 @@ public:
 	}
 };
 
-//! ¿ÉÒÔÓ³Éä²»¶ÔÆëµÄÄÚ´æÊı¾İ
+//! å¯ä»¥æ˜ å°„ä¸å¯¹é½çš„å†…å­˜æ•°æ®
 class TERARK_DLL_EXPORT MMS_MapData
 {
 	DECLARE_NONE_COPYABLE_CLASS(MMS_MapData)
