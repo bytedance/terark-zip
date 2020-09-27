@@ -14,6 +14,7 @@
 #endif
 
 #include <stdlib.h>
+#include <malloc.h>
 #include <boost/predef/other/endian.h>
 #include <algorithm>
 #include "var_int.hpp"
@@ -33,6 +34,7 @@ IOBufferBase::~IOBufferBase()
 
 void IOBufferBase::initbuf(size_t capacity)
 {
+#if defined(_MSC_VER)
 #if defined(_DEBUG) || !defined(NDEBUG)
 // raise assert when debug
 	assert(0 == m_beg);
@@ -40,6 +42,12 @@ void IOBufferBase::initbuf(size_t capacity)
 #else
 // when release, free m_beg for avoid memory leak
 	m_beg = (byte*)realloc(m_beg, capacity);
+#endif
+#else // posix
+	TERARK_VERIFY(nullptr == m_beg);
+	int err = posix_memalign((void**)&m_beg, 4096, capacity);
+	TERARK_VERIFY_F(0 == err, "err = %d : %s", err, strerror(err));
+	TERARK_VERIFY(nullptr != m_beg);
 #endif
 	m_pos = m_end = m_beg; // set as buffer overflow
 	m_capacity = capacity;
@@ -49,18 +57,31 @@ void IOBufferBase::initbuf(size_t capacity)
 // 在 initbuf 之后，会重新分配内存
 void IOBufferBase::set_bufsize(size_t size)
 {
+	size = align_up(size, 4096);
 	if (0 == m_beg)
 	{
 		m_capacity = size;
 	}
+	else if (size <= m_capacity) {
+	  // ignore
+	}
 	else
 	{
 		assert(m_capacity);
+#if defined(_MSC_VER)
 		byte* pnewbuf = (byte*)realloc(m_beg, size);
 		if (0 == pnewbuf)
 		{
 			throw std::bad_alloc();
 		}
+#else
+		byte* pnewbuf = nullptr;
+		int err = posix_memalign((void**)&pnewbuf, 4096, size);
+		TERARK_VERIFY_F(0 == err, "err = %d : %s", err, strerror(err));
+		TERARK_VERIFY(nullptr != pnewbuf);
+		memcpy(pnewbuf, m_beg, m_end - m_beg);
+		free(m_beg);
+#endif
 		m_pos = pnewbuf + (m_pos-m_beg);
 		m_end = pnewbuf + (m_end-m_beg);
 		m_beg = pnewbuf;
