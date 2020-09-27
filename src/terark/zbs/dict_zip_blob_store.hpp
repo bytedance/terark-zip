@@ -146,6 +146,8 @@ public:
         virtual void freeDict() = 0;
 		virtual void dictSwapOut(fstring fname) = 0;
 		virtual void dictSwapIn(fstring fname) = 0;
+        virtual byte_t* addRecord(size_t rSize) = 0;
+        virtual bool isMultiThread() const = 0;
 
         function<void(fstring raw, fstring zip)> m_onFinishEachValue;
 	};

@@ -584,6 +584,8 @@ public:
 		m_dio.rewind();
 	}
 	using DictZipBlobStore::ZipBuilder::addRecord;
+	byte_t* addRecord(size_t) final { TERARK_DIE("Not supported"); }
+	bool isMultiThread() const final { return false; }
 };
 
 static int& g_zipThreads() {
@@ -633,6 +635,7 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			num = 0;
 			cap = int((memsize - basesize - 4)*8/33) - 1;
 			if (b->m_opt.inputIsPerm) {
+			    assert(nullptr != rec);
 			    ibuf.risk_set_data((byte_t*)rec);
 			    ibuf.risk_set_capacity(b->m_opt.bytesPerBatch);
 			} else {
@@ -812,6 +815,38 @@ public:
 		this->m_unzipSize += rSize;
 		this->m_inputRecords++;
 	}
+
+    // same as addRecord(rData, rSize) but reduce one memcpy
+    byte_t* addRecord(size_t rSize) final {
+        assert(!m_opt.inputIsPerm);
+        const size_t lake_MAX_BYTES = m_pipeline->zipThreads * 1024 * 1024;
+        MyTask *task = m_curTask;
+        if (terark_unlikely(!task)) {
+            m_curTask = task = newTask(nullptr);
+        }
+        else if (task->num >= task->cap ||
+                   (task->num && task->ibuf.unused() < rSize)) {
+            TERARK_ASSERT_EQ(task->offsets[task->num], task->ibuf.size());
+            if (m_opt.enableLake) {
+                if (m_lake.full() || m_lakeBytes >= lake_MAX_BYTES) {
+                    drainLake();
+                }
+                m_lakeBytes += task->ibuf.size();
+                m_lake.push_back(task);
+            } else {
+                m_pipeline->enqueue(task);
+            }
+            m_curTask = task = newTask(nullptr);
+        }
+        TERARK_ASSERT_EQ(task->offsets[task->num], task->ibuf.size());
+        assert(!m_opt.inputIsPerm);
+        auto recbuf = task->ibuf.grow_no_init(rSize);
+        task->offsets[++task->num] = task->ibuf.size();
+        this->m_unzipSize += rSize;
+        this->m_inputRecords++;
+        return recbuf;
+    }
+    bool isMultiThread() const { return true; }
 };
 
 void
