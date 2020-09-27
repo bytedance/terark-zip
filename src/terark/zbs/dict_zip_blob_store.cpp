@@ -711,7 +711,8 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
         void* t = malloc(len);
 #else
         void* t = nullptr;
-        TERARK_VERIFY_F(posix_memalign(&t, 256, len) == 0, "len = %d", len);
+        int err = posix_memalign(&t, 256, len) == 0;
+        TERARK_VERIFY_F(0==err, "posix_memalign(256,%d) = %s", len, strerror(err));
 #endif
         return new(t)MyTask(this, m_inputRecords, firstPermRec, len);
     }
