@@ -9,6 +9,7 @@
 #include "MemMapStream.hpp"
 #include "IOException.hpp"
 #include "IStream.hpp"
+#include "var_int.hpp"
 
 namespace terark {
 
@@ -744,6 +745,9 @@ int MemMapStream::BinCompare(MemMapStream& y)
 	assert(0); // would not go here
 }
 
+#define STREAM_READER MemMapStream
+#define STREAM_WRITER MemMapStream
+#include "var_int_io.hpp"
 
 //////////////////////////////////////////////////////////////////////////
 // std::string MemMapStream::errmsg() const throw()

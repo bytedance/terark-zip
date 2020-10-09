@@ -122,6 +122,9 @@ public:
 
 	int BinCompare(MemMapStream& y);
 
+	#include "var_int_declare_read.hpp"
+	#include "var_int_declare_write.hpp"
+
 protected:
 	// object layout of this 3 fields is same as SeekableMemIO
 	unsigned char* m_pos;
@@ -148,6 +151,8 @@ protected:
 
 	void init();
 	void init(stream_position_t new_file_size, const std::string& fpath, int mode);
+
+	size_t buf_remain_bytes() const { return m_end - m_pos; }
 
 	stream_position_t get_fsize();
 
