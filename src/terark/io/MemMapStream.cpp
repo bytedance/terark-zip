@@ -111,7 +111,8 @@ void MemMapStream::init()
 #else
 	m_hFile = -1;
 	m_page_size = sysconf(_SC_PAGESIZE);
-	m_AllocationGranularity = m_page_size;
+	//m_AllocationGranularity = m_page_size;
+	m_AllocationGranularity = 2u << 20u; // 2MiB
 #endif
 	m_file_pos = 0;
 	m_file_size = 0;
