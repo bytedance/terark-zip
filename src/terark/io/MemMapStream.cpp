@@ -109,16 +109,17 @@ void MemMapStream::init()
 	GetSystemInfo(&si);
 	m_page_size = si.dwPageSize;
 	m_AllocationGranularity = si.dwAllocationGranularity;
+	m_best_block_size = 256 * 1024;
 #else
 	m_hFile = -1;
 	m_page_size = sysconf(_SC_PAGESIZE);
 	//m_AllocationGranularity = m_page_size;
 	m_AllocationGranularity = 2u << 20u; // 2MiB
+	m_best_block_size = m_AllocationGranularity;
 #endif
 	m_file_pos = 0;
 	m_file_size = 0;
 	m_beg = m_pos = m_end = 0;
-	m_best_block_size = 256 * 1024;
 	assert(m_best_block_size % m_AllocationGranularity == 0);
 }
 
