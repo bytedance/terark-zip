@@ -14,7 +14,7 @@
 #endif
 
 #include <stdlib.h>
-#include <malloc.h>
+//#include <malloc.h>
 #include <boost/predef/other/endian.h>
 #include <algorithm>
 #include "var_int.hpp"
