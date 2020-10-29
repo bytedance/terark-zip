@@ -642,6 +642,7 @@ build_from_tpl(StrVecType& strVec, const NestLoudsTrieConfig& conf) {
 	this->m_total_zpath_len = m_trie->total_zpath_len();
 	this->n_words = getIsTerm().max_rank1();
 	this->m_zpNestLevel = conf.nestLevel;
+	this->m_adfa_total_words_len += conf.commonPrefix.size() * this->n_words;
 	// strVec may have duplicates, so assert <=
 	assert(getIsTerm().max_rank1() <= strVecSize);
 }
