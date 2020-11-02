@@ -509,7 +509,8 @@ bool decoder::bitwise_decode(const EntropyBits& data, valvec<byte_t>* record, Te
             if (huf.bit_count < BLOCK_BITS) {
                 if (terark_likely(reader.size() > 0)) {
                     reader.read(HEADER_BLOCK_BITS, &huf.bits, &huf.bit_count);
-                    record->ensure_capacity(record->size() + HEADER_BLOCK_BITS);
+                    assert(huf.bit_count <= 63);
+                    record->ensure_capacity(record->size() + 63);
                 }
                 else if (huf.bit_count == 0) {
                     break;
