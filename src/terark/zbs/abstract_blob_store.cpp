@@ -70,7 +70,7 @@ AbstractBlobStore::Builder::getPreBuilder() const {
 }
 
 static bool RelaxedSizeCheck(ullong header, ullong mem) {
-  return align_up(header, 64) == align_up(mem, 64) && header <= mem;
+  return align_up(header, 8) == align_up(mem, 8) && header <= mem;
 }
 
 AbstractBlobStore*

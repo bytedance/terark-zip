@@ -112,7 +112,7 @@ public:
 	// align memory size to 16 bytes
 	static size_t compute_mem_size(size_t num_tuples) {
 		size_t  required = (num_tuples * TotalBits + 64 + 63) / 64 * 8;
-		return (required + 63) & ~size_t(63); // align to 64
+		return (required + 15) & ~size_t(15); // align to 16
 	}
 
 	size_t mem_size() const { return m_bytes.size(); }

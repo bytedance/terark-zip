@@ -679,7 +679,7 @@ getZpathFixed(size_t node_id, byte_t* buf, size_t cap) const {
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
-        //assert(length >= 2); // can be 1 if conf.commonPrefix.size() == 2
+        assert(length >= 2);
         if (FastLabel) {
             const byte_t* src = m_core_data + offset;
             size_t cnt = length;
@@ -698,7 +698,7 @@ getZpathFixed(size_t node_id, byte_t* buf, size_t cap) const {
         size_t nest_id = size_t(linkVal - m_core_max_link_val);
         fixed_vec<byte_t> zbuf(buf, cap);
         m_next_trie->tpl_restore_string_loop(nest_id, &zbuf);
-        //assert(zbuf.size() >= 2); // can be 1 if conf.commonPrefix.size() == 2
+        assert(zbuf.size() >= 2);
         if (FastLabel)
             return zbuf.size();
         else {
@@ -725,7 +725,7 @@ matchZpath(size_t node_id, const byte_t* str, size_t slen) const {
         size_t offset = size_t(linkVal >> m_core_len_bits);
         assert(offset < m_core_size);
         assert(offset + length <= m_core_size);
-        //assert(length >= 2); // may be false if commonPrefix is set
+        assert(length >= 2);
         if (!FastLabel) {
             length--;
         }
@@ -1448,29 +1448,15 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
     SortableStrVec coreStrVec;
     size_t coreStrLen = 0;
     size_t coreStrNum = 0;
-    size_t minLen = size_t(-1);
-    size_t maxLen = 0;
     for(size_t i = 0, n = strVec.size(); i < n; ++i) {
         size_t l = strVec.nth_size(i);
         if (l <= MaxShortStrLen) {
             isShort.set1(strVec.m_index[i].seq_id);
             coreStrLen += l;
             coreStrNum += 1;
-            minLen = std::min(minLen, l);
-            maxLen = std::max(maxLen, l);
         }
     }
     if (coreStrNum) {
-        size_t lenBits = maxLen == minLen
-              ? 0
-              : terark_bsr_u64(maxLen - minLen) + 1
-              ;
-        if (conf.debugLevel >= 2) {
-          fprintf(stderr
-              , "build_mixed: core: cnt=%zd pool=%zd avg=%f, min=%zd max=%zd lenBits=%zd\n"
-              , strVec.size(), strVec.str_size(), strVec.avg_size()
-              , minLen, maxLen, lenBits);
-        }
         coreStrVec.reserve(coreStrNum, coreStrLen);
         strVec.erase_if2([&](size_t i, fstring str) {
             if (str.size() <= MaxShortStrLen) {
@@ -1487,6 +1473,8 @@ build_mixed(SortableStrVec& strVec, valvec<byte_t>& label,
         compress_core(coreStrVec, conf);
         coreStrVec.make_ascending_seq_id();
         coreLinkVec.resize_no_init(coreStrVec.size());
+        const size_t minLen = MaxShortStrLen - 1;
+        const size_t lenBits = 1;
         for(size_t i = 0; i < coreStrVec.size(); ++i) {
             size_t offset = coreStrVec.m_index[i].offset;
             size_t keylen = coreStrVec.m_index[i].length;
@@ -2137,8 +2125,7 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	size_t minFragLen1 = std::max<long>(4, conf.minFragLen);
 	if (conf.debugLevel >= 1) {
 		fprintf(stderr
-		, "build_self_trie: prefix=%s q=%f cur=%zd frag=(%f %f) cnt=%zd len=%zd avglen=%f\n"
-        , conf.commonPrefix.c_str()
+		, "build_self_trie: q=%f cur=%zd frag=(%f %f) cnt=%zd len=%zd avglen=%f\n"
 		, q, curNestLevel, fmaxFragLen1, fmaxFragLen2
 		, strVec.size(), strVec.str_size(), strVec.avg_size()
 		);
@@ -2211,93 +2198,6 @@ build_self_trie_tpl(StrVecType& strVec, SortableStrVec& nestStrVec,
 	m_louds.push_back(true);
 	m_louds.push_back(false);
 	labelStore->push_back(0); // reserve unused
-
-    auto writePrefixFrag = [&](fstring frag) {
-        m_louds.push_back(true);
-        m_louds.push_back(false);
-        if (frag.size() > 1) {
-            nestStrVecSize++;
-            nestStrPoolSize += frag.size() - 1;
-            if (nestStrPoolFile) {
-                if (FastLabel)
-                  nestStrPoolFile->oTmpBuf << frag.substr(1);
-                else
-                  nestStrPoolFile->oTmpBuf << frag;
-            } else { // reserve for change/patch later
-                nextStrVecStore->push_back({0,0});
-            }
-            if (FastLabel) {
-                labelStore->push_back(frag[0]);
-            } else {
-                labelStore->push_back(0); // reserved for latter use
-            }
-            m_is_link.push_back(true);
-        } else {
-            labelStore->push_back(frag[0]);
-            m_is_link.push_back(false);
-        }
-    };
-    const size_t prefixLen = conf.commonPrefix.size(); // whole prefix len
-    const size_t prefixNum = conf.nestLevel == int(curNestLevel)
-                           ? prefixLen/253 + (prefixLen%253 > 1)
-                           : 0;
-    if (prefixLen && conf.nestLevel == int(curNestLevel)) {
-        m_max_strlen += prefixLen;
-        fstring pref = conf.commonPrefix;
-        while (pref.size() >= 253) {
-            writePrefixFrag(pref.substr(0, 253));
-            pref = pref.substr(253);
-        }
-        if (!pref.empty())
-            writePrefixFrag(pref);
-    }
-    auto patchNestStrVec = [&]() {
-        TERARK_VERIFY(nullptr == nestStrPoolFile); // NOLINT
-        if (0 == prefixNum)
-            return;
-        TERARK_VERIFY_EQ(nestStrVec.size(), nestStrVecSize);
-      #if 0
-        // workaround: this code produce error on gcc-6.3, just disable it
-        // src/terark/fsa/nest_louds_trie.cpp:2284:5:
-        // internal compiler error: in maybe_undo_parenthesized_ref, at cp/semantics.c:1694
-        for (size_t i = 0; i < prefixNum; ++i) {
-            TERARK_VERIFY_LT(size_t(nestStrVec.m_index[i].seq_id), prefixNum);
-            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].offset));
-            TERARK_VERIFY_EZ(size_t(nestStrVec.m_index[i].length));
-        }
-      #endif
-        sort_0(nestStrVec.m_index.begin(), prefixNum, TERARK_CMP(seq_id, <));
-        size_t strIncSize = prefixLen - (FastLabel ? prefixNum : 0);
-        nestStrVec.m_strpool.ensure_unused(strIncSize);
-        byte_t* data = nestStrVec.m_strpool.data();
-        memmove(data + strIncSize, data, nestStrVec.m_strpool.size());
-        nestStrVec.m_strpool.grow_no_init(strIncSize);
-        fstring pref = conf.commonPrefix;
-        size_t offset = 0;
-        for (size_t i = 0; i + 1 < prefixNum; ++i) {
-            TERARK_VERIFY_EQ(size_t(nestStrVec.m_index[i].seq_id), i);
-            auto& x = nestStrVec.m_index[i];
-            x.offset = offset;
-            if (FastLabel)
-                memcpy(data+offset, pref.p+1, 252), x.length=252, offset+=252;
-            else
-                memcpy(data+offset, pref.p+0, 253), x.length=253, offset+=253;
-
-            pref = pref.substr(253);
-        }
-        TERARK_VERIFY_GT(pref.size(),   1);
-        TERARK_VERIFY_LT(pref.size(), 253);
-        auto& x = nestStrVec.m_index[prefixNum-1];
-        x.offset = offset;
-        x.length = uint32_t(pref.size() - (FastLabel ? 1 : 0));
-        if (FastLabel)
-            memcpy(data+offset, pref.p+1, pref.n-1), x.length=pref.size()-1;
-        else
-            memcpy(data+offset, pref.p+0, pref.n-0), x.length=pref.size()-0;
-        for (size_t i = prefixNum; i < nestStrVecSize; i++) {
-            nestStrVec.m_index[i].offset += strIncSize;
-        }
-    };
 	const byte_t* strBase = strVec.m_strpool.data();
 	while (!q1->empty()) {
 		while (!q1->empty()) {
@@ -2530,7 +2430,6 @@ else
 	nestStrVec.m_index.risk_set_data(pSEntry, olvec.size());
 	olvec.risk_release_ownership();
 	nestStrVec.build_subkeys(conf.speedupNestTrieBuild);
-    patchNestStrVec();
 }
 //	m_total_zpath_len = nestStrVec.sync_real_str_size();
 	m_total_zpath_len = nestStrVec.str_size();
@@ -2618,16 +2517,14 @@ build_core_no_reverse_keys(SortableStrVec& strVec, valvec<byte_t>& label,
 			size_t keylen = strVec.m_index[j].length;
 		//	size_t seq_id = strVec.m_index[j].seq_id;
 		//	assert(seq_id == j);
-			auto val = ullong(offset) << lenBits | ullong(keylen - minLen);
-			if (sizeof(index_t) == 4 &&
-                    ( ( FastLabel && (val >> 0) > UINT32_MAX ) ||
-                      (!FastLabel && (val >> 8) > UINT32_MAX ) ) ) {
+			long long val = (long long)(offset) << lenBits | (keylen - minLen);
+			if (sizeof(index_t) == 4 && (val >> 8) > UINT32_MAX) {
 				fprintf(stderr,
-					"FATAL: %s: lenBits=%d, (val >> %d) = 0x%llX\n"
+					"FATAL: %s: lenBits=%d, (val >> 8) = 0x%llX\n"
 					"   Please try greater numTries!\n"
 					, BOOST_CURRENT_FUNCTION
-					, lenBits, (FastLabel ? 0 : 8)
-					, val  >>  (FastLabel ? 0 : 8)
+					, lenBits
+					, val >> 8
 					);
 				abort(); // can not continue
 			}
@@ -2691,12 +2588,8 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		mem >> maxLinkVal;
 		trie->m_core_min_len = byte_t(minLen & 255);
 		trie->m_core_max_link_val = maxLinkVal;
-		if (version >= 2) {
-		    trie->m_core_len_bits = mem.readByte();
-		    mem.skip(15); // padding, change 16 to 15 for support common prefix
-		} else {
-		    mem.skip(16);
-		}
+
+		mem.skip(16); // padding
 	}
 
 	trie->m_louds.risk_mmap_from(mem.skip(louds_mem_size), louds_mem_size);
@@ -2723,9 +2616,7 @@ load_mmap_loop(NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* trie,
 		TERARK_VERIFY_EQ(trie->m_next_link.size(), trie->m_is_link.max_rank1());
 		trie->m_label_data = mem.skip((node_num + core_size + 7) & ~7);
 		trie->m_core_data = trie->m_label_data + node_num;
-		if (version == 1) {
-			trie->m_core_len_bits = 1;
-		}
+		trie->m_core_len_bits = 1;
 		trie->m_core_len_mask = (size_t(1) << trie->m_core_len_bits) - 1;
 	}
 	else {
@@ -2883,15 +2774,10 @@ save_mmap_loop(NativeDataOutput<AutoGrownMemIO>& tmpbuf,
 	tmpbuf << index_t(trie->m_next_link.mem_size());
 	tmpbuf << index_t(trie->m_next_link.min_val());
 	tmpbuf << trie->m_total_zpath_len;
-	{
-        // now version is 2
-        // arg version is actually not used in curr func
-        TERARK_VERIFY_EQ(version, 2);
-	  // change zero[16 to 15] for support common prefix
-		const static byte_t zero[15] = { 0 };
+	if (version >= 1) {
+		const static byte_t zero[16] = { 0 };
 		tmpbuf << index_t(trie->m_core_min_len);
 		tmpbuf << index_t(trie->m_core_max_link_val);
-		tmpbuf << byte_t(trie->m_core_len_bits); // add for common prefix support
 		tmpbuf.ensureWrite(zero, sizeof(zero)); // padding
 	}
 	tmpbuf.ensureWrite(trie->m_louds.data(), trie->m_louds.mem_size());
@@ -2918,7 +2804,6 @@ save_mmap_loop(NativeDataOutput<AutoGrownMemIO>& tmpbuf,
 		save_mmap_loop(tmpbuf, version, trie->m_next_trie, nth_trie+1, bPrintStat);
 }
 
-/*
 template<class Trie> static bool has_mixed(const Trie* trie) {
 	if (NULL == trie)
 		return false;
@@ -2926,8 +2811,6 @@ template<class Trie> static bool has_mixed(const Trie* trie) {
 		return true;
 	return has_mixed(trie->m_next_trie);
 }
-*/
-
 template<class RankSelect, class RankSelect2, bool FastLabel>
 static byte_t*
 save_mmap_s(const NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* self,
@@ -2935,15 +2818,15 @@ save_mmap_s(const NestLoudsTrieTpl<RankSelect, RankSelect2, FastLabel>* self,
 	NativeDataOutput<AutoGrownMemIO> tmpbuf;
 	tmpbuf.resize(8*1024);
 	size_t trieNum = self->nest_level();
-	size_t version = 2; // now version always == 2
+	size_t version = 0;
+	if (has_mixed(self)) {
+		version = 1;
+	}
 	tmpbuf << uint32_t(trieNum);
 	tmpbuf << uint08_t(GetLastTrie_core_min_len(self));
 	tmpbuf << uint08_t(0); // padding
 	tmpbuf << uint08_t(0); // padding
 	tmpbuf << uint08_t(version);
-
-    // old program can not read new data since version 2,
-    // but version 2 program can read old data
 
 	bool bPrintStat = getEnvBool("LOUDS_DFA_PRINT_STAT");
 	save_mmap_loop(tmpbuf, version, self, 0, bPrintStat);
