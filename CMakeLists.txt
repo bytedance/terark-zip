@@ -1,5 +1,5 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.6)
-PROJECT(terark-core)
+PROJECT(terark-zip)
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 SET(CMAKE_CXX_STANDARD 14)
@@ -9,6 +9,9 @@ SET(CMAKE_VERBOSE_MAKEFILE ON)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+
+#----------- Extra Compiler Flags
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=haswell -DHAVE_SSE42 -DHAVE_PCLMUL")
 
 SET(BUILD_SUFFIX "d")
 IF(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
@@ -92,21 +95,21 @@ FILE(GLOB ZBS_SRC src/terark/entropy/*.cpp
 # IDX LIB
 FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
 
-# Combined all into libterark-core.a
-ADD_LIBRARY(terark-core-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
-TARGET_LINK_LIBRARIES(terark-core-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system)
-TARGET_INCLUDE_DIRECTORIES(terark-core-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
+# Combined all into libterark-zip.a
+ADD_LIBRARY(terark-zip-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
+TARGET_LINK_LIBRARIES(terark-zip-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system)
+TARGET_INCLUDE_DIRECTORIES(terark-zip-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
                                                               # expose boost headers in case someone need it
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boost-include>")
 
 
-INSTALL(TARGETS terark-core-${BUILD_SUFFIX}
-        EXPORT terark-core-${BUILD_SUFFIX}-targets
+INSTALL(TARGETS terark-zip-${BUILD_SUFFIX}
+        EXPORT terark-zip-${BUILD_SUFFIX}-targets
         ARCHIVE DESTINATION ${CMAKE_BINARY_DIR}/lib
         )
 
-INSTALL( EXPORT terark-core-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/cmake)
+INSTALL( EXPORT terark-zip-${BUILD_SUFFIX}-targets DESTINATION ${CMAKE_BINARY_DIR}/cmake)
 
 INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/src/terark
         DESTINATION ${CMAKE_BINARY_DIR}/include
@@ -145,7 +148,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             tests/tries/*.cpp
             tests/succinct/*.cpp)
         #ADD_LIBRARY(terark-tests SHARED ${TESTS_SRC})
-        #TARGET_LINK_LIBRARIES(terark-tests terark-core-${BUILD_SUFFIX})
+        #TARGET_LINK_LIBRARIES(terark-tests terark-zip-${BUILD_SUFFIX})
 
     # tools
     FILE(GLOB TOOLS_SRC
@@ -153,7 +156,7 @@ IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
             tools/fsa/*.cpp
             tools/zbs/*.cpp)
         #ADD_LIBRARY(terark-tools SHARED ${TOOLS_SRC})
-        #TARGET_LINK_LIBRARIES(terark-tools terark-core-${BUILD_SUFFIX})
+        #TARGET_LINK_LIBRARIES(terark-tools terark-zip-${BUILD_SUFFIX})
 ENDIF ()
 
 ############## Examples & Tools  ##############
