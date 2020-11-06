@@ -3390,7 +3390,6 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
       info.type = PrefixAlgo::asc_allone;
       prefixCost = 0;
     } else if (useFewOne) {
-      assert(bit_count > 0);
       /*****/if (bit_count < (1ULL << 24)) {
         info.type = info.entry_count == keyCount ? PrefixAlgo::asc_few_one_3 : PrefixAlgo::non_desc_few_one_3;
       } else if (bit_count < (1ULL << 32)) {
@@ -3406,7 +3405,6 @@ PrefixBuildInfo TerarkIndex::GetPrefixBuildInfo(const TerarkIndexOptions& opt, c
       }
       prefixCost = info.bit_count1 * i * 256 / 255;
     } else if (useFewZero) {
-      assert(bit_count > 0);
       assert(info.entry_count == keyCount);
       /*****/if (bit_count < (1ULL << 24)) {
         info.type = PrefixAlgo::asc_few_zero_3;
