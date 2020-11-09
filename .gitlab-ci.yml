@@ -1,15 +1,24 @@
 stages:
-  - build
-  - unittest
+  - build_and_test
   - benchmark
 
-prepare:
-  stage: build
+compile:
+  stage: build_and_test
   script:
     - echo `pwd` && ls -lh
     - echo $CI_COMMIT_SHA && git checkout $CI_COMMIT_SHA
     - git submodule update --init --recursive
     - mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Debug
     - make -j $(nproc)
+  tags:
+    - terark
+
+test:
+  stage: build_and_test
+  script:
+    - echo ""
+  only:
+    refs:
+      - stage
   tags:
     - terark
