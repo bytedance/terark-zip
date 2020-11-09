@@ -1,0 +1,1 @@
+- `Makefile` and `build_makefile.sh` are deprecated

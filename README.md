@@ -1,7 +1,18 @@
 # Usage (CMake)
 - use cmake build static library
  - `cmake -S . -B build && make && make install`
-- install and link `gomp aio pthread rt` to your application with `libterark-core`
+- install and link `gomp aio pthread rt` to your application with `libterark-zip`
+
+
+
+
+
+
+
+
+
+
+
 
 
 # Usage (Makefile, Deprecated)

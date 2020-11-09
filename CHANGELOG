@@ -1,2 +1,7 @@
+## 2020-11-06
+- Rename terark-core to terark-zip
+- Add gtest for unit tests
+- Structure refactoring
+
 ## 2019-10-31
 - submit the first version of terark-core as a standalone product, will add more API documents and test cases in the future.
