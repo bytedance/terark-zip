@@ -1,22 +1,15 @@
 stages:
-  - prepare
   - build
   - unittest
   - benchmark
 
 prepare:
-  stage: prepare
-  script:
-    - git clone git@code.byted.org:storage/terark-zip.git
-    - echo $CI_COMMIT_SHA && cd terark-zip && git checkout $CI_COMMIT_SHA
-    - git submodule update --init --recursive
-    - mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Debug
-  tags:
-    - terark
-
-build:
   stage: build
   script:
-    - cd terark-zip && make -j $(nproc)
+    - echo `pwd` && ls -lh
+    - echo $CI_COMMIT_SHA && git checkout $CI_COMMIT_SHA
+    - git submodule update --init --recursive
+    - mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Debug
+    - make -j $(nproc)
   tags:
     - terark
