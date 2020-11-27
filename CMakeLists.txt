@@ -105,7 +105,6 @@ FILE(GLOB_RECURSE ALL_SRC_TESTS src/*_test.cpp)
 
 # Remove all test files
 LIST(REMOVE_ITEM ALL_SRC ${ALL_SRC_TESTS})
-MESSAGE(${ALL_SRC})
 
 # Combined all into libterark-zip.a
 ADD_LIBRARY(terark-zip-${BUILD_SUFFIX} STATIC ${ALL_SRC})
@@ -124,10 +123,10 @@ IF(WITH_TESTS)
   ELSE()
     MESSAGE("[terark-zip] gtest target not found, use local build")
     ADD_SUBDIRECTORY(3rdparty/googletest)
-    SET(gtest_INCLUDE_DIR ${gtest_build_include_dirs})
   ENDIF()
+  get_target_property(gtest_INCLUDE_DIR gtest INCLUDE_DIRECTORIES)
+  INCLUDE_DIRECTORIES(${gtest_INCLUDE_DIR})
   MESSAGE("[terark-zip] gtest include path: ${gtest_INCLUDE_DIR}")
-  MESSAGE("[terark-zip] gtest include path: ${gtest_build_include_dirs}")
 
   foreach(test_file ${ALL_SRC_TESTS})
     string(REPLACE ".cpp" "" test_name ${test_file})
