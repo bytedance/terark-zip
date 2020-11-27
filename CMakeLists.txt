@@ -5,6 +5,8 @@ SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++14")
 SET(CMAKE_CXX_STANDARD 14)
 SET(CMAKE_VERBOSE_MAKEFILE ON)
 
+OPTION(WITH_TESTS "Build with tests" OFF)
+
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
@@ -95,14 +97,44 @@ FILE(GLOB ZBS_SRC src/terark/entropy/*.cpp
 # IDX LIB
 FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
 
+SET(ALL_SRC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
+FILE(GLOB_RECURSE ALL_SRC_TESTS src/*_test.cpp)
+
+# Remove all test files
+LIST(REMOVE_ITEM ALL_SRC ${ALL_SRC_TESTS})
+
 # Combined all into libterark-zip.a
-ADD_LIBRARY(terark-zip-${BUILD_SUFFIX} STATIC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
+ADD_LIBRARY(terark-zip-${BUILD_SUFFIX} STATIC ${ALL_SRC})
 TARGET_LINK_LIBRARIES(terark-zip-${BUILD_SUFFIX} boost-fiber boost-filesystem boost-context boost-system)
 TARGET_INCLUDE_DIRECTORIES(terark-zip-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
                                                               # expose boost headers in case someone need it
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boost-include>")
 
+
+############## Build gtests ###########
+IF(WITH_TESTS)
+  # Find exist gtest target
+  IF(TARGET gtest)
+    MESSAGE("[terark-zip] gtest target exist, skip local build")
+  ELSE()
+    MESSAGE("[terark-zip] gtest target not found, use local build")
+    ADD_SUBDIRECTORY(3rdparty/googletest)
+    SET(gtest_INCLUDE_DIR ${gtest_build_include_dirs})
+  ENDIF()
+  MESSAGE("[terark-zip] gtest include path: ${gtest_INCLUDE_DIR}")
+  MESSAGE("[terark-zip] gtest include path: ${gtest_build_include_dirs}")
+
+  foreach(test_file ${ALL_SRC_TESTS})
+    string(REPLACE ".cpp" "" test_name ${test_file})
+    string(REGEX REPLACE "^((.+)/)+" "" test_name ${test_name})
+    add_executable(${test_name} ${test_file})
+    target_link_libraries(${test_name} gtest)
+  endforeach()
+ENDIF()
+
+
+############## Install Targets ############
 
 INSTALL(TARGETS terark-zip-${BUILD_SUFFIX}
         EXPORT terark-zip-${BUILD_SUFFIX}-targets
@@ -140,7 +172,10 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib
         PATTERN "libboost_system.a"
         PATTERN "libboost_filesystem.a"
 )
-############## Tests ##############
+
+
+
+############## Legacy Tests (Deprecated!) ##############
 IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     # tests
     FILE(GLOB TESTS_SRC

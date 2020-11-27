@@ -1,3 +1,9 @@
+#
+# This Makefile is deprecated, please CMakeLists.txt insteads!
+#
+# 2020-11-06 guokuankuan@bytedance.com
+#
+
 export SHELL=bash
 DBG_ASAN ?= -fsanitize=address
 AFR_ASAN ?= -fsanitize=address

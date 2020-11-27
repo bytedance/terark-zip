@@ -1,7 +1,26 @@
 # Usage (CMake)
-- use cmake build static library
- - `cmake -S . -B build && make && make install`
-- install and link `gomp aio pthread rt` to your application with `libterark-core`
+## Method 1: CMake Subdirectory
+- In your CMakeLists.txt
+  - ADD_SUBDIRECTORY(terark-zip)
+  - use `terark-zip` target anywhere you want
+- If you cannot find include path
+  - `GET_TARGET_PROPERTY(terark_zip_include terark-zip INCLUDE_DIRECTORIES)`
+  - `INCLUDE_DIRECTORIES(${terark_zip_include})`
+
+## Method 2: Manually Linked Library
+- ./build.sh
+- cd output
+  - move `include` and `lib` directories to your project
+
+
+
+
+
+
+
+
+
+
 
 
 # Usage (Makefile, Deprecated)
