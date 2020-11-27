@@ -8,7 +8,7 @@ compile:
     - echo `pwd` && ls -lh
     - echo $CI_COMMIT_SHA && git checkout $CI_COMMIT_SHA
     - git submodule update --init --recursive
-    - mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=Debug
+    - mkdir build && cd build && cmake ../ -DCMAKE_BUILD_TYPE=RelWithDebInfo -DWITH_TESTS=ON
     - make -j $(nproc)
   tags:
     - terark
