@@ -3,4 +3,4 @@
 	url = git@code.byted.org:storage/boost-include.git
 [submodule "3rdparty/googletest"]
 	path = 3rdparty/googletest
-	url = ssh://git@code.byted.org/inf/googletest
+	url = git@code.byted.org:inf/googletest
