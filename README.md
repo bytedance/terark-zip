@@ -1,5 +1,18 @@
-# Usage (CMake)
-## Method 1: CMake Subdirectory
+# Introduction
+- TerarkZip is a extension of [TerarkDB](https://github.com/bytedance/terarkdb) that provides TerarkZipTable for users.
+- Users can also use TerarkZip as a compression and indexing algorithm library
+- TerarkZip also provides a set of useful utilities including `rank-select`, `bitmap` etc.
+
+# Features
+- TerarkZipTable
+- Indexing
+  - Nested Lous Trie
+- Compression
+  - PA-Zip Compression
+  - Entropy Compression
+
+# Usage
+## Method 1: CMake
 - In your CMakeLists.txt
   - ADD_SUBDIRECTORY(terark-zip)
   - use `terark-zip` target anywhere you want
@@ -7,52 +20,7 @@
   - `GET_TARGET_PROPERTY(terark_zip_include terark-zip INCLUDE_DIRECTORIES)`
   - `INCLUDE_DIRECTORIES(${terark_zip_include})`
 
-## Method 2: Manually Linked Library
+## Method 2: Static Library
 - ./build.sh
 - cd output
   - move `include` and `lib` directories to your project
-
-
-
-
-
-
-
-
-
-
-
-
-# Usage (Makefile, Deprecated)
-Terark-Core is the foundation of TerarkDB and TerarkKV, it contains a series of algorithms that support storage engine development:
-
-- Index algorithms
-  - cspp trie
-  - composite uint index
-  - scgt
-  - ...
-- Value store algorithms
-  - DictZipBlobStore
-  - EntropyZipBlobStore
-  - MixedLenBlobStore
-  - ...
-
-## Complile
-1. Install libaio-dev first if you dont have it yet
-2. `build.sh` will do the rest work
-3. Note that the `CMakeLists.txt` here is just for IDE loading, please inspect Makefile for the actual complie details
-
-
-## Unit Tests
-Terark-Core contains a set of serious test cases under `./tests` and `./gtests`, you can run them all by using `test.sh` or `gtest.sh` to make sure your changes do not break previous code logic.
-- test.sh
-  - will be removed in the future
-- gtest.sh
-  - google test suite, will replace test.sh
-
-## Integration
-If you want to use Terark-Core in you own application, simple include the headers and link terark-core's three libraries.
-
-Terark-Core's API detail:
-
-TODO
