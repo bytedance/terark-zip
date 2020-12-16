@@ -34,32 +34,32 @@ ExternalProject_Add(boost-project
 ADD_LIBRARY(boost-fiber STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-fiber boost-project)
 SET_TARGET_PROPERTIES(boost-fiber PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_fiber.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_fiber.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
 
 ADD_LIBRARY(boost-context STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-context boost-project)
 SET_TARGET_PROPERTIES(boost-context PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_context.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_context.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
 
 ADD_LIBRARY(boost-system STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-system boost-project)
 SET_TARGET_PROPERTIES(boost-system PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_system.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_system.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
 
 ADD_LIBRARY(boost-filesystem STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-filesystem boost-project)
 SET_TARGET_PROPERTIES(boost-filesystem PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_filesystem.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_filesystem.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
 
 ADD_LIBRARY(boost-thread STATIC IMPORTED GLOBAL)
 ADD_DEPENDENCIES(boost-thread boost-project)
 SET_TARGET_PROPERTIES(boost-thread PROPERTIES
-    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib/libboost_thread.a
-    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+    IMPORTED_LOCATION ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib/libboost_thread.a
+    INTERFACE_INCLUDE_DIRECTORIES ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
 
 # CORE LIB
 FILE(GLOB CORE_SRC src/terark/*.cpp
