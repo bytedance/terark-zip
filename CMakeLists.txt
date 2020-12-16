@@ -13,7 +13,7 @@ MESSAGE("[terark-zip] WITH_TESTS : ${WITH_TESTS}")
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include)
 
 #----------- Extra Compiler Flags
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=haswell -DHAVE_SSE42 -DHAVE_PCLMUL -fPIC")
@@ -25,7 +25,7 @@ ENDIF()
 
 INCLUDE(ExternalProject)
 ExternalProject_Add(boost-project
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE 1
     BUILD_COMMAND bash bootstrap.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/boost --with-libraries=fiber,context,system,filesystem,thread
@@ -160,14 +160,14 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/boost
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third-party/boost-include/boost
         DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/boost-include/stage/lib
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third-party/boost-include/stage/lib
         DESTINATION ${CMAKE_BINARY_DIR}
         FILES_MATCHING
         PATTERN "libboost_fiber.a"
