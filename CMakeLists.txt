@@ -112,7 +112,7 @@ TARGET_LINK_LIBRARIES(terark-zip-${BUILD_SUFFIX} boost-fiber boost-filesystem bo
 TARGET_INCLUDE_DIRECTORIES(terark-zip-${BUILD_SUFFIX} PUBLIC "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/src>"
                                                               "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd>"
                                                               # expose boost headers in case someone need it
-                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/boost-include>")
+                                                              "$<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include>")
 
 
 ############## Build gtests ###########
