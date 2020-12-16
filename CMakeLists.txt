@@ -13,7 +13,7 @@ MESSAGE("[terark-zip] WITH_TESTS : ${WITH_TESTS}")
 # Headers
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/src)
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd)
-INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/boost-include)
+INCLUDE_DIRECTORIES(${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost)
 
 #----------- Extra Compiler Flags
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -march=haswell -DHAVE_SSE42 -DHAVE_PCLMUL -fPIC")
@@ -25,7 +25,7 @@ ENDIF()
 
 INCLUDE(ExternalProject)
 ExternalProject_Add(boost-project
-    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/boost-include
+    SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost
     CONFIGURE_COMMAND ""
     BUILD_IN_SOURCE 1
     BUILD_COMMAND bash bootstrap.sh --prefix=${CMAKE_CURRENT_BINARY_DIR}/boost --with-libraries=fiber,context,system,filesystem,thread

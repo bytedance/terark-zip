@@ -1,0 +1,12 @@
+b2
+bin.v2/
+bjam
+bootstrap.log
+build-lib-for-terark.done
+libs/config/checks/architecture/bin/
+libs/contract/example/n1962/sqrt.d
+libs/serialization/test/config_test.o
+project-config.jam
+stage/
+tools/build/src/engine/bin.macosxx86_64/
+tools/build/src/engine/bootstrap/

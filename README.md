@@ -1,5 +1,5 @@
 # 1. Introduction
-- TerarkZip is a [TerarkDB](https://github.com/bytedance/terarkdb) submodule that provides TerarkZipTable dependencies.
+- TerarkZip is [TerarkDB](https://github.com/bytedance/terarkdb)'s submodule
 - Users can also use TerarkZip as a compression and indexing algorithm library
 - TerarkZip also provides a set of useful utilities including `rank-select`, `bitmap` etc.
 
