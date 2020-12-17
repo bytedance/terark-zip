@@ -9,3 +9,4 @@ libs/serialization/test/config_test.o
 project-config.jam
 stage/
 tools/build/src/engine/bin.macosxx86_64/
+project-config.jam.1
