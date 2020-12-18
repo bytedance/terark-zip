@@ -1687,18 +1687,6 @@ WriteDict(fstring filename, size_t offset, fstring data, bool compress) {
 static
 AbstractBlobStore::MemoryCloseType
 ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
-    auto MmapColdizeBytes = [](const void* addr, size_t len) {
-        size_t low = terark::align_up(size_t(addr), 4096);
-        size_t hig = terark::align_down(size_t(addr) + len, 4096);
-        if (low < hig) {
-            size_t size = hig - low;
-#ifdef MADV_DONTNEED
-            madvise((void*)low, size, MADV_DONTNEED);
-#elif defined(_MSC_VER) // defined(_WIN32) || defined(_WIN64)
-            VirtualUnlock((void*)low, size);
-#endif
-        }
-    };
     auto mmapBase = (const DictZipBlobStore::FileHeader*)mem.data();
     if (mmapBase->embeddedDict == (uint8_t)EmbeddedDictType::kExternal) {
         if (!dict.memory.empty()) {
@@ -1757,7 +1745,6 @@ ReadDict(fstring mem, AbstractBlobStore::Dictionary& dict, fstring dictFile) {
             , ZSTD_getErrorName(size));
     }
     TERARK_VERIFY_EQ(size, raw_size);
-    MmapColdizeBytes(dictMem.data(), dictMem.size());
     dict = AbstractBlobStore::Dictionary(output_dict);
     output_dict.risk_release_ownership();
     return AbstractBlobStore::MemoryCloseType::Clear;
