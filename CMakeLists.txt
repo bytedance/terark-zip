@@ -23,6 +23,13 @@ IF(NOT CMAKE_BUILD_TYPE STREQUAL "Debug")
   SET(BUILD_SUFFIX "r")
 ENDIF()
 
+option(WITH_TBB "build with Threading Building Blocks (TBB)" OFF)
+if(WITH_TBB)
+  find_package(TBB REQUIRED)
+  add_definitions(-DTERARK_WITH_TBB=1)
+  include_directories(${TBB_INCLUDE_DIR})
+endif()
+
 INCLUDE(ExternalProject)
 ExternalProject_Add(boost-project
     SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include

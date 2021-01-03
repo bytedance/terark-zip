@@ -895,16 +895,15 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 			unibuf->append(bufptr + pg_offset, len0);
 		};
 		TERARK_SCOPE_EXIT(
+			ScopeLock lock(m_mutex);
 			auto pgvec_p = pgvec;
 			auto nodes_p = nodes;
 			size_t  last = plast_page;
-            m_mutex.lock();
 			for (size_t fpg = first_page; fpg < last; ++fpg) {
 				auto  p = pgvec_p[fpg - first_page].page_id;
 				if (0 == --nodes_p[p].ref_count)
-                    Node::lru_insert_after(nodes, 0, p);
+					Node::lru_insert_after(nodes, 0, p);
 			}
-            m_mutex.unlock();
 		);
 		if (missed_cnt > 0) {
 		    readpage(first_page, PAGE_SIZE, pg_offset);
