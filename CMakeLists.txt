@@ -160,14 +160,14 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/zstd/zstd
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third-party/boost-include/boost
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/boost
         DESTINATION ${CMAKE_BINARY_DIR}/include
         FILES_MATCHING 
         PATTERN "*.h"
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/third-party/boost-include/stage/lib
+INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib
         DESTINATION ${CMAKE_BINARY_DIR}
         FILES_MATCHING
         PATTERN "libboost_fiber.a"
