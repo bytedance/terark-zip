@@ -92,7 +92,7 @@ terark_heap_hole_up(RandIter first, Int hole, Int top, T val, Compare comp,
 }
 
 template<class RandIter, class Int, class Compare, class SyncIndex>
-void
+Int
 terark_heap_hole_down(RandIter first, Int hole, Int len, Compare comp,
 					  SyncIndex sync) {
 	Int child2; // second child
