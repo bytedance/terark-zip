@@ -61,6 +61,14 @@ inline void
 pop_heap_ignore_top(RandIter first, RandIter last, Compare comp) {
 	pop_heap_ignore_top(first, last-first, comp);
 }
+template<class RandIter, class Int, class Compare>
+inline void
+pop_heap_keep_top(RandIter first, Int len, Compare comp) {
+    auto original_top = first[0];
+    if (len-- > 1)
+        terark_adjust_heap(first, Int(0), len, *(first + len), comp);
+    first[len] = original_top;
+}
 
 template<class RandIter, class Int, class Compare>
 inline void
@@ -149,6 +157,18 @@ template<class RandIter, class Compare, class SyncIndex>
 inline void
 pop_heap_ignore_top(RandIter first,RandIter last,Compare comp,SyncIndex sync){
 	pop_heap_ignore_top(first, last-first, comp, sync);
+}
+
+// last[-1] will be copy of last[0] rather than garbage,
+// just like std::pop_heap's behaviour(move first[0] to last[-1])
+template<class RandIter, class Int, class Compare, class SyncIndex>
+inline void
+pop_heap_keep_top(RandIter first, Int len, Compare comp, SyncIndex sync) {
+    auto original_top = first[0];
+    if (len-- > 1)
+        terark_adjust_heap(first, Int(0), len, *(first + len), comp, sync);
+    first[len] = original_top;
+    sync(original_top, len);
 }
 
 // first[0] has updated, adjust the heap to cordinate new value of first[0]
