@@ -11,8 +11,8 @@ class  MultiLruReadonlyCache;
 class TERARK_DLL_EXPORT LruReadonlyCache : public RefCounter {
 public:
 	class Buffer : private boost::noncopyable {
-        friend class SingleLruReadonlyCache;
-        friend class  MultiLruReadonlyCache;
+		friend class SingleLruReadonlyCache;
+		friend class  MultiLruReadonlyCache;
 		enum CacheType : unsigned char {
 			hit,
 			evicted_others,
@@ -21,18 +21,18 @@ public:
 			hit_others_load,
 			mix, // for multi page only
 		};
-        SingleLruReadonlyCache* owner;
-        valvec<byte_t>*         rdbuf;
+		SingleLruReadonlyCache* owner;
+		valvec<byte_t>*         rdbuf;
 		uint32_t  index; // index == 0 indicate not ref any page
 		CacheType cache_type;
 	//	byte_t    reserved;
 	//	uint16_t  missed_pages;
-        void discard_impl();
-    public:
-        explicit
-         Buffer(valvec<byte_t>* rb) : rdbuf(rb), index(0) { assert(rb); }
-        ~Buffer() { discard(); }
-        void discard() { if (index) discard_impl(); }
+		void discard_impl();
+	public:
+		explicit
+		 Buffer(valvec<byte_t>* rb) : rdbuf(rb), index(0) { assert(rb); }
+		~Buffer() { discard(); }
+		void discard() { if (index) discard_impl(); }
 	};
 	static LruReadonlyCache*
 	create(size_t totalcapacityBytes, size_t shards, size_t maxFiles, bool aio);
