@@ -39,9 +39,10 @@ extern "C" {
 };
 #endif
 
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+#if defined(__GNUC__)
   #pragma GCC diagnostic push
-  //#pragma GCC diagnostic ignored "-Wno-class-memaccess" // which version support?
+  #pragma GCC diagnostic ignored "-Wpragmas"
+  #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
 
 namespace terark {
@@ -1982,7 +1983,7 @@ namespace std {
 	void swap(terark::valvec<T>& x, terark::valvec<T>& y) { x.swap(y); }
 }
 
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+#if defined(__GNUC__)
   #pragma GCC diagnostic pop
 #endif
 
