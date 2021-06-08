@@ -41,9 +41,10 @@
 	#define HSM_FORCE_INLINE inline
 #endif
 
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+#if defined(__GNUC__)
   #pragma GCC diagnostic push
-  //#pragma GCC diagnostic ignored "-Wno-class-memaccess" // which version support?
+  #pragma GCC diagnostic ignored "-Wpragmas"
+  #pragma GCC diagnostic ignored "-Wclass-memaccess"
 #endif
 
 namespace terark {
@@ -506,7 +507,7 @@ void node_layout_copy_cons(
 
 } // namespace terark
 
-#if defined(__GNUC__) && __GNUC_MINOR__ + 1000 * __GNUC__ > 9000
+#if defined(__GNUC__)
   #pragma GCC diagnostic pop
 #endif
 
