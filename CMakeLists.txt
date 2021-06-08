@@ -131,7 +131,7 @@ INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/boost
         PATTERN "*.hpp"
 )
 
-INSTALL(DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/3rdparty/boost-include/stage/lib
+INSTALL(DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/3rdparty/boost-include/lib
         DESTINATION ${CMAKE_BINARY_DIR}
         FILES_MATCHING
         PATTERN "libboost_fiber.a"

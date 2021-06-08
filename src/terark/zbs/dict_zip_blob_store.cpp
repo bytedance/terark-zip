@@ -631,9 +631,8 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 		MyTask(MultiThread* b, size_t recId, const byte_t* rec, int memsize) {
 			builder = b;
 			firstRecId = recId;
-			size_t basesize = offsetof(MyTask, offsets); // NOLINT
 			num = 0;
-			cap = int((memsize - basesize - 4)*8/33) - 1;
+			cap = int((memsize - sizeof(MyTask))*8/33) - 1;
 			if (b->m_opt.inputIsPerm) {
 			    assert(nullptr != rec);
 			    ibuf.risk_set_data((byte_t*)rec);
@@ -641,7 +640,8 @@ class DictZipBlobStoreBuilder::MultiThread : public DictZipBlobStoreBuilder {
 			} else {
 			    ibuf.reserve(b->m_opt.bytesPerBatch);
 			}
-			memset(offsets, 0, memsize - basesize); // offsets & entropyBitmap
+			// offsets & entropyBitmap
+			memset(offsets, 0, memsize - sizeof(MyTask) + sizeof(offsets));
 		}
 		~MyTask() override {
 		    if (builder->m_opt.inputIsPerm) {

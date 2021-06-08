@@ -450,7 +450,7 @@ using namespace lru_detail;
 
 class SingleLruReadonlyCache final: public LruReadonlyCache {
 public:
-    bool                m_use_aio;
+	bool                m_use_aio;
 	valvec<size_t>      m_histogram;
 	Node*               m_hash_nodes;
 	uint32_t*           m_bucket;
@@ -490,7 +490,7 @@ SingleLruReadonlyCache::
 SingleLruReadonlyCache(size_t capacityBytes, size_t maxFiles, bool aio)
 	: m_fi_to_fd(maxFiles)
 {
-    m_use_aio = aio;
+	m_use_aio = aio;
 	size_t pgNum = ceiled_div(capacityBytes, PAGE_SIZE);
 	if (pgNum >= nillink-2) {
 		THROW_STD(invalid_argument
@@ -575,9 +575,9 @@ do_pread(intptr_t fd, void* buf, size_t offset, size_t minlen, size_t maxlen, bo
 	assert(!aio || offset % 4096 == 0);
 	ssize_t rdlen;
 	if (aio)
-	    rdlen = fiber_aio_read(fd, buf, maxlen, offset);
+		rdlen = fiber_aio_read(fd, buf, maxlen, offset);
 	else
-	    rdlen = pread(fd, buf, maxlen, offset);
+		rdlen = pread(fd, buf, maxlen, offset);
 
 	if (rdlen < ssize_t(minlen)) {
 		THROW_STD(logic_error
@@ -659,11 +659,11 @@ SingleLruReadonlyCache::alloc_page(size_t hpos, uint64_t fi_offset_key,
 	else {
 	SwapOut:
 		p = nodes[0].lru_prev; // lru tail
-        if (0 == p) {
-		    THROW_STD(logic_error
-			    , "can not evict a page, busy pages = %zd, max pages = %zd"
-			    , size_t(m_busypage_num), size_t(m_page_num));
-        }
+		if (0 == p) {
+			THROW_STD(logic_error
+				, "can not evict a page, busy pages = %zd, max pages = %zd"
+				, size_t(m_busypage_num), size_t(m_page_num));
+		}
 		if (uint64_t(-1) != nodes[p].fi_offset) {
 			m_stat_cnt[Buffer::evicted_others]++;
 			*cache_type = Buffer::evicted_others;
@@ -749,9 +749,9 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 	uint32_t* bucket = m_bucket;
 	Node*     nodes = m_hash_nodes;
 	intptr_t  fd = -1;
-    assert(nullptr != b->rdbuf);
-    b->cache_type = Buffer::hit; // hit is very likely
-    b->owner = this;
+	assert(nullptr != b->rdbuf);
+	b->cache_type = Buffer::hit; // hit is very likely
+	b->owner = this;
 	if (pg_offset + len <= PAGE_SIZE) {
 		uint64_t fi_offset_key = (fi << 32) | (offset >> PAGE_BITS);
 		size_t   hpos = MyHash(fi_offset_key) % m_bucket_size;
@@ -764,14 +764,14 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 				assert(p <= m_page_num);
 				if (fi_offset_key == nodes[p].fi_offset) {
 					m_histogram.ensure_get(conflict_len)++;
-                    if (nodes[p].ref_count++ == 0) {
-    					Node::lru_remove(nodes, p);
-                    }
+					if (nodes[p].ref_count++ == 0) {
+						Node::lru_remove(nodes, p);
+					}
 					if (terark_likely(nodes[p].is_loaded)) {
 						m_stat_cnt[Buffer::hit]++;
 						byte_t* bufptr = m_bufmem + PAGE_SIZE*(p-1) + pg_offset;
-                        b->index = p;
-                        assert(p > 0);
+						b->index = p;
+						assert(p > 0);
 						return bufptr;
 					} else { // very unlikely
 						goto OnHitOthersLoad; // go out of scope to unlock
@@ -784,11 +784,11 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 		if (0) {
 	OnHitOthersLoad:
 			while (!nodes[p].is_loaded) {
-                if (m_use_aio) {
-                    boost::this_fiber::yield();
-                    if (nodes[p].is_loaded)
-                        break;
-                }
+				if (m_use_aio) {
+					boost::this_fiber::yield();
+					if (nodes[p].is_loaded)
+						break;
+				}
 				// waiting for other threads to load the page
 				std::this_thread::yield();
 			}
@@ -796,10 +796,10 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 			ScopeLock lock(m_mutex);
 			assert(nodes[p].fi_offset == fi_offset_key);
 			m_stat_cnt[Buffer::hit_others_load]++;
-            b->cache_type = Buffer::hit_others_load;
-            b->index = p;
-            assert(p > 0);
-            return bufptr;
+			b->cache_type = Buffer::hit_others_load;
+			b->index = p;
+			assert(p > 0);
+			return bufptr;
 		}
 		byte_t* bufptr = m_bufmem + PAGE_SIZE*(p-1);
 		bool    isOK = false;
@@ -809,13 +809,13 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 				   , pg_offset + len, PAGE_SIZE, m_use_aio);
 		nodes[p].is_loaded = true;
 		isOK = true;
-        b->index = p;
-        assert(p > 0);
-        return bufptr + pg_offset;
+		b->index = p;
+		assert(p > 0);
+		return bufptr + pg_offset;
 	}
 	else {
-        assert(nullptr != b->rdbuf);
-        valvec<byte_t>* unibuf = b->rdbuf;
+		assert(nullptr != b->rdbuf);
+		valvec<byte_t>* unibuf = b->rdbuf;
 		unibuf->erase_all();
 		unibuf->ensure_capacity(len);
 		size_t first_page =  offset >> PAGE_BITS;
@@ -851,8 +851,8 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 					assert(p <= m_page_num);
 					if (fi_offset_key == nodes[p].fi_offset) {
 						if (nodes[p].ref_count++ == 0) {
-						    Node::lru_remove(nodes, p);
-                        }
+							Node::lru_remove(nodes, p);
+						}
 						m_stat_cnt[Buffer::hit]++;
 						pgvec[pg - first_page].alloc_by_me = false;
 						m_histogram.ensure_get(conflict_len)++;
@@ -879,11 +879,11 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 					nodes[p].is_loaded = true;
 				} else {
 					while (!nodes[p].is_loaded) {
-					    if (m_use_aio) {
-                            boost::this_fiber::yield();
-                            if (nodes[p].is_loaded)
-                                break;
-                        }
+						if (m_use_aio) {
+							boost::this_fiber::yield();
+							if (nodes[p].is_loaded)
+								break;
+						}
 						std::this_thread::yield();
 					}
 					ScopeLock lock(m_mutex);
@@ -895,30 +895,29 @@ SingleLruReadonlyCache::pread(intptr_t fi, size_t offset, size_t len, Buffer* b)
 			unibuf->append(bufptr + pg_offset, len0);
 		};
 		TERARK_SCOPE_EXIT(
+			ScopeLock lock(m_mutex);
 			auto pgvec_p = pgvec;
 			auto nodes_p = nodes;
 			size_t  last = plast_page;
-            m_mutex.lock();
 			for (size_t fpg = first_page; fpg < last; ++fpg) {
 				auto  p = pgvec_p[fpg - first_page].page_id;
 				if (0 == --nodes_p[p].ref_count)
-                    Node::lru_insert_after(nodes, 0, p);
+					Node::lru_insert_after(nodes, 0, p);
 			}
-            m_mutex.unlock();
 		);
 		if (missed_cnt > 0) {
-		    readpage(first_page, PAGE_SIZE, pg_offset);
-		    size_t pg = first_page + 1;
-		    for (; pg < plast_page - 1; ++pg) {
-			    readpage(pg, PAGE_SIZE, 0);
-		    }
-		    readpage(pg, (offset + len - 1) % PAGE_SIZE + 1, 0);
-		    assert(unibuf->size() == len);
-		    if (missed_cnt > 1) {
-			    b->cache_type = Buffer::mix;
-            }
+			readpage(first_page, PAGE_SIZE, pg_offset);
+			size_t pg = first_page + 1;
+			for (; pg < plast_page - 1; ++pg) {
+				readpage(pg, PAGE_SIZE, 0);
+			}
+			readpage(pg, (offset + len - 1) % PAGE_SIZE + 1, 0);
+			assert(unibuf->size() == len);
+			if (missed_cnt > 1) {
+				b->cache_type = Buffer::mix;
+			}
 		}
-        b->index = 0;
+		b->index = 0;
 		tss.put(std::move(pgvec_obj));
 		return unibuf->data();
 	}
@@ -943,7 +942,7 @@ void SingleLruReadonlyCache::remove_from_hash(size_t bucketIdx, size_t slot) {
 void SingleLruReadonlyCache::discard_impl(const Buffer& b) {
 	assert(0 != b.index);
 	size_t p = b.index;
-    Node* nodes = m_hash_nodes;
+	Node* nodes = m_hash_nodes;
 	ScopeLock lock(m_mutex);
 #if !defined(NDEBUG)
 	assert(m_hash_nodes[p].ref_count > 0);
@@ -956,15 +955,15 @@ void SingleLruReadonlyCache::discard_impl(const Buffer& b) {
 	assert(f.pgcnt > 0);
 #endif
 	if (0 == --nodes[p].ref_count) {
-        Node::lru_insert_after(nodes, 0, p);
-    }
+		Node::lru_insert_after(nodes, 0, p);
+	}
 }
 
 void LruReadonlyCache::Buffer::discard_impl() {
-    assert(0 != index);
-    assert(nullptr != owner);
-    owner->discard_impl(*this);
-    index = 0;
+	assert(0 != index);
+	assert(nullptr != owner);
+	owner->discard_impl(*this);
+	index = 0;
 }
 
 void SingleLruReadonlyCache::close(intptr_t fi) {
@@ -1077,51 +1076,51 @@ public:
 	~MultiLruReadonlyCache() {
 	}
 	static inline
-    size_t get_shard_id(uint64_t fi_page_id, uint32_t n_shards) {
+	size_t get_shard_id(uint64_t fi_page_id, uint32_t n_shards) {
 		uint64_t hash1 = (fi_page_id << 3) | (fi_page_id >> 61);
 		uint64_t hash2 = byte_swap(hash1);
 		return size_t(hash2 % n_shards);
 	}
 	const byte_t*
-    pread(intptr_t fi, size_t offset, size_t len, Buffer* b) override {
+	pread(intptr_t fi, size_t offset, size_t len, Buffer* b) override {
 		const uint64_t fi_at_hi32 = (uint64_t(fi) << 32);
-        const uint32_t n_shards = uint32_t(m_shards.size());
-    	size_t shard = get_shard_id(fi_at_hi32|(offset>>PAGE_BITS), n_shards);
-        if ((offset & (PAGE_SIZE - 1)) + len <= PAGE_SIZE) {
-    		return m_shards[shard]->pread(fi, offset, len, b);
-        }
-        valvec<byte_t>* unibuf = b->rdbuf;
-        unibuf->ensure_capacity(len);
-        unibuf->erase_all();
-        {
-            size_t len1 = PAGE_SIZE - (offset % PAGE_SIZE);
-            auto data = m_shards[shard]->pread(fi, offset, len1, b);
-            assert(0 != b->index);
-            unibuf->append(data, len1);
-            b->discard_impl();
-            len -= len1;
-            offset += len1;
-        }
-        while (len >= PAGE_SIZE) {
-    	    shard = get_shard_id(fi_at_hi32|(offset>>PAGE_BITS), n_shards);
-            auto data = m_shards[shard]->pread(fi, offset, PAGE_SIZE, b);
-            assert(0 != b->index);
-            unibuf->append(data, PAGE_SIZE);
-            b->discard_impl();
-            len -= PAGE_SIZE;
-            offset += PAGE_SIZE;
-        }
-        if (len) {
-    	    shard = get_shard_id(fi_at_hi32|(offset>>PAGE_BITS), n_shards);
-            auto data = m_shards[shard]->pread(fi, offset, len, b);
-            assert(0 != b->index);
-            unibuf->append(data, len);
-            b->discard_impl();
-        }
+		const uint32_t n_shards = uint32_t(m_shards.size());
+		size_t shard = get_shard_id(fi_at_hi32|(offset>>PAGE_BITS), n_shards);
+		if ((offset & (PAGE_SIZE - 1)) + len <= PAGE_SIZE) {
+			return m_shards[shard]->pread(fi, offset, len, b);
+		}
+		valvec<byte_t>* unibuf = b->rdbuf;
+		unibuf->ensure_capacity(len);
+		unibuf->erase_all();
+		{
+			size_t len1 = PAGE_SIZE - (offset % PAGE_SIZE);
+			auto data = m_shards[shard]->pread(fi, offset, len1, b);
+			assert(0 != b->index);
+			unibuf->append(data, len1);
+			b->discard_impl();
+			len -= len1;
+			offset += len1;
+		}
+		while (len >= PAGE_SIZE) {
+			shard = get_shard_id(fi_at_hi32|(offset>>PAGE_BITS), n_shards);
+			auto data = m_shards[shard]->pread(fi, offset, PAGE_SIZE, b);
+			assert(0 != b->index);
+			unibuf->append(data, PAGE_SIZE);
+			b->discard_impl();
+			len -= PAGE_SIZE;
+			offset += PAGE_SIZE;
+		}
+		if (len) {
+			shard = get_shard_id(fi_at_hi32|(offset>>PAGE_BITS), n_shards);
+			auto data = m_shards[shard]->pread(fi, offset, len, b);
+			assert(0 != b->index);
+			unibuf->append(data, len);
+			b->discard_impl();
+		}
 		return unibuf->data();
 	}
 	intptr_t open(intptr_t fd) override {
-	    MutexGuard lock(m_mutex);
+		MutexGuard lock(m_mutex);
 		intptr_t fi = m_shards[0]->open(fd);
 		for (size_t i = 1; i < m_shards.size(); ++i) {
 			intptr_t fii = m_shards[i]->open(fd);
@@ -1130,13 +1129,13 @@ public:
 		return fi;
 	}
 	void close(intptr_t fi) override {
-	    MutexGuard lock(m_mutex);
+		MutexGuard lock(m_mutex);
 		for (auto& p : m_shards) {
 			p->close(fi);
 		}
 	}
 	bool safe_close(intptr_t fi) override {
-	    MutexGuard lock(m_mutex);
+		MutexGuard lock(m_mutex);
 		bool bRet = false;
 		for (auto& p : m_shards) {
 			bRet = p->safe_close(fi);
@@ -1167,11 +1166,11 @@ public:
 
 LruReadonlyCache*
 LruReadonlyCache::create(size_t totalcapacityBytes, size_t shards, size_t maxFiles, bool aio) {
-    if (g_lruLogLevel >= 3) {
-        fprintf(stderr,
-          "INFO: LruReadonlyCache::create(cap=%zd, shards=%zd, files=%zd, aio=%d)\n",
-          totalcapacityBytes, shards, maxFiles, aio);
-    }
+	if (g_lruLogLevel >= 3) {
+		fprintf(stderr,
+			"INFO: LruReadonlyCache::create(cap=%zd, shards=%zd, files=%zd, aio=%d)\n",
+			totalcapacityBytes, shards, maxFiles, aio);
+	}
 	if (shards <= 1) {
 		return new SingleLruReadonlyCache(totalcapacityBytes, maxFiles, aio);
 	}
