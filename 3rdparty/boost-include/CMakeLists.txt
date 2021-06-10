@@ -20,7 +20,7 @@ else()
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR} --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-system
+        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR}/boost-system --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-system
         INSTALL_COMMAND ""
     )
     ADD_DEPENDENCIES(boost-system-build boost-project)
@@ -40,7 +40,7 @@ else()
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR} --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-fiber
+        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR}/boost-fiber --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-fiber
         INSTALL_COMMAND ""
     )
     ADD_DEPENDENCIES(boost-fiber-build boost-project)
@@ -76,7 +76,7 @@ else()
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR} --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-thread
+        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR}/boost-thread --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-thread
         INSTALL_COMMAND ""
     )
     ADD_DEPENDENCIES(boost-thread-build boost-project)
@@ -96,7 +96,7 @@ else()
         SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}
         CONFIGURE_COMMAND ""
         BUILD_IN_SOURCE 1
-        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR} --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-test
+        BUILD_COMMAND ./b2 --build-dir=${CMAKE_CURRENT_BINARY_DIR}/boost-test --stagedir=${CMAKE_CURRENT_BINARY_DIR} cxxflags=-fPIC -std=gnu++14 cflags=-fPIC threading=multi link=static variant=release visibility=global --with-test
         INSTALL_COMMAND ""
     )
     ADD_DEPENDENCIES(boost-test-build boost-project)
