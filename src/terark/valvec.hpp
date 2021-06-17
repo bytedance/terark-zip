@@ -42,7 +42,9 @@ extern "C" {
 #if defined(__GNUC__)
   #pragma GCC diagnostic push
   #pragma GCC diagnostic ignored "-Wpragmas"
-  #pragma GCC diagnostic ignored "-Wclass-memaccess"
+  #if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+    #pragma GCC diagnostic ignored "-Wclass-memaccess"
+  #endif
 #endif
 
 namespace terark {

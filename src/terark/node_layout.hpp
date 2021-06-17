@@ -42,9 +42,11 @@
 #endif
 
 #if defined(__GNUC__)
-  #pragma GCC diagnostic push
-  #pragma GCC diagnostic ignored "-Wpragmas"
-  #pragma GCC diagnostic ignored "-Wclass-memaccess"
+	#pragma GCC diagnostic push
+	#pragma GCC diagnostic ignored "-Wpragmas"
+	#if defined(__GNUC__) && __GNUC__ * 1000 + __GNUC_MINOR__ >= 8000
+		#pragma GCC diagnostic ignored "-Wclass-memaccess"
+	#endif
 #endif
 
 namespace terark {
@@ -508,7 +510,7 @@ void node_layout_copy_cons(
 } // namespace terark
 
 #if defined(__GNUC__)
-  #pragma GCC diagnostic pop
+	#pragma GCC diagnostic pop
 #endif
 
 #endif // __terark_node_layout_hpp__
