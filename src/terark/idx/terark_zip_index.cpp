@@ -2304,7 +2304,10 @@ struct IndexCBTPrefix : public VirtualPrefixBase {
     }
     bounds_.erase_all();
 
-    cbt_packed.load(mem);
+    if (!cbt_packed.load(mem)) {
+        return false;
+    }
+
     auto ctx = GetTlsTerarkContext();
     ContextBuffer suffix_key = ctx->alloc();
     for (size_t i = 0; i < cbt_packed.trie_nums(); ++i) {

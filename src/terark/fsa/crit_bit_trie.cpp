@@ -1,4 +1,5 @@
 #include "crit_bit_trie.hpp"
+#include "terark/stdtypes.hpp"
 
 #include <inttypes.h>
 
@@ -177,13 +178,19 @@ void CritBitTriePacked::save(
  *   4 ~ 11 base_bit_num extra_bit_num layer succient_mem_size base_mem_size
  *          bitmap_mem_size extra_mem_size hash_mem_size
  */
-void CritBitTriePacked::load(fstring mem) {
+bool CritBitTriePacked::load(fstring mem) {
   const int mem_index_begin = 4;
   const int num_each_group = 8;
   const IndexCBTPrefixHeader* header =
       reinterpret_cast<const IndexCBTPrefixHeader*>(mem.data());
-  header_vec.risk_set_data((byte_t*)mem.data() + sizeof(IndexCBTPrefixHeader),
-                           header->header_size);
+
+  byte_t *header_data = (byte_t *) mem.data() + sizeof(IndexCBTPrefixHeader);
+  if (mem.size() < sizeof(IndexCBTPrefixHeader) ||
+      mem.size() < header->header_size + sizeof(IndexCBTPrefixHeader) ||
+      header->header_crc16 != Crc16c_update(0, header_data, header->header_size)) {
+      return false;
+  }
+  header_vec.risk_set_data(header_data, header->header_size);
   num_words_ = header_vec.get(0);
   trie_nums_ = header_vec.get(1);
   entry_per_trie_ = header_vec.get(2);
@@ -229,6 +236,7 @@ void CritBitTriePacked::load(fstring mem) {
     }
     t.calculat_layer_pos();
   }
+  return true;
 }
 
 CritBitTrieBuilder::~CritBitTrieBuilder() {}

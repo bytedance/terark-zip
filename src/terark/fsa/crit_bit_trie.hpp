@@ -110,7 +110,7 @@ class CritBitTriePacked {
   std::vector<CritBitTrie> trie_list_;
 
   void save(std::function<void(const void*, size_t)> append) const;
-  void load(fstring mem);
+  bool load(fstring mem);
   void clear();
   void risk_release();
 
