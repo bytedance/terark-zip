@@ -65,7 +65,10 @@ FILE(GLOB ZBS_SRC src/terark/entropy/*.cpp
 FILE(GLOB IDX_SRC src/terark/idx/*.cpp)
 
 SET(ALL_SRC ${CORE_SRC} ${IDX_SRC} ${ZBS_SRC} ${FSA_SRC})
-FILE(GLOB_RECURSE ALL_SRC_TESTS src/*_test.cpp)
+# TODO fix other test code, now only check crit_bit_trie
+FILE(GLOB_RECURSE ALL_SRC_TESTS 
+  src/*_test.cpp
+  ${CMAKE_SOURCE_DIR}/tests/tries/test_crit_bit_trie.cpp)
 
 # Remove all test files
 LIST(REMOVE_ITEM ALL_SRC ${ALL_SRC_TESTS})
@@ -96,7 +99,7 @@ IF(WITH_TESTS)
     string(REPLACE ".cpp" "" test_name ${test_file})
     string(REGEX REPLACE "^((.+)/)+" "" test_name ${test_name})
     add_executable(${test_name} ${test_file})
-    target_link_libraries(${test_name} gtest)
+    target_link_libraries(${test_name} gtest terark-zip-${BUILD_SUFFIX})
   endforeach()
 ENDIF()
 
