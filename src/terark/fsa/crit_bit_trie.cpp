@@ -22,13 +22,8 @@ CritBitTriePackedBuilder::CritBitTriePackedBuilder(size_t numKeys,
       total_key_size_(sumKeyLen),
       hash_bit_num_(hash_bit_num),
       is_reverse_(isReverse) {
-  CritBitTrieBuilder init(isReverse, hash_bit_num);
-  builder_list_.resize(trie_nums_, init);
-  if (hash_bit_num_ != 0) {
-    for (auto& builder : builder_list_) {
-      builder.hash_vec_.resize_with_uintbits(0, hash_bit_num_);
-    }
-  }
+    CritBitTrieBuilder init(isReverse, hash_bit_num);
+    builder_list_.resize(trie_nums_, init);
 }
 
 void CritBitTriePackedBuilder::insert(fstring key, size_t pos) {
