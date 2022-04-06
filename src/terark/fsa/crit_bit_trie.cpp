@@ -608,18 +608,36 @@ size_t CritBitTrie::index(fstring key, Path* vec) const {
       vec->unchecked_push_back(e);
     }
     pos = id * 2 + is_right;
-    rank += encoded_trie_.rank0(pos) - layer_rank_[layer];
-    if (encoded_trie_.is0(pos)) {
-      id = encoded_trie_.rank1(pos);
+    // id = encoded_trie_.rank1(pos + 1);
+    // for the performance, we will fix the id later
+    id = encoded_trie_.rank1(pos);
+    // rank += encoded_trie_.rank0(pos) - layer_rank_[layer];
+    // ∵ encoded_trie_.rank0(pos) + encoded_trie_.rank1(pos) == pos
+    // ∴   encoded_trie_.rank0(pos) - layer_rank_[layer];
+    //   = (pos - encoded_trie_.rank1(pos)) - layer_rank_[layer];
+    //   = (pos - id) - layer_rank_[layer];
+    rank += (pos - id) - layer_rank_[layer];
+    if (encoded_trie_.is1(pos)) {
+      ++layer;
+      // ∵ encoded_trie_.is1(pos)
+      // ∴ encoded_trie_.rank1(pos) == encoded_trie_.rank1(pos + 1) - 1
+      // we need
+      //   id = encoded_trie_.rank1(pos + 1)
+      // so, we need incr the id by 1 here ...
+      ++id;
+    } else {
+      // ∵ encoded_trie_.is0(pos)
+      // ∴ encoded_trie_.rank1(pos) == encoded_trie_.rank1(pos + 1)
+      // we need
+      //   id = encoded_trie_.rank1(pos + 1)
+      // so, id is all right
       break;
     }
-    ++layer;
-    id = encoded_trie_.rank1(pos + 1);
   }
   while (id != layer_id_[layer++]) {
     pos = (id + 1) * 2;
     id = encoded_trie_.rank1(pos);
-    rank += encoded_trie_.rank0(pos) - layer_rank_[layer];
+    rank += (pos - id) - layer_rank_[layer];
   }
   return rank;
 }
@@ -742,30 +760,45 @@ size_t CritBitTrie::lower_bound(fstring key, fstring best_match_key,
     diff_base = diff_bit;
     if (diff_bit > common_bits) {
       while (true) {
+        // why calculate id & rank as this ? see CritBitTrie::index
         uint64_t pos = id * 2 + rank_inc;
-        id = encoded_trie_.rank1(pos + 1);
-        rank += encoded_trie_.rank0(pos) - layer_rank_[layer];
-        if (encoded_trie_.is0(pos)) {
+        id = encoded_trie_.rank1(pos);
+        rank += (pos - id) - layer_rank_[layer];
+        if (encoded_trie_.is1(pos)) {
+          ++layer;
+          ++id;
+        } else {
           break;
         }
-        ++layer;
       }
       break;
     } else {
       uint64_t pos = id * 2 + path[layer].is_right;
-      rank += encoded_trie_.rank0(pos) - layer_rank_[layer];
-      if (layer + 1 == path.size()) {
+      if (layer + 1 < path.size()) {
+        assert(encoded_trie_.is1(pos));
+        id = path[layer + 1].id;
+        assert(id == encoded_trie_.rank1(pos + 1));
+        // ∵ encoded_trie_.is1(pos)
+        // ∴ encoded_trie_.rank1(pos) == encoded_trie_.rank1(pos + 1) - 1
+        // ∴         (pos - id) - layer_rank_[layer] + 1
+        //         = (pos - encoded_trie_.rank1(pos + 1)) - layer_rank_[layer] + 1
+        //         = (pos - (encoded_trie_.rank1(pos) - 1)) - layer_rank_[layer] + 1
+        //         = (pos - encoded_trie_.rank1(pos)) - layer_rank_[layer]
+        //         = encoded_trie_.rank0(pos) - layer_rank_[layer]
+        rank += (pos - id) - layer_rank_[layer] + 1;
+        ++layer;
+      } else {
         assert(encoded_trie_.is0(pos));
         id = encoded_trie_.rank1(pos);
+        rank += (pos - id) - layer_rank_[layer];
         break;
       }
     }
-    id = path[++layer].id;
   }
   while (id != layer_id_[layer++]) {
     uint64_t pos = (id + 1) * 2;
     id = encoded_trie_.rank1(pos);
-    rank += encoded_trie_.rank0(pos) - layer_rank_[layer];
+    rank += (pos - id) - layer_rank_[layer];
   }
   return rank + rank_inc;
 }
